@@ -100,5 +100,19 @@ float LocalFft::PeakFrequencyHz(const std::vector<float>& mag, float freqResHz)
     size_t peakIdx = 1;
     for (size_t i = 2; i < mag.size(); ++i)
         if (mag[i] > mag[peakIdx]) peakIdx = i;
-    return freqResHz * static_cast<float>(peakIdx);
+
+    // Parabolic interpolation for sub-bin precision.
+    // If peak is not at edges, refine using neighbors.
+    float peakFrac = 0.0f;
+    if (peakIdx > 0 && peakIdx + 1 < mag.size()) {
+        float alpha = mag[peakIdx - 1];
+        float beta  = mag[peakIdx];
+        float gamma = mag[peakIdx + 1];
+        // Parabolic vertex offset: delta = (alpha - gamma) / (2*(alpha - 2*beta + gamma))
+        float denom = alpha - 2.0f * beta + gamma;
+        if (fabsf(denom) > 1e-9f)
+            peakFrac = 0.5f * (alpha - gamma) / denom;
+    }
+
+    return freqResHz * (static_cast<float>(peakIdx) + peakFrac);
 }

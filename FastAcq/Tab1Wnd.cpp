@@ -158,11 +158,15 @@ void Tab1Wnd::ShowFrame(const ChirpFrame& f, bool rawMode,
         float freqRes = 0.0f;
         {
             auto mag = LocalFft::Compute(f.raw.data(), half, sampleRateHz, cfg, freqRes);
-            m_up.SetFrequency(LocalFft::PeakFrequencyHz(mag, freqRes));
+            float freqUp = LocalFft::PeakFrequencyHz(mag, freqRes);
+            m_up.SetFrequency(freqUp);
+            TRACE(_T("UP freq: %.1f Hz (res=%.1f Hz/bin, bins=%zu)\n"), freqUp, freqRes, mag.size());
         }
         {
             auto mag = LocalFft::Compute(f.raw.data() + half, n - half, sampleRateHz, cfg, freqRes);
-            m_dn.SetFrequency(LocalFft::PeakFrequencyHz(mag, freqRes));
+            float freqDn = LocalFft::PeakFrequencyHz(mag, freqRes);
+            m_dn.SetFrequency(freqDn);
+            TRACE(_T("DN freq: %.1f Hz (res=%.1f Hz/bin)\n"), freqDn, freqRes);
         }
     }
 }

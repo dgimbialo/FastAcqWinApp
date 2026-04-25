@@ -86,7 +86,7 @@ private:
     // PC-side acquisition mode
     bool        m_rawMode{true};
     FftSettings m_fftSettings;
-    uint32_t    m_sampleRateHz{60000000};  // 60 MS/s from firmware
+    uint32_t    m_sampleRateHz{60058600};  // Calibrated via 3.000 MHz reference
 };
 
 CFrameWnd* CreateMainFrame();

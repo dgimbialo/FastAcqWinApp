@@ -11,7 +11,7 @@
 enum class FftWindow { Rectangular = 0, Hann, Hamming, Blackman };
 
 struct FftSettings {
-    int       size{4096};           // FFT size (must be power of 2)
+    int       size{16384};          // FFT size (must be power of 2); higher = better freq resolution
     FftWindow window{FftWindow::Hann};
     bool      logScale{false};      // display log magnitude
 };
