@@ -1,0 +1,13 @@
+#include "resource.h"
+#include <winres.h>
+
+#ifdef APSTUDIO_INVOKED
+#error this file is not editable by Microsoft Visual C++
+#endif
+
+LANGUAGE LANG_NEUTRAL, SUBLANG_DEFAULT
+
+STRINGTABLE
+BEGIN
+    IDR_MAINFRAME "FastAcq"
+END
