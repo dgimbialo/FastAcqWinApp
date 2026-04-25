@@ -21,7 +21,6 @@ public:
     uint8_t  GetDataMask() const;
     uint16_t GetIntervalMs() const;
     bool     IsPcRawMode() const;     // true = PC processes RAW data locally
-    FftSettings GetFftSettings() const;
 
 protected:
     afx_msg int  OnCreate(LPCREATESTRUCT lpcs);
@@ -40,7 +39,6 @@ protected:
     afx_msg void OnTrigger();
     afx_msg void OnGetStatus();
     afx_msg void OnPcModeChanged();
-    afx_msg void OnApplyFft();
     DECLARE_MESSAGE_MAP()
 
 private:
@@ -68,16 +66,10 @@ private:
     CButton   m_btnApplyInterval;
     CButton   m_btnTrigger;
     CButton   m_btnGetStatus;
-    // Row 3: PC-side mode + FFT settings.
+    // Row 3: PC-side mode.
     CStatic   m_lblPcMode;
     CButton   m_rdoPcRaw;
     CButton   m_rdoPcFft;
-    CStatic   m_lblFftSize;
-    CComboBox m_cmbFftSize;
-    CStatic   m_lblFftWin;
-    CComboBox m_cmbFftWin;
-    CButton   m_chkFftLog;
-    CButton   m_btnApplyFft;
     CFont     m_font;
     bool      m_connected{false};
 };

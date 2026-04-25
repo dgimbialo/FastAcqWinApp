@@ -37,3 +37,6 @@ constexpr UINT WM_APP_ACQ_MODE          = WM_APP + 31;
 
 // FFT settings changed (from FftSettingsPanel). lParam = new FftSettings* (receiver deletes).
 constexpr UINT WM_APP_FFT_SETTINGS      = WM_APP + 32;
+
+// Dots display mode (from CommandPanel). wParam = 0 lines / 1 dots.
+constexpr UINT WM_APP_DOTS_MODE         = WM_APP + 33;

@@ -16,6 +16,7 @@ public:
     void ShowFrame(const ChirpFrame& f, bool rawMode,
                    const FftSettings& cfg, uint32_t sampleRateHz);
     void SetAcqMode(bool rawMode);
+    void SetDotsMode(bool dots);
 
 protected:
     afx_msg int  OnCreate(LPCREATESTRUCT);
@@ -26,16 +27,21 @@ protected:
     afx_msg void OnLButtonUp(UINT, CPoint);
     afx_msg void OnMouseMove(UINT, CPoint);
     afx_msg BOOL OnSetCursor(CWnd*, UINT, UINT);
+    afx_msg void OnDotsChanged();
     DECLARE_MESSAGE_MAP()
 
 private:
     void ApplySplit(int cy);
     bool HitSplitter(CPoint pt) const;
 
-    static constexpr int kSplitH = 6;
+    static constexpr int kSplitH   = 6;
+    static constexpr int kFooterH = 28;
 
     WaveformView m_up;
     WaveformView m_dn;
+
+    CButton m_chkDots;
+    CFont   m_footerFont;
 
     float m_splitRatio{0.5f};
     bool  m_dragging{false};
@@ -55,12 +61,22 @@ public:
 protected:
     afx_msg int  OnCreate(LPCREATESTRUCT);
     afx_msg void OnSize(UINT, int, int);
+    afx_msg void OnApplyFft();
     DECLARE_MESSAGE_MAP()
 
 private:
+    static constexpr int kFooterH = 28;
+
     WaterfallView m_waterfall;
     SpectrumView  m_specUp;
     SpectrumView  m_specDn;
+
+    CStatic   m_lblFftSize;
+    CComboBox m_cmbFftSize;
+    CStatic   m_lblFftWin;
+    CComboBox m_cmbFftWin;
+    CButton   m_btnApplyFft;
+    CFont     m_footerFont;
 
     bool        m_rawMode{true};
     FftSettings m_fftCfg;

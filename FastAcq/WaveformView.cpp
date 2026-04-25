@@ -500,8 +500,16 @@ void WaveformView::Render(CDC& dc, const CRect& full)
         }
     }
 
-    if (pts.size() >= 2)
-        dc.Polyline(pts.data(), static_cast<int>(pts.size()));
+    if (m_dotsMode) {
+        // Dots mode: draw each sample as a small filled circle (2x2 pixels).
+        for (const auto& pt : pts) {
+            dc.FillSolidRect(pt.x - 1, pt.y - 1, 2, 2, RGB(120, 220, 120));
+        }
+    } else {
+        // Line mode: connect samples with polyline.
+        if (pts.size() >= 2)
+            dc.Polyline(pts.data(), static_cast<int>(pts.size()));
+    }
 
     dc.SelectObject(pOp);
 }

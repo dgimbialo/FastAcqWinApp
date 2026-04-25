@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "Tab1Wnd.h"
+#include "AppMessages.h"
 
 // ----- Tab1 -----
 BEGIN_MESSAGE_MAP(Tab1Wnd, CWnd)
@@ -11,6 +12,7 @@ BEGIN_MESSAGE_MAP(Tab1Wnd, CWnd)
     ON_WM_LBUTTONUP()
     ON_WM_MOUSEMOVE()
     ON_WM_SETCURSOR()
+    ON_BN_CLICKED(2010, &Tab1Wnd::OnDotsChanged)
 END_MESSAGE_MAP()
 
 BOOL Tab1Wnd::CreateTab(CWnd* parent, UINT id)
@@ -28,6 +30,14 @@ int Tab1Wnd::OnCreate(LPCREATESTRUCT lpcs)
     m_dn.CreateView(this, 2002);
     m_up.SetTitle(_T("UP ramp"));
     m_dn.SetTitle(_T("DOWN ramp"));
+
+    m_footerFont.CreateFont(-11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                            CLEARTYPE_QUALITY, VARIABLE_PITCH | FF_SWISS, _T("Segoe UI"));
+
+    m_chkDots.Create(_T("Dots"), WS_CHILD|WS_VISIBLE|BS_AUTOCHECKBOX,
+                     CRect(0,0,60,20), this, 2010);
+    m_chkDots.SetFont(&m_footerFont);
     return 0;
 }
 
@@ -40,20 +50,25 @@ void Tab1Wnd::OnSize(UINT t, int cx, int cy)
 
 void Tab1Wnd::ApplySplit(int cy)
 {
-    if (cy <= kSplitH) return;
+    if (cy <= kSplitH + kFooterH) return;
     CRect rc; GetClientRect(&rc);
     int cx = rc.Width();
 
-    int upH = static_cast<int>((cy - kSplitH) * m_splitRatio);
-    if (upH < 20)          upH = 20;
-    if (upH > cy - kSplitH - 20) upH = cy - kSplitH - 20;
+    int availH = cy - kSplitH - kFooterH;
+    int upH = static_cast<int>(availH * m_splitRatio);
+    if (upH < 20) upH = 20;
+    if (upH > availH - 20) upH = availH - 20;
 
     int splitterY = upH;
     int dnY       = splitterY + kSplitH;
-    int dnH       = cy - dnY;
+    int dnH       = availH - upH;
 
-    if (m_up.GetSafeHwnd()) m_up.MoveWindow(0, 0,   cx, upH);
+    if (m_up.GetSafeHwnd()) m_up.MoveWindow(0, 0, cx, upH);
     if (m_dn.GetSafeHwnd()) m_dn.MoveWindow(0, dnY, cx, dnH);
+
+    // Footer at bottom
+    if (m_chkDots.GetSafeHwnd())
+        m_chkDots.MoveWindow(10, cy - kFooterH + 4, 60, 20);
 
     // Repaint splitter bar area.
     CRect splitterRc(0, splitterY, cx, splitterY + kSplitH);
@@ -138,6 +153,20 @@ void Tab1Wnd::SetAcqMode(bool rawMode)
     Invalidate(FALSE);
 }
 
+void Tab1Wnd::SetDotsMode(bool dots)
+{
+    m_up.SetDotsMode(dots);
+    m_dn.SetDotsMode(dots);
+    if (m_chkDots.GetSafeHwnd())
+        m_chkDots.SetCheck(dots ? BST_CHECKED : BST_UNCHECKED);
+}
+
+void Tab1Wnd::OnDotsChanged()
+{
+    bool dots = (m_chkDots.GetCheck() == BST_CHECKED);
+    SetDotsMode(dots);
+}
+
 void Tab1Wnd::ShowFrame(const ChirpFrame& f, bool rawMode,
                         const FftSettings& cfg, uint32_t sampleRateHz)
 {
@@ -175,6 +204,7 @@ void Tab1Wnd::ShowFrame(const ChirpFrame& f, bool rawMode,
 BEGIN_MESSAGE_MAP(Tab2Wnd, CWnd)
     ON_WM_CREATE()
     ON_WM_SIZE()
+    ON_BN_CLICKED(2020, &Tab2Wnd::OnApplyFft)
 END_MESSAGE_MAP()
 
 BOOL Tab2Wnd::CreateTab(CWnd* parent, UINT id)
@@ -193,19 +223,67 @@ int Tab2Wnd::OnCreate(LPCREATESTRUCT lpcs)
     m_specDn.CreateView(this, 2103);
     m_specUp.SetTitle(_T("Spectrum UP"));
     m_specDn.SetTitle(_T("Spectrum DOWN"));
+
+    m_footerFont.CreateFont(-11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                            CLEARTYPE_QUALITY, VARIABLE_PITCH | FF_SWISS, _T("Segoe UI"));
+
+    m_lblFftSize.Create(_T("FFT:"), WS_CHILD|WS_VISIBLE, CRect(0,0,30,20), this);
+    m_cmbFftSize.Create(WS_CHILD|WS_VISIBLE|CBS_DROPDOWNLIST, CRect(0,0,80,200), this, 2021);
+    m_lblFftWin.Create(_T("Win:"), WS_CHILD|WS_VISIBLE, CRect(0,0,30,20), this);
+    m_cmbFftWin.Create(WS_CHILD|WS_VISIBLE|CBS_DROPDOWNLIST, CRect(0,0,100,200), this, 2022);
+    m_btnApplyFft.Create(_T("Apply FFT"), WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON, CRect(0,0,80,20), this, 2020);
+
+    m_lblFftSize.SetFont(&m_footerFont);
+    m_cmbFftSize.SetFont(&m_footerFont);
+    m_lblFftWin.SetFont(&m_footerFont);
+    m_cmbFftWin.SetFont(&m_footerFont);
+    m_btnApplyFft.SetFont(&m_footerFont);
+
+    m_cmbFftSize.AddString(_T("512"));
+    m_cmbFftSize.AddString(_T("1024"));
+    m_cmbFftSize.AddString(_T("2048"));
+    m_cmbFftSize.AddString(_T("4096"));
+    m_cmbFftSize.AddString(_T("8192"));
+    m_cmbFftSize.AddString(_T("16384"));
+    m_cmbFftSize.AddString(_T("32768"));
+    m_cmbFftSize.SetCurSel(5);
+
+    m_cmbFftWin.AddString(_T("Rectangular"));
+    m_cmbFftWin.AddString(_T("Hann"));
+    m_cmbFftWin.AddString(_T("Hamming"));
+    m_cmbFftWin.AddString(_T("Blackman"));
+    m_cmbFftWin.SetCurSel(1);
+
     return 0;
 }
 
 void Tab2Wnd::OnSize(UINT t, int cx, int cy)
 {
     CWnd::OnSize(t, cx, cy);
-    // Top: waterfall (60%). Bottom: two spectra side-by-side (40%).
-    int waterH = cy * 6 / 10;
-    int specH  = cy - waterH;
+    if (cy < kFooterH) return;
+
+    int availH = cy - kFooterH;
+    int waterH = availH * 6 / 10;
+    int specH  = availH - waterH;
+
     if (m_waterfall.GetSafeHwnd()) m_waterfall.MoveWindow(0, 0, cx, waterH);
     int halfW = cx / 2;
-    if (m_specUp.GetSafeHwnd()) m_specUp.MoveWindow(0,     waterH, halfW,        specH);
-    if (m_specDn.GetSafeHwnd()) m_specDn.MoveWindow(halfW, waterH, cx - halfW,   specH);
+    if (m_specUp.GetSafeHwnd()) m_specUp.MoveWindow(0,     waterH, halfW,      specH);
+    if (m_specDn.GetSafeHwnd()) m_specDn.MoveWindow(halfW, waterH, cx - halfW, specH);
+
+    // Footer at bottom
+    int x = 10;
+    int footerY = cy - kFooterH + 4;
+    if (m_lblFftSize.GetSafeHwnd()) m_lblFftSize.MoveWindow(x, footerY, 30, 20);
+    x += 34;
+    if (m_cmbFftSize.GetSafeHwnd()) m_cmbFftSize.MoveWindow(x, footerY, 80, 200);
+    x += 84;
+    if (m_lblFftWin.GetSafeHwnd()) m_lblFftWin.MoveWindow(x, footerY, 30, 20);
+    x += 34;
+    if (m_cmbFftWin.GetSafeHwnd()) m_cmbFftWin.MoveWindow(x, footerY, 100, 200);
+    x += 104;
+    if (m_btnApplyFft.GetSafeHwnd()) m_btnApplyFft.MoveWindow(x, footerY, 80, 20);
 }
 
 void Tab2Wnd::SetAcqMode(bool rawMode)
@@ -242,4 +320,25 @@ void Tab2Wnd::ShowFrame(const ChirpFrame& f, bool rawMode,
 void Tab2Wnd::ClearHistory()
 {
     m_waterfall.Clear();
+}
+
+void Tab2Wnd::OnApplyFft()
+{
+    int sizeIdx = m_cmbFftSize.GetCurSel();
+    int winIdx  = m_cmbFftWin.GetCurSel();
+
+    if (sizeIdx < 0) sizeIdx = 5;
+    if (winIdx < 0)  winIdx = 1;
+
+    const int sizes[] = { 512, 1024, 2048, 4096, 8192, 16384, 32768 };
+    m_fftCfg.size = (sizeIdx < 7) ? sizes[sizeIdx] : 16384;
+    m_fftCfg.window = static_cast<FftWindow>(winIdx);
+
+    // Notify parent MainFrame
+    CWnd* parent = GetParent();
+    if (parent && parent->GetParent()) {
+        FftSettings* p = new FftSettings(m_fftCfg);
+        if (!parent->GetParent()->PostMessage(WM_APP_FFT_SETTINGS, 0, reinterpret_cast<LPARAM>(p)))
+            delete p;
+    }
 }

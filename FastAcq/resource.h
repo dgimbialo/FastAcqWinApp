@@ -1,4 +1,5 @@
 #pragma once
+#pragma once
 
 #define IDR_MAINFRAME        128
 
@@ -31,17 +32,7 @@
 #define IDC_CMB_FFT_WIN      1024
 #define IDC_CHK_FFT_LOG      1025
 #define IDC_BTN_APPLY_FFT    1026
-
-// --- New FMCW/capture controls ---
-#define IDC_CMB_MODE         1020   // Idle / Continuous / Single
-#define IDC_BTN_APPLY_MODE   1021
-#define IDC_CHK_RAW          1022
-#define IDC_CHK_FFT          1023
-#define IDC_BTN_APPLY_DATA   1024
-#define IDC_EDT_INTERVAL     1025
-#define IDC_BTN_APPLY_INT    1026
-#define IDC_BTN_TRIGGER      1027
-#define IDC_BTN_GET_STATUS   1028
+#define IDC_CHK_DOTS         1027
 
 // MainFrame child IDs
 #define IDC_CHIRP_LIST       1100

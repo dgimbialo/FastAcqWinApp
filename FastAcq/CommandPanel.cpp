@@ -21,7 +21,6 @@ BEGIN_MESSAGE_MAP(CommandPanel, CWnd)
     ON_BN_CLICKED(IDC_BTN_GET_STATUS,  &CommandPanel::OnGetStatus)
     ON_BN_CLICKED(IDC_RDO_PC_RAW,      &CommandPanel::OnPcModeChanged)
     ON_BN_CLICKED(IDC_RDO_PC_FFT,      &CommandPanel::OnPcModeChanged)
-    ON_BN_CLICKED(IDC_BTN_APPLY_FFT,   &CommandPanel::OnApplyFft)
 END_MESSAGE_MAP()
 
 BOOL CommandPanel::CreatePanel(CWnd* parent, UINT id)
@@ -84,30 +83,11 @@ int CommandPanel::OnCreate(LPCREATESTRUCT lpcs)
     m_btnTrigger.Create(_T("Trigger"), bs, rc, this, IDC_BTN_TRIGGER);
     m_btnGetStatus.Create(_T("Status"), bs, rc, this, IDC_BTN_GET_STATUS);
 
-    // Row 3: PC-side processing mode + FFT settings.
+    // Row 3: PC-side processing mode.
     m_lblPcMode.Create(_T("PC Mode:"), ss, rc, this);
     m_rdoPcRaw.Create(_T("RAW (local FFT)"),  WS_CHILD|WS_VISIBLE|BS_AUTORADIOBUTTON|WS_GROUP, rc, this, IDC_RDO_PC_RAW);
     m_rdoPcFft.Create(_T("FFT (from MCU)"),   WS_CHILD|WS_VISIBLE|BS_AUTORADIOBUTTON,           rc, this, IDC_RDO_PC_FFT);
     m_rdoPcRaw.SetCheck(BST_CHECKED);
-
-    m_lblFftSize.Create(_T("FFT:"), ss, rc, this);
-    m_cmbFftSize.Create(WS_CHILD|WS_VISIBLE|CBS_DROPDOWNLIST|WS_VSCROLL, rc, this, IDC_CMB_FFT_SIZE);
-    m_cmbFftSize.AddString(_T("512"));
-    m_cmbFftSize.AddString(_T("1024"));
-    m_cmbFftSize.AddString(_T("2048"));
-    m_cmbFftSize.AddString(_T("4096"));
-    m_cmbFftSize.SetCurSel(3);   // default 4096
-
-    m_lblFftWin.Create(_T("Win:"), ss, rc, this);
-    m_cmbFftWin.Create(WS_CHILD|WS_VISIBLE|CBS_DROPDOWNLIST|WS_VSCROLL, rc, this, IDC_CMB_FFT_WIN);
-    m_cmbFftWin.AddString(_T("Rectangular"));
-    m_cmbFftWin.AddString(_T("Hann"));
-    m_cmbFftWin.AddString(_T("Hamming"));
-    m_cmbFftWin.AddString(_T("Blackman"));
-    m_cmbFftWin.SetCurSel(1);   // default Hann
-
-    m_chkFftLog.Create(_T("Log"), WS_CHILD|WS_VISIBLE|BS_AUTOCHECKBOX, rc, this, IDC_CHK_FFT_LOG);
-    m_btnApplyFft.Create(_T("Apply FFT"), bs, rc, this, IDC_BTN_APPLY_FFT);
 
     // Defaults.
     m_edtFreq.SetWindowText(_T("500"));
@@ -120,9 +100,7 @@ int CommandPanel::OnCreate(LPCREATESTRUCT lpcs)
                      &m_chkRaw, &m_chkFft, &m_btnApplyData,
                      &m_lblInterval, &m_edtInterval, &m_btnApplyInterval,
                      &m_btnTrigger, &m_btnGetStatus,
-                     &m_lblPcMode, &m_rdoPcRaw, &m_rdoPcFft,
-                     &m_lblFftSize, &m_cmbFftSize, &m_lblFftWin, &m_cmbFftWin,
-                     &m_chkFftLog, &m_btnApplyFft };
+                     &m_lblPcMode, &m_rdoPcRaw, &m_rdoPcFft };
     for (auto* c : kids) c->SetFont(&m_font);
 
     // Hide MCU controls in row 1 (not needed now).
@@ -185,22 +163,11 @@ void CommandPanel::Relayout()
     // m_edtSamples, m_btnSetSamples, m_btnPing
     // (already SW_HIDE from OnCreate)
 
-    // ?? Row 2: PC mode radios + FFT settings ????????????????????????????????
+    // Row 2: PC mode radios only
     y = pad + h + pad; x = pad;
     placeLabel(m_lblPcMode,  58);
     place(m_rdoPcRaw,       130, h);
     place(m_rdoPcFft,       120, h);
-    x += 8;
-    placeLabel(m_lblFftSize,  30);
-    place(m_cmbFftSize,       72, 200);
-    x += 4;
-    placeLabel(m_lblFftWin,   32);
-    place(m_cmbFftWin,       116, 200);
-    x += 4;
-    place(m_chkFftLog,        46, h);
-    place(m_btnApplyFft,      82, h);
-
-    // Row 2 (MCU mode/interval/trigger) – all hidden, no layout needed.
 }
 
 void CommandPanel::SetConnected(bool c)
@@ -226,45 +193,12 @@ bool CommandPanel::IsPcRawMode() const
     return m_rdoPcRaw.GetCheck() == BST_CHECKED;
 }
 
-FftSettings CommandPanel::GetFftSettings() const
-{
-    FftSettings cfg;
-    if (!m_cmbFftSize.GetSafeHwnd()) return cfg;
-
-    static const int kSizes[] = { 512, 1024, 2048, 4096 };
-    int sel = m_cmbFftSize.GetCurSel();
-    if (sel >= 0 && sel < 4) cfg.size = kSizes[sel];
-
-    sel = m_cmbFftWin.GetCurSel();
-    if (sel >= 0 && sel <= 3)
-        cfg.window = static_cast<FftWindow>(sel);
-
-    cfg.logScale = (m_chkFftLog.GetCheck() == BST_CHECKED);
-    return cfg;
-}
-
 void CommandPanel::OnPcModeChanged()
 {
     bool rawMode = IsPcRawMode();
-    // Enable/disable FFT settings controls (and their labels) based on mode.
-    m_lblFftSize.EnableWindow(rawMode);
-    m_cmbFftSize.EnableWindow(rawMode);
-    m_lblFftWin .EnableWindow(rawMode);
-    m_cmbFftWin .EnableWindow(rawMode);
-    m_chkFftLog .EnableWindow(rawMode);
-    m_btnApplyFft.EnableWindow(rawMode);
-    // Notify parent (skip if no parent yet during OnCreate initialisation).
     CWnd* pParent = GetParent();
     if (pParent && ::IsWindow(pParent->GetSafeHwnd()))
         pParent->PostMessage(WM_APP_ACQ_MODE, rawMode ? 0 : 1, 0);
-}
-
-void CommandPanel::OnApplyFft()
-{
-    FftSettings* p = new FftSettings(GetFftSettings());
-    CWnd* pParent = GetParent();
-    if (pParent) { if (!pParent->PostMessage(WM_APP_FFT_SETTINGS, 0, reinterpret_cast<LPARAM>(p))) delete p; }
-    else delete p;
 }
 
 void CommandPanel::PopulateComPorts(const std::vector<CString>& ports)

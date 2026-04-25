@@ -30,6 +30,8 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
     ON_MESSAGE(WM_APP_CMD_SET_INTERVAL,  &CMainFrame::OnCmdSetInterval)
     ON_MESSAGE(WM_APP_CMD_TRIGGER,       &CMainFrame::OnCmdTrigger)
     ON_MESSAGE(WM_APP_CMD_GET_STATUS,    &CMainFrame::OnCmdGetStatus)
+    ON_MESSAGE(WM_APP_ACQ_MODE,          &CMainFrame::OnAcqMode)
+    ON_MESSAGE(WM_APP_FFT_SETTINGS,      &CMainFrame::OnFftSettings)
 END_MESSAGE_MAP()
 
 CMainFrame::CMainFrame() = default;
@@ -344,6 +346,7 @@ LRESULT CMainFrame::OnFftSettings(WPARAM, LPARAM lp)
 {
     FftSettings* p = reinterpret_cast<FftSettings*>(lp);
     if (p) { m_fftSettings = *p; delete p; }
+    m_tab2.SetFftSettings(m_fftSettings);
     return 0;
 }
 
