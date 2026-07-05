@@ -8,7 +8,8 @@ END_MESSAGE_MAP()
 
 void ChirpListCtrl::InitColumns()
 {
-    SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+    // Native list-view look: system colors, standard header.
+    SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
     InsertColumn(0, _T("ID"),       LVCFMT_RIGHT, 70);
     InsertColumn(1, _T("t, ms"),    LVCFMT_RIGHT, 80);
     InsertColumn(2, _T("Peak Hz"),  LVCFMT_RIGHT, 90);
@@ -17,13 +18,15 @@ void ChirpListCtrl::InitColumns()
 void ChirpListCtrl::AddChirp(size_t logicalIndex, uint32_t frameId,
                              uint32_t tsMs, float peakHz)
 {
-    CString s;
-    s.Format(_T("#%u"), frameId);
-    int row = InsertItem(static_cast<int>(logicalIndex), s);
-    if (row < 0) return;
+    CString id, ts, pk;
+    id.Format(_T("%u"), frameId);
+    ts.Format(_T("%u"), tsMs);
+    pk.Format(_T("%.0f"), peakHz);
+
+    int row = InsertItem(GetItemCount(), id);
+    SetItemText(row, 1, ts);
+    SetItemText(row, 2, pk);
     SetItemData(row, static_cast<DWORD_PTR>(logicalIndex));
-    s.Format(_T("%u"), tsMs);           SetItemText(row, 1, s);
-    s.Format(_T("%.0f"), peakHz);       SetItemText(row, 2, s);
     EnsureVisible(row, FALSE);
 }
 
@@ -34,17 +37,11 @@ void ChirpListCtrl::ClearAll()
 
 void ChirpListCtrl::OnItemChanged(NMHDR* pNMHDR, LRESULT* pResult)
 {
-    auto* pn = reinterpret_cast<NMLISTVIEW*>(pNMHDR);
-    *pResult = 0;
-    if ((pn->uChanged & LVIF_STATE) &&
-        (pn->uNewState & LVIS_SELECTED) &&
-        !(pn->uOldState & LVIS_SELECTED))
-    {
-        size_t idx = static_cast<size_t>(GetItemData(pn->iItem));
-        CWnd* parent = GetParent();
-        if (parent && ::IsWindow(parent->GetSafeHwnd())) {
-            parent->PostMessage(WM_APP_FRAME_SELECTED,
-                                static_cast<WPARAM>(idx), 0);
-        }
+    auto* nm = reinterpret_cast<NMLISTVIEW*>(pNMHDR);
+    if ((nm->uNewState & LVIS_SELECTED) && !(nm->uOldState & LVIS_SELECTED)) {
+        size_t idx = static_cast<size_t>(GetItemData(nm->iItem));
+        if (CWnd* p = GetParent())
+            p->PostMessage(WM_APP_FRAME_SELECTED, static_cast<WPARAM>(idx), 0);
     }
+    *pResult = 0;
 }

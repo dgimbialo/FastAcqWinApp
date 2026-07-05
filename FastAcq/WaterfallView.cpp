@@ -124,20 +124,37 @@ void WaterfallView::OnPaint()
 {
     CPaintDC dc(this);
     CRect rc; GetClientRect(&rc);
-    dc.FillSolidRect(rc, RGB(0, 0, 0));
-    if (!m_hDib || m_dibWidth <= 0) return;
+    if (rc.Width() <= 0 || rc.Height() <= 0) return;
 
-    BITMAPINFO bi{};
-    bi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
-    bi.bmiHeader.biWidth       = m_dibWidth;
-    bi.bmiHeader.biHeight      = -m_dibHeight;
-    bi.bmiHeader.biPlanes      = 1;
-    bi.bmiHeader.biBitCount    = 32;
-    bi.bmiHeader.biCompression = BI_RGB;
+    // Double-buffer: compose into an off-screen DC, then blit once. Painting the
+    // black fill and the stretched DIB straight to the window DC (as before) let
+    // the screen briefly show the black clear between the two GDI calls, which is
+    // exactly the flicker the user reported. A single BitBlt removes it.
+    CDC mem;
+    mem.CreateCompatibleDC(&dc);
+    CBitmap bmp;
+    bmp.CreateCompatibleBitmap(&dc, rc.Width(), rc.Height());
+    CBitmap* pOldBmp = mem.SelectObject(&bmp);
 
-    ::SetStretchBltMode(dc.GetSafeHdc(), HALFTONE);
-    ::StretchDIBits(dc.GetSafeHdc(),
-                    rc.left, rc.top, rc.Width(), rc.Height(),
-                    0, 0, m_dibWidth, m_dibHeight,
-                    m_pPixels, &bi, DIB_RGB_COLORS, SRCCOPY);
+    mem.FillSolidRect(rc, RGB(0, 0, 0));
+
+    if (m_hDib && m_dibWidth > 0) {
+        BITMAPINFO bi{};
+        bi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
+        bi.bmiHeader.biWidth       = m_dibWidth;
+        bi.bmiHeader.biHeight      = -m_dibHeight;
+        bi.bmiHeader.biPlanes      = 1;
+        bi.bmiHeader.biBitCount    = 32;
+        bi.bmiHeader.biCompression = BI_RGB;
+
+        ::SetStretchBltMode(mem.GetSafeHdc(), HALFTONE);
+        ::SetBrushOrgEx(mem.GetSafeHdc(), 0, 0, nullptr);
+        ::StretchDIBits(mem.GetSafeHdc(),
+                        rc.left, rc.top, rc.Width(), rc.Height(),
+                        0, 0, m_dibWidth, m_dibHeight,
+                        m_pPixels, &bi, DIB_RGB_COLORS, SRCCOPY);
+    }
+
+    dc.BitBlt(0, 0, rc.Width(), rc.Height(), &mem, 0, 0, SRCCOPY);
+    mem.SelectObject(pOldBmp);
 }

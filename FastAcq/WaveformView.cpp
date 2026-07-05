@@ -331,11 +331,11 @@ void WaveformView::DrawYAxis(CDC& dc, const CRect& plotRc, float vTop, float vBo
 {
     // Y-axis strip is plotRc.left - kAxisW .. plotRc.left
     CRect axRc(plotRc.left - kAxisW, plotRc.top, plotRc.left, plotRc.bottom);
-    dc.FillSolidRect(axRc, RGB(20, 20, 28));
+    dc.FillSolidRect(axRc, ::GetSysColor(COLOR_WINDOW));
 
     CFont* pOldFont = dc.SelectObject(&m_axisFont);
     dc.SetBkMode(TRANSPARENT);
-    dc.SetTextColor(RGB(160, 200, 160));
+    dc.SetTextColor(RGB(80,80,80));
 
     const int divisions = 10;
     const float vStep   = (vTop - vBot) / divisions;   // V per division
@@ -345,7 +345,7 @@ void WaveformView::DrawYAxis(CDC& dc, const CRect& plotRc, float vTop, float vBo
         int y   = plotRc.top + (plotRc.Height() * i / divisions);
 
         // Tick mark.
-        CPen tickPen(PS_SOLID, 1, RGB(80, 120, 80));
+        CPen tickPen(PS_SOLID, 1, RGB(90,90,90));
         CPen* pOp = dc.SelectObject(&tickPen);
         dc.MoveTo(plotRc.left - 5, y);
         dc.LineTo(plotRc.left,     y);
@@ -367,7 +367,7 @@ void WaveformView::DrawYAxis(CDC& dc, const CRect& plotRc, float vTop, float vBo
     dc.SelectObject(pOldFont);
 
     // Vertical axis line.
-    CPen axisPen(PS_SOLID, 1, RGB(80, 120, 80));
+    CPen axisPen(PS_SOLID, 1, RGB(90,90,90));
     CPen* pOp = dc.SelectObject(&axisPen);
     dc.MoveTo(plotRc.left - 1, plotRc.top);
     dc.LineTo(plotRc.left - 1, plotRc.bottom);
@@ -377,21 +377,21 @@ void WaveformView::DrawYAxis(CDC& dc, const CRect& plotRc, float vTop, float vBo
 void WaveformView::Render(CDC& dc, const CRect& full)
 {
     CRect tbRc(full.left, full.top, full.right, full.top + kToolH);
-    dc.FillSolidRect(tbRc, RGB(36, 36, 48));
+    dc.FillSolidRect(tbRc, ::GetSysColor(COLOR_BTNFACE));
 
     dc.SetBkMode(TRANSPARENT);
     CFont* pOldFont = dc.SelectObject(&m_btnFont);
     CString zInfo;
     zInfo.Format(_T("Hx%.0f   Vx%.0f"), m_zoomX, m_zoomY);
     CRect zoomRc(full.right - 130, full.top, full.right - 4, full.top + kToolH);
-    dc.SetTextColor(RGB(180, 210, 255));
+    dc.SetTextColor(::GetSysColor(COLOR_WINDOWTEXT));
     dc.DrawText(zInfo, zoomRc, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
 
     int btnAreaEnd = kAxisW + 5 * kBtnW + 4 * 3 + 2 * 6 + (kBtnW + 4) + 10;
 
     if (!m_title.IsEmpty()) {
         CRect tRc(btnAreaEnd, full.top, full.right - 140, full.top + kToolH);
-        dc.SetTextColor(RGB(220, 240, 255));
+        dc.SetTextColor(::GetSysColor(COLOR_WINDOWTEXT));
         dc.DrawText(m_title, tRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
 
@@ -411,7 +411,7 @@ void WaveformView::Render(CDC& dc, const CRect& full)
         }
 
         CFont* pFreqOld = dc.SelectObject(&m_freqFont);
-        dc.SetTextColor(RGB(255, 220, 60));
+        dc.SetTextColor(RGB(180,90,0));
         CRect freqRc(btnAreaEnd, full.top, full.right - 140, full.top + kToolH);
         dc.DrawText(freqStr, freqRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         dc.SelectObject(pFreqOld);
@@ -419,7 +419,7 @@ void WaveformView::Render(CDC& dc, const CRect& full)
     dc.SelectObject(pOldFont);
 
     const CRect rc = PlotRect();
-    dc.FillSolidRect(rc, RGB(20, 20, 28));
+    dc.FillSolidRect(rc, ::GetSysColor(COLOR_WINDOW));
 
     const uint16_t adcMask = static_cast<uint16_t>((1u << m_adcBits) - 1u);
     const float    adcMax  = static_cast<float>(adcMask);
@@ -431,7 +431,7 @@ void WaveformView::Render(CDC& dc, const CRect& full)
 
     if (rc.Width() <= 2 || rc.Height() <= 2) return;
 
-    CPen gridPen(PS_SOLID, 1, RGB(50, 50, 60));
+    CPen gridPen(PS_SOLID, 1, RGB(210,210,210));
     CPen* pOldPen = dc.SelectObject(&gridPen);
     for (int i = 1; i < 10; ++i) {
         int y = rc.top + rc.Height() * i / 10;
@@ -469,7 +469,7 @@ void WaveformView::Render(CDC& dc, const CRect& full)
         return rc.bottom - 1 - static_cast<int>(norm * h);
     };
 
-    CPen wavePen(PS_SOLID, 1, RGB(120, 220, 120));
+    CPen wavePen(PS_SOLID, 1, RGB(0,90,180));
     CPen* pOp = dc.SelectObject(&wavePen);
 
     std::vector<POINT> pts;
@@ -503,7 +503,7 @@ void WaveformView::Render(CDC& dc, const CRect& full)
     if (m_dotsMode) {
         // Dots mode: draw each sample as a small filled circle (2x2 pixels).
         for (const auto& pt : pts) {
-            dc.FillSolidRect(pt.x - 1, pt.y - 1, 2, 2, RGB(120, 220, 120));
+            dc.FillSolidRect(pt.x - 1, pt.y - 1, 2, 2, RGB(0,90,180));
         }
     } else {
         // Line mode: connect samples with polyline.

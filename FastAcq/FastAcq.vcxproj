@@ -92,11 +92,15 @@
     <ClInclude Include="SerialWorker.h" />
     <ClInclude Include="ChirpListCtrl.h" />
     <ClInclude Include="CommandPanel.h" />
+    <ClInclude Include="Theme.h" />
+    <ClInclude Include="ModernButton.h" />
+    <ClInclude Include="ModernTabCtrl.h" />
     <ClInclude Include="Tab1Wnd_new.h" />
     <ClInclude Include="WaveformView.h" />
     <ClInclude Include="WaterfallView.h" />
     <ClInclude Include="SpectrumView.h" />
     <ClInclude Include="Tab1Wnd.h" />
+    <ClInclude Include="SettingsTab.h" />
     <ClInclude Include="MainFrame.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
@@ -112,10 +116,13 @@
     <ClCompile Include="SerialWorker.cpp" />
     <ClCompile Include="ChirpListCtrl.cpp" />
     <ClCompile Include="CommandPanel.cpp" />
+    <ClCompile Include="ModernButton.cpp" />
+    <ClCompile Include="ModernTabCtrl.cpp" />
     <ClCompile Include="WaveformView.cpp" />
     <ClCompile Include="WaterfallView.cpp" />
     <ClCompile Include="SpectrumView.cpp" />
     <ClCompile Include="Tab1Wnd.cpp" />
+    <ClCompile Include="SettingsTab.cpp" />
     <ClCompile Include="MainFrameImpl.cpp" />
     <ClCompile Include="FastAcqApp.cpp" />
   </ItemGroup>

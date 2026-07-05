@@ -7,6 +7,12 @@
 
 LANGUAGE LANG_NEUTRAL, SUBLANG_DEFAULT
 
+/////////////////////////////////////////////////////////////////////////////
+// Icon
+//
+// The first icon resource (lowest id) becomes the application/.exe icon.
+IDI_APPICON  ICON  "res\\FastAcq.ico"
+
 STRINGTABLE
 BEGIN
     IDR_MAINFRAME "FastAcq"

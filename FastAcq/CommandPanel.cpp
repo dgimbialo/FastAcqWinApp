@@ -6,25 +6,19 @@
 BEGIN_MESSAGE_MAP(CommandPanel, CWnd)
     ON_WM_CREATE()
     ON_WM_SIZE()
-    ON_BN_CLICKED(IDC_BTN_CONNECT,     &CommandPanel::OnConnect)
-    ON_BN_CLICKED(IDC_BTN_START,       &CommandPanel::OnStart)
-    ON_BN_CLICKED(IDC_BTN_STOP,        &CommandPanel::OnStop)
-    ON_BN_CLICKED(IDC_BTN_SET_FREQ,    &CommandPanel::OnSetFreq)
-    ON_BN_CLICKED(IDC_BTN_SET_SAMPLES, &CommandPanel::OnSetSamples)
-    ON_BN_CLICKED(IDC_BTN_PING,        &CommandPanel::OnPing)
-    ON_BN_CLICKED(IDC_BTN_SAVE_FRAME,  &CommandPanel::OnSaveFrame)
-    ON_BN_CLICKED(IDC_BTN_CLEAR,       &CommandPanel::OnClear)
-    ON_BN_CLICKED(IDC_BTN_APPLY_MODE,  &CommandPanel::OnApplyMode)
-    ON_BN_CLICKED(IDC_BTN_APPLY_DATA,  &CommandPanel::OnApplyData)
-    ON_BN_CLICKED(IDC_BTN_APPLY_INT,   &CommandPanel::OnApplyInterval)
-    ON_BN_CLICKED(IDC_BTN_TRIGGER,     &CommandPanel::OnTrigger)
-    ON_BN_CLICKED(IDC_BTN_GET_STATUS,  &CommandPanel::OnGetStatus)
-    ON_BN_CLICKED(IDC_RDO_PC_RAW,      &CommandPanel::OnPcModeChanged)
-    ON_BN_CLICKED(IDC_RDO_PC_FFT,      &CommandPanel::OnPcModeChanged)
+    ON_BN_CLICKED(IDC_BTN_CONNECT,    &CommandPanel::OnConnect)
+    ON_BN_CLICKED(IDC_BTN_START,      &CommandPanel::OnStart)
+    ON_BN_CLICKED(IDC_BTN_STOP,       &CommandPanel::OnStop)
+    ON_BN_CLICKED(IDC_BTN_TRIGGER,    &CommandPanel::OnTrigger)
+    ON_BN_CLICKED(IDC_BTN_ABORT,      &CommandPanel::OnAbort)
+    ON_BN_CLICKED(IDC_BTN_SAVE_FRAME, &CommandPanel::OnSaveFrame)
+    ON_BN_CLICKED(IDC_BTN_CLEAR,      &CommandPanel::OnClear)
+    ON_CBN_DROPDOWN(IDC_CMB_COM,      &CommandPanel::OnComDropDown)
 END_MESSAGE_MAP()
 
 BOOL CommandPanel::CreatePanel(CWnd* parent, UINT id)
 {
+    // Standard dialog-face background (native Win32 look).
     LPCTSTR cls = AfxRegisterWndClass(0, ::LoadCursor(nullptr, IDC_ARROW),
                                       reinterpret_cast<HBRUSH>(COLOR_BTNFACE + 1),
                                       nullptr);
@@ -39,89 +33,24 @@ int CommandPanel::OnCreate(LPCREATESTRUCT lpcs)
     m_font.CreatePointFont(90, _T("Segoe UI"));
 
     const DWORD bs = WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON;
-    const DWORD es = WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL | ES_NUMBER;
     const DWORD cs = WS_CHILD | WS_VISIBLE | CBS_DROPDOWN | WS_VSCROLL;
 
     CRect rc(0, 0, 100, 22);
 
     m_cmbCom.Create(cs, rc, this, IDC_CMB_COM);
-    m_btnConnect.Create(_T("Connect"),     bs, rc, this, IDC_BTN_CONNECT);
-    m_btnStart.Create  (_T("Start"),       bs, rc, this, IDC_BTN_START);
-    m_btnStop.Create   (_T("Stop"),        bs, rc, this, IDC_BTN_STOP);
-    m_edtFreq.Create   (es, rc, this, IDC_EDT_FREQ);
-    m_btnSetFreq.Create(_T("Set Freq"),    bs, rc, this, IDC_BTN_SET_FREQ);
-    m_edtSamples.Create(es, rc, this, IDC_EDT_SAMPLES);
-    m_btnSetSamples.Create(_T("Set Samples"), bs, rc, this, IDC_BTN_SET_SAMPLES);
-    m_btnPing.Create   (_T("Ping"),        bs, rc, this, IDC_BTN_PING);
+    m_btnConnect.Create(_T("Connect"),      bs, rc, this, IDC_BTN_CONNECT);
+    m_btnStart.Create  (_T("Start"),        bs, rc, this, IDC_BTN_START);
+    m_btnStop.Create   (_T("Stop"),         bs, rc, this, IDC_BTN_STOP);
+    m_btnTrigger.Create(_T("Trigger"),      bs, rc, this, IDC_BTN_TRIGGER);
+    m_btnAbort.Create  (_T("Abort"),        bs, rc, this, IDC_BTN_ABORT);
     m_btnSaveFrame.Create(_T("Save Frame"), bs, rc, this, IDC_BTN_SAVE_FRAME);
-    m_btnClear.Create  (_T("Clear"),       bs, rc, this, IDC_BTN_CLEAR);
-
-    // New FMCW / capture-mode controls (second row).
-    DWORD ss = WS_CHILD | WS_VISIBLE | SS_LEFT;
-    DWORD chk = WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX;
-    DWORD cs2 = WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL;
-
-    m_lblMode.Create(_T("Mode:"), ss, rc, this);
-    m_cmbMode.Create(cs2, rc, this, IDC_CMB_MODE);
-    m_cmbMode.AddString(_T("Idle"));
-    m_cmbMode.AddString(_T("Continuous"));
-    m_cmbMode.AddString(_T("Single"));
-    m_cmbMode.SetCurSel(1);
-    m_btnApplyMode.Create(_T("Apply"), bs, rc, this, IDC_BTN_APPLY_MODE);
-
-    m_chkRaw.Create(_T("Raw"), chk, rc, this, IDC_CHK_RAW);
-    m_chkRaw.SetCheck(BST_CHECKED);
-    m_chkFft.Create(_T("FFT"), chk, rc, this, IDC_CHK_FFT);
-    m_chkFft.SetCheck(BST_CHECKED);
-    m_btnApplyData.Create(_T("Data Mask"), bs, rc, this, IDC_BTN_APPLY_DATA);
-
-    m_lblInterval.Create(_T("Interval ms:"), ss, rc, this);
-    m_edtInterval.Create(es, rc, this, IDC_EDT_INTERVAL);
-    m_edtInterval.SetWindowText(_T("30"));
-    m_btnApplyInterval.Create(_T("Set"), bs, rc, this, IDC_BTN_APPLY_INT);
-
-    m_btnTrigger.Create(_T("Trigger"), bs, rc, this, IDC_BTN_TRIGGER);
-    m_btnGetStatus.Create(_T("Status"), bs, rc, this, IDC_BTN_GET_STATUS);
-
-    // Row 3: PC-side processing mode.
-    m_lblPcMode.Create(_T("PC Mode:"), ss, rc, this);
-    m_rdoPcRaw.Create(_T("RAW (local FFT)"),  WS_CHILD|WS_VISIBLE|BS_AUTORADIOBUTTON|WS_GROUP, rc, this, IDC_RDO_PC_RAW);
-    m_rdoPcFft.Create(_T("FFT (from MCU)"),   WS_CHILD|WS_VISIBLE|BS_AUTORADIOBUTTON,           rc, this, IDC_RDO_PC_FFT);
-    m_rdoPcRaw.SetCheck(BST_CHECKED);
-
-    // Defaults.
-    m_edtFreq.SetWindowText(_T("500"));
-    m_edtSamples.SetWindowText(_T("65536"));
+    m_btnClear.Create  (_T("Clear"),        bs, rc, this, IDC_BTN_CLEAR);
 
     CWnd* kids[] = { &m_cmbCom, &m_btnConnect, &m_btnStart, &m_btnStop,
-                     &m_edtFreq, &m_btnSetFreq, &m_edtSamples, &m_btnSetSamples,
-                     &m_btnPing, &m_btnSaveFrame, &m_btnClear,
-                     &m_lblMode, &m_cmbMode, &m_btnApplyMode,
-                     &m_chkRaw, &m_chkFft, &m_btnApplyData,
-                     &m_lblInterval, &m_edtInterval, &m_btnApplyInterval,
-                     &m_btnTrigger, &m_btnGetStatus,
-                     &m_lblPcMode, &m_rdoPcRaw, &m_rdoPcFft };
+                     &m_btnTrigger, &m_btnAbort, &m_btnSaveFrame, &m_btnClear };
     for (auto* c : kids) c->SetFont(&m_font);
 
-    // Hide MCU controls in row 1 (not needed now).
-    for (CWnd* w : std::initializer_list<CWnd*>{
-            &m_btnStart, &m_btnStop,
-            &m_edtFreq, &m_btnSetFreq,
-            &m_edtSamples, &m_btnSetSamples,
-            &m_btnPing })
-        w->ShowWindow(SW_HIDE);
-
-    // Hide entire row 2 (MCU mode / data mask / interval / trigger).
-    for (CWnd* w : std::initializer_list<CWnd*>{
-            &m_lblMode, &m_cmbMode, &m_btnApplyMode,
-            &m_chkRaw, &m_chkFft, &m_btnApplyData,
-            &m_lblInterval, &m_edtInterval, &m_btnApplyInterval,
-            &m_btnTrigger, &m_btnGetStatus })
-        w->ShowWindow(SW_HIDE);
-
     SetConnected(false);
-    // Apply initial FFT-controls enable state (RAW is default ? controls enabled).
-    OnPcModeChanged();
     return 0;
 }
 
@@ -133,41 +62,23 @@ void CommandPanel::OnSize(UINT t, int cx, int cy)
 
 void CommandPanel::Relayout()
 {
-    CRect rc; GetClientRect(&rc);
-    const int pad  = 4;
-    const int h    = 24;    // control height
-    const int lh   = 16;   // label height
+    const int pad = 4;
+    const int h   = 24;
 
-    // Helper: place a control at current x,y and advance x.
-    // ctrlH = actual window height (200 for combo dropdown, h for others).
-    int x = 0, y = 0;
+    int x = pad, y = pad;
     auto place = [&](CWnd& w, int ww, int hh) {
         if (w.GetSafeHwnd()) w.MoveWindow(x, y, ww, hh);
         x += ww + pad;
     };
-    // Place a label vertically centred inside the control row.
-    auto placeLabel = [&](CStatic& w, int ww) {
-        if (w.GetSafeHwnd()) w.MoveWindow(x, y + (h - lh) / 2, ww, lh);
-        x += ww + pad;
-    };
 
-    // ?? Row 1: COM port + Connect + Save Frame + Clear ??????????????????????
-    y = pad; x = pad;
-    place(m_cmbCom,      120, 200);   // combo dropdown needs tall rect
-    place(m_btnConnect,   90, h);
+    place(m_cmbCom,      130, 200);   // combo dropdown needs tall rect
+    place(m_btnConnect,   95, h);
+    place(m_btnStart,     75, h);
+    place(m_btnStop,      70, h);
+    place(m_btnTrigger,   75, h);
+    place(m_btnAbort,     70, h);
     place(m_btnSaveFrame,100, h);
     place(m_btnClear,     70, h);
-
-    // Hidden in row 1 (MCU controls – kept but not shown):
-    // m_btnStart, m_btnStop, m_edtFreq, m_btnSetFreq,
-    // m_edtSamples, m_btnSetSamples, m_btnPing
-    // (already SW_HIDE from OnCreate)
-
-    // Row 2: PC mode radios only
-    y = pad + h + pad; x = pad;
-    placeLabel(m_lblPcMode,  58);
-    place(m_rdoPcRaw,       130, h);
-    place(m_rdoPcFft,       120, h);
 }
 
 void CommandPanel::SetConnected(bool c)
@@ -177,28 +88,8 @@ void CommandPanel::SetConnected(bool c)
         m_btnConnect.SetWindowText(c ? _T("Disconnect") : _T("Connect"));
     m_btnStart.EnableWindow(c);
     m_btnStop.EnableWindow(c);
-    m_btnSetFreq.EnableWindow(c);
-    m_btnSetSamples.EnableWindow(c);
-    m_btnPing.EnableWindow(c);
-    m_btnApplyMode.EnableWindow(c);
-    m_btnApplyData.EnableWindow(c);
-    m_btnApplyInterval.EnableWindow(c);
     m_btnTrigger.EnableWindow(c);
-    m_btnGetStatus.EnableWindow(c);
-}
-
-bool CommandPanel::IsPcRawMode() const
-{
-    if (!m_rdoPcRaw.GetSafeHwnd()) return true;
-    return m_rdoPcRaw.GetCheck() == BST_CHECKED;
-}
-
-void CommandPanel::OnPcModeChanged()
-{
-    bool rawMode = IsPcRawMode();
-    CWnd* pParent = GetParent();
-    if (pParent && ::IsWindow(pParent->GetSafeHwnd()))
-        pParent->PostMessage(WM_APP_ACQ_MODE, rawMode ? 0 : 1, 0);
+    m_btnAbort.EnableWindow(c);
 }
 
 void CommandPanel::PopulateComPorts(const std::vector<CString>& ports)
@@ -221,25 +112,6 @@ CString CommandPanel::GetSelectedPort() const
     return s;
 }
 
-uint16_t CommandPanel::GetFreqHz() const
-{
-    CString s;
-    const_cast<CEdit&>(m_edtFreq).GetWindowText(s);
-    int v = _ttoi(s);
-    if (v < 1)      v = 1;
-    if (v > 0xFFFF) v = 0xFFFF;
-    return static_cast<uint16_t>(v);
-}
-
-uint32_t CommandPanel::GetSamples() const
-{
-    CString s;
-    const_cast<CEdit&>(m_edtSamples).GetWindowText(s);
-    int v = _ttoi(s);
-    if (v < 0) v = 0;
-    return static_cast<uint32_t>(v);
-}
-
 static void PostToParent(CWnd* self, UINT msg, WPARAM wp = 0, LPARAM lp = 0)
 {
     if (CWnd* p = self->GetParent())
@@ -251,41 +123,18 @@ void CommandPanel::OnConnect()
 {
     PostToParent(this, m_connected ? WM_APP_CMD_DISCONNECT : WM_APP_CMD_CONNECT);
 }
-void CommandPanel::OnStart()      { PostToParent(this, WM_APP_CMD_START); }
-void CommandPanel::OnStop()       { PostToParent(this, WM_APP_CMD_STOP); }
-void CommandPanel::OnSetFreq()    { PostToParent(this, WM_APP_CMD_SET_FREQ, GetFreqHz()); }
-void CommandPanel::OnSetSamples() { PostToParent(this, WM_APP_CMD_SET_SAMPLES, GetSamples()); }
-void CommandPanel::OnPing()       { PostToParent(this, WM_APP_CMD_PING); }
-void CommandPanel::OnSaveFrame()  { PostToParent(this, WM_APP_CMD_SAVE_FRAME); }
-void CommandPanel::OnClear()      { PostToParent(this, WM_APP_CMD_CLEAR); }
-void CommandPanel::OnApplyMode()     { PostToParent(this, WM_APP_CMD_SET_MODE,      GetModeSel()); }
-void CommandPanel::OnApplyData()     { PostToParent(this, WM_APP_CMD_SET_DATA_MASK, GetDataMask()); }
-void CommandPanel::OnApplyInterval() { PostToParent(this, WM_APP_CMD_SET_INTERVAL,  GetIntervalMs()); }
-void CommandPanel::OnTrigger()       { PostToParent(this, WM_APP_CMD_TRIGGER); }
-void CommandPanel::OnGetStatus()     { PostToParent(this, WM_APP_CMD_GET_STATUS); }
+void CommandPanel::OnStart()     { PostToParent(this, WM_APP_CMD_START); }
+void CommandPanel::OnStop()      { PostToParent(this, WM_APP_CMD_STOP); }
+void CommandPanel::OnTrigger()   { PostToParent(this, WM_APP_CMD_TRIGGER); }
+void CommandPanel::OnAbort()     { PostToParent(this, WM_APP_CMD_ABORT); }
+void CommandPanel::OnSaveFrame() { PostToParent(this, WM_APP_CMD_SAVE_FRAME); }
+void CommandPanel::OnClear()     { PostToParent(this, WM_APP_CMD_CLEAR); }
 
-uint16_t CommandPanel::GetModeSel() const
+void CommandPanel::OnComDropDown()
 {
-    int sel = const_cast<CComboBox&>(m_cmbMode).GetCurSel();
-    if (sel < 0) sel = 0;
-    if (sel > 2) sel = 2;
-    return static_cast<uint16_t>(sel);
-}
-
-uint8_t CommandPanel::GetDataMask() const
-{
-    uint8_t m = 0;
-    if (const_cast<CButton&>(m_chkRaw).GetCheck() == BST_CHECKED) m |= 0x01;
-    if (const_cast<CButton&>(m_chkFft).GetCheck() == BST_CHECKED) m |= 0x02;
-    return m;
-}
-
-uint16_t CommandPanel::GetIntervalMs() const
-{
-    CString s;
-    const_cast<CEdit&>(m_edtInterval).GetWindowText(s);
-    int v = _ttoi(s);
-    if (v < 5)     v = 5;
-    if (v > 10000) v = 10000;
-    return static_cast<uint16_t>(v);
+    // Synchronous: repopulate the list before the dropdown becomes visible,
+    // so a freshly plugged-in device appears without restarting the app.
+    if (CWnd* p = GetParent())
+        if (::IsWindow(p->GetSafeHwnd()))
+            p->SendMessage(WM_APP_REFRESH_PORTS);
 }

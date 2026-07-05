@@ -1,15 +1,17 @@
 #include "pch.h"
 #include "CommLogWnd.h"
+#include "Theme.h"
 
 BEGIN_MESSAGE_MAP(CommLogWnd, CWnd)
     ON_WM_CREATE()
     ON_WM_SIZE()
+    ON_WM_CTLCOLOR()
 END_MESSAGE_MAP()
 
 BOOL CommLogWnd::CreateTab(CWnd* parent, UINT id)
 {
     LPCTSTR cls = AfxRegisterWndClass(0, ::LoadCursor(nullptr, IDC_ARROW),
-                                      reinterpret_cast<HBRUSH>(COLOR_BTNFACE + 1),
+                                      reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1),
                                       nullptr);
     return Create(cls, nullptr, WS_CHILD, CRect(0, 0, 10, 10), parent, id);
 }
@@ -17,6 +19,8 @@ BOOL CommLogWnd::CreateTab(CWnd* parent, UINT id)
 int CommLogWnd::OnCreate(LPCREATESTRUCT lpcs)
 {
     if (CWnd::OnCreate(lpcs) == -1) return -1;
+
+    m_bgBrush.CreateSolidBrush(::GetSysColor(COLOR_WINDOW));
 
     m_log.Create(WS_CHILD | WS_VISIBLE | WS_VSCROLL |
                  ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
@@ -27,6 +31,17 @@ int CommLogWnd::OnCreate(LPCREATESTRUCT lpcs)
                       DEFAULT_QUALITY, FIXED_PITCH | FF_MODERN, _T("Consolas"));
     m_log.SetFont(&m_font);
     return 0;
+}
+
+HBRUSH CommLogWnd::OnCtlColor(CDC* pDC, CWnd*, UINT nCtlColor)
+{
+    if (nCtlColor == CTLCOLOR_EDIT || nCtlColor == CTLCOLOR_STATIC ||
+        nCtlColor == CTLCOLOR_MSGBOX) {
+        pDC->SetBkColor(::GetSysColor(COLOR_WINDOW));
+        pDC->SetTextColor(::GetSysColor(COLOR_WINDOWTEXT));
+        return static_cast<HBRUSH>(m_bgBrush.GetSafeHandle());
+    }
+    return static_cast<HBRUSH>(m_bgBrush.GetSafeHandle());
 }
 
 void CommLogWnd::OnSize(UINT t, int cx, int cy)

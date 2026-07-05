@@ -8,6 +8,7 @@
 #include "ChirpListCtrl.h"
 #include "CommandPanel.h"
 #include "Tab1Wnd.h"
+#include "SettingsTab.h"
 #include "CommLogWnd.h"
 #include "SerialWorker.h"
 #include "LocalFft.h"
@@ -47,6 +48,11 @@ protected:
     afx_msg LRESULT OnCmdSetInterval (WPARAM, LPARAM);
     afx_msg LRESULT OnCmdTrigger     (WPARAM, LPARAM);
     afx_msg LRESULT OnCmdGetStatus   (WPARAM, LPARAM);
+    afx_msg LRESULT OnCmdSetAmplitude(WPARAM, LPARAM);
+    afx_msg LRESULT OnCmdSetBurst    (WPARAM, LPARAM);
+    afx_msg LRESULT OnCmdAbort       (WPARAM, LPARAM);
+    afx_msg LRESULT OnServiceFrame   (WPARAM, LPARAM); // PONG / STATUS / ACK
+    afx_msg LRESULT OnRefreshPorts   (WPARAM, LPARAM); // re-enumerate COM list
 
     DECLARE_MESSAGE_MAP()
 
@@ -59,11 +65,13 @@ private:
     CStatusBar     m_status;
     CTabCtrl       m_tab;
     CFont          m_tabFont;
+    HICON          m_hIcon{nullptr};
     ChirpListCtrl  m_list;
     CommandPanel   m_cmd;
     Tab1Wnd        m_tab1;
     Tab2Wnd        m_tab2;
     CommLogWnd     m_tab3;
+    SettingsTabWnd m_tab4;
 
     ChirpStore                    m_store;
     std::unique_ptr<SerialWorker> m_serial;
@@ -74,6 +82,7 @@ private:
     uint64_t m_framesShown{0};
     float    m_lastPeakHz{0.0f};
     uint32_t m_lastTsMs{0};
+    CString  m_mcuStatus;      // last decoded MCU status (from STATUS frame)
 
     // Ping tracking
     DWORD    m_pingSentTick{0};
