@@ -13,6 +13,20 @@ BEGIN_MESSAGE_MAP(SpectrumView, CWnd)
     ON_WM_VSCROLL()
 END_MESSAGE_MAP()
 
+// Vertical scale is LOGARITHMIC: magnitudes are mapped to dB relative to the
+// running maximum, with a fixed display floor. 0 dB = top, kDbFloor = bottom.
+static constexpr float kDbFloor = -60.0f;
+
+static float NormDb(float v, float maxSeen)
+{
+    if (v <= 0.0f || maxSeen <= 0.0f) return 0.0f;
+    float db = 20.0f * log10f(v / maxSeen);      /* <= 0 dB */
+    float nv = (db - kDbFloor) / (0.0f - kDbFloor);
+    if (nv < 0.0f) nv = 0.0f;
+    if (nv > 1.0f) nv = 1.0f;
+    return nv;
+}
+
 static CString FormatFreqLabel(float hz)
 {
     long long iHz = static_cast<long long>(hz + 0.5f);
@@ -28,7 +42,7 @@ BOOL SpectrumView::CreateView(CWnd* parent, UINT id)
 {
     LPCTSTR cls = AfxRegisterWndClass(CS_HREDRAW | CS_VREDRAW,
                                       ::LoadCursor(nullptr, IDC_ARROW),
-                                      reinterpret_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)),
+                                      reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1),
                                       nullptr);
     return Create(cls, nullptr, WS_CHILD | WS_VISIBLE | WS_BORDER,
                   CRect(0, 0, 10, 10), parent, id);
@@ -132,16 +146,13 @@ void SpectrumView::RebuildCaches(int plotWidth)
         if (i1 > nb)  i1 = nb;
         float v = 0.0f;
         for (size_t i = i0; i < i1; ++i) if (m_mag[i] > v) v = m_mag[i];
-        float nv = v / m_maxSeen;
-        if (nv < 0.0f) nv = 0.0f;
-        if (nv > 1.0f) nv = 1.0f;
-        m_colNorm[static_cast<size_t>(x)] = nv;
+        m_colNorm[static_cast<size_t>(x)] = NormDb(v, m_maxSeen);   /* log scale */
     }
 
     if (nb >= 3) {
         m_peakCandidates.reserve(nb / 8);
         for (size_t i = 1; i + 1 < nb; ++i) {
-            float nv = m_mag[i] / m_maxSeen;
+            float nv = NormDb(m_mag[i], m_maxSeen);                 /* log scale */
             if (m_mag[i] > m_mag[i - 1] && m_mag[i] >= m_mag[i + 1])
                 m_peakCandidates.push_back({ i, nv, m_freqRes * static_cast<float>(i) });
         }
@@ -168,14 +179,30 @@ void SpectrumView::DrawPeakTable(CDC& dc, const CRect& panelRc,
     CRect tableRc = panelRc;
     tableRc.left += kSliderW;
 
-    dc.FillSolidRect(tableRc, RGB(255, 255, 255));
-
-    CPen gridPen(PS_SOLID, 1, RGB(180, 180, 180));
-    CPen* pOldPen = dc.SelectObject(&gridPen);
-
     const int headerH = 18;
     const int rowH    = 16;
     const int noColW  = 34;
+
+    // Native look: white body, system button-face header strip.
+    dc.FillSolidRect(tableRc, ::GetSysColor(COLOR_WINDOW));
+    CRect hdrRc(tableRc.left, tableRc.top, tableRc.right, tableRc.top + headerH);
+    dc.FillSolidRect(hdrRc, ::GetSysColor(COLOR_BTNFACE));
+
+    // Zebra striping for the data rows.
+    {
+        int ry = tableRc.top + headerH;
+        int band = 0;
+        while (ry < tableRc.bottom) {
+            if (band & 1)
+                dc.FillSolidRect(tableRc.left, ry, tableRc.Width(), rowH, RGB(240,240,240));
+            ry += rowH;
+            ++band;
+        }
+    }
+
+    CPen gridPen(PS_SOLID, 1, RGB(180,180,180));
+    CPen* pOldPen = dc.SelectObject(&gridPen);
+    CBrush* pOldBrush = static_cast<CBrush*>(dc.SelectStockObject(NULL_BRUSH));
 
     dc.Rectangle(tableRc);
     dc.MoveTo(tableRc.left + noColW, tableRc.top);
@@ -189,14 +216,15 @@ void SpectrumView::DrawPeakTable(CDC& dc, const CRect& panelRc,
         dc.LineTo(tableRc.right, y);
         y += rowH;
     }
+    if (pOldBrush) dc.SelectObject(pOldBrush);
     dc.SelectObject(pOldPen);
 
     CFont* pOldFont = dc.SelectObject(&m_smallFont);
     dc.SetBkMode(TRANSPARENT);
-    dc.SetTextColor(RGB(0, 0, 0));
 
     CRect noHdr(tableRc.left + 2, tableRc.top + 2, tableRc.left + noColW - 2, tableRc.top + headerH - 2);
     CRect fqHdr(tableRc.left + noColW + 2, tableRc.top + 2, tableRc.right - 2, tableRc.top + headerH - 2);
+    dc.SetTextColor(::GetSysColor(COLOR_WINDOWTEXT));
     dc.DrawText(_T("#"), noHdr, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     dc.DrawText(_T("Frequency"), fqHdr, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
@@ -211,7 +239,9 @@ void SpectrumView::DrawPeakTable(CDC& dc, const CRect& panelRc,
 
         CRect idxRc(tableRc.left + 2, rowTop + 1, tableRc.left + noColW - 2, rowTop + rowH - 1);
         CRect freqRc(tableRc.left + noColW + 2, rowTop + 1, tableRc.right - 2, rowTop + rowH - 1);
+        dc.SetTextColor(RGB(110,110,110));
         dc.DrawText(idxStr, idxRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        dc.SetTextColor(rank == 1 ? RGB(180,90,0) : ::GetSysColor(COLOR_WINDOWTEXT));
         dc.DrawText(freqStr, freqRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
         rowTop += rowH;
@@ -242,7 +272,7 @@ void SpectrumView::OnPaint()
 
 void SpectrumView::Render(CDC& dc, const CRect& rc)
 {
-    dc.FillSolidRect(rc, RGB(15, 15, 22));
+    dc.FillSolidRect(rc, ::GetSysColor(COLOR_WINDOW));
 
     const int plotW = rc.Width() - kPanelW;
     if (plotW < 8) return;
@@ -252,7 +282,7 @@ void SpectrumView::Render(CDC& dc, const CRect& rc)
     CRect axisRc (rc.left,         rc.bottom - kAxisH, rc.left + plotW,  rc.bottom);
     CRect panelRc(rc.left + plotW, rc.top,             rc.right,         rc.bottom - kAxisH);
 
-    dc.FillSolidRect(axisRc, RGB(22, 22, 32));
+    dc.FillSolidRect(axisRc, ::GetSysColor(COLOR_BTNFACE));
 
     const int w = plotRc.Width();
     const int h = plotRc.Height();
@@ -260,20 +290,27 @@ void SpectrumView::Render(CDC& dc, const CRect& rc)
     if (m_cachedPlotW != w)
         RebuildCaches(w);
 
-    // ?? Grid ?????????????????????????????????????????????????????????????????
-    CPen gridPen(PS_SOLID, 1, RGB(50, 50, 60));
+    // ?? Grid (log scale: each line is a fixed dB step) ???????????????????????
+    CPen gridPen(PS_SOLID, 1, RGB(210,210,210));
     CPen* pOldPen = dc.SelectObject(&gridPen);
+    CFont* pGridFont = dc.SelectObject(&m_axisFont);
+    dc.SetBkMode(TRANSPARENT);
     for (int i = 1; i < 5; ++i) {
         int y = plotRc.top + h * i / 5;
         dc.MoveTo(plotRc.left, y);
         dc.LineTo(plotRc.right, y);
+        CString dbLbl;
+        dbLbl.Format(_T("%.0f dB"), kDbFloor * static_cast<float>(i) / 5.0f);
+        dc.SetTextColor(RGB(80,80,80));
+        dc.TextOut(plotRc.left + 2, y - 12, dbLbl);
     }
+    dc.SelectObject(pGridFont);
     dc.SelectObject(pOldPen);
 
     // ?? Title ?????????????????????????????????????????????????????????????????
     if (!m_title.IsEmpty()) {
         dc.SetBkMode(TRANSPARENT);
-        dc.SetTextColor(RGB(200, 220, 255));
+        dc.SetTextColor(::GetSysColor(COLOR_WINDOWTEXT));
         dc.TextOut(rc.left + 4, rc.top + 3, m_title);
     }
 
@@ -301,7 +338,7 @@ void SpectrumView::Render(CDC& dc, const CRect& rc)
     // ?? Threshold horizontal line (yellow) ???????????????????????????????????
     int thrY = plotRc.bottom - static_cast<int>(m_thresholdPct * h);
     {
-        CPen thrPen(PS_DOT, 1, RGB(220, 200, 50));
+        CPen thrPen(PS_DOT, 1, RGB(180,90,0));
         CPen* pS = dc.SelectObject(&thrPen);
         dc.MoveTo(plotRc.left,  thrY);
         dc.LineTo(plotRc.right, thrY);
@@ -309,10 +346,10 @@ void SpectrumView::Render(CDC& dc, const CRect& rc)
     }
 
     // ?? Peak triangles + labels (only above-threshold peaks) ?????????????????
-    CBrush markBrush(RGB(255, 220, 50));
+    CBrush markBrush(RGB(180,90,0));
     CFont* pOldFont = dc.SelectObject(&m_peakFont);
     dc.SetBkMode(TRANSPARENT);
-    dc.SetTextColor(RGB(255, 230, 100));
+    dc.SetTextColor(RGB(180,90,0));
 
     int rank = 1;
     for (const auto& pk : peaks) {
@@ -321,7 +358,7 @@ void SpectrumView::Render(CDC& dc, const CRect& rc)
         int barTop = plotRc.bottom - static_cast<int>(nv * h);
 
         CRect markRc(px - 4, barTop - 8, px + 5, barTop + 1);
-        dc.FillSolidRect(markRc, RGB(255, 220, 50));
+        dc.FillSolidRect(markRc, RGB(180,90,0));
 
         CString idxLbl;
         idxLbl.Format(_T("%d"), rank++);
@@ -342,7 +379,7 @@ void SpectrumView::Render(CDC& dc, const CRect& rc)
 
         CFont* pAxisFont = dc.SelectObject(&m_axisFont);
         dc.SetBkMode(TRANSPARENT);
-        CPen tickPen(PS_SOLID, 1, RGB(90, 110, 90));
+        CPen tickPen(PS_SOLID, 1, RGB(90,90,90));
         for (float fKHz = 0.0f; fKHz <= maxFreqKHz * 1.001f; fKHz += stepKHz) {
             int x = rc.left + static_cast<int>((fKHz / maxFreqKHz) * w);
             CPen* pSave = dc.SelectObject(&tickPen);
@@ -356,7 +393,7 @@ void SpectrumView::Render(CDC& dc, const CRect& rc)
             else
                 lbl.Format(_T("%.0fk"), fKHz);
 
-            dc.SetTextColor(RGB(140, 180, 140));
+            dc.SetTextColor(RGB(80,80,80));
             CRect tickLblRc(x - 18, axisRc.top + 2, x + 18, axisRc.bottom);
             dc.DrawText(lbl, tickLblRc, DT_CENTER | DT_TOP | DT_SINGLELINE);
         }

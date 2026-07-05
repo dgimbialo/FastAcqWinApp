@@ -22,7 +22,8 @@ protected:
     afx_msg int  OnCreate(LPCREATESTRUCT);
     afx_msg void OnSize(UINT, int, int);
     afx_msg void OnPaint();
-    afx_msg BOOL OnEraseBkgnd(CDC*) { return TRUE; }
+    afx_msg BOOL OnEraseBkgnd(CDC*);
+    afx_msg HBRUSH OnCtlColor(CDC*, CWnd*, UINT);
     afx_msg void OnLButtonDown(UINT, CPoint);
     afx_msg void OnLButtonUp(UINT, CPoint);
     afx_msg void OnMouseMove(UINT, CPoint);
@@ -42,6 +43,7 @@ private:
 
     CButton m_chkDots;
     CFont   m_footerFont;
+    CBrush  m_bgBrush;
 
     float m_splitRatio{0.5f};
     bool  m_dragging{false};
@@ -62,6 +64,8 @@ protected:
     afx_msg int  OnCreate(LPCREATESTRUCT);
     afx_msg void OnSize(UINT, int, int);
     afx_msg void OnApplyFft();
+    afx_msg BOOL OnEraseBkgnd(CDC*);
+    afx_msg HBRUSH OnCtlColor(CDC*, CWnd*, UINT);
     DECLARE_MESSAGE_MAP()
 
 private:
@@ -71,12 +75,13 @@ private:
     SpectrumView  m_specUp;
     SpectrumView  m_specDn;
 
-    CStatic   m_lblFftSize;
-    CComboBox m_cmbFftSize;
-    CStatic   m_lblFftWin;
-    CComboBox m_cmbFftWin;
-    CButton   m_btnApplyFft;
-    CFont     m_footerFont;
+    CStatic      m_lblFftSize;
+    CComboBox    m_cmbFftSize;
+    CStatic      m_lblFftWin;
+    CComboBox    m_cmbFftWin;
+    CButton      m_btnApplyFft;
+    CFont        m_footerFont;
+    CBrush       m_bgBrush;
 
     bool        m_rawMode{true};
     FftSettings m_fftCfg;

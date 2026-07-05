@@ -11,15 +11,18 @@
 constexpr uint32_t FRAME_MAGIC = 0xFACEDA7AUL;
 
 // CMD opcodes (host -> MCU)
-constexpr uint8_t CMD_START_CHIRP     = 0x01;
-constexpr uint8_t CMD_GET_FRAME       = 0x02;
+constexpr uint8_t CMD_START_CHIRP     = 0x01; // arg1 = chirp freq Hz (100..24000)
+constexpr uint8_t CMD_GET_FRAME       = 0x02; // alias of CMD_TRIGGER (compat)
 constexpr uint8_t CMD_PING            = 0x03;
-constexpr uint8_t CMD_SET_SAMPLES     = 0x04;
+constexpr uint8_t CMD_SET_SAMPLES     = 0x04; // samples = arg1 | (arg2 << 16); 0 = auto
 constexpr uint8_t CMD_SET_MODE        = 0x05; // arg1 = MODE_*
 constexpr uint8_t CMD_SET_DATA_MASK   = 0x06; // arg1 = bit0=RAW, bit1=FFT
-constexpr uint8_t CMD_SET_INTERVAL    = 0x07; // arg1 = ms between chirps
-constexpr uint8_t CMD_TRIGGER         = 0x08; // one-shot trigger
+constexpr uint8_t CMD_SET_INTERVAL    = 0x07; // arg1 = ms between capture cycles
+constexpr uint8_t CMD_TRIGGER         = 0x08; // one-shot trigger (SINGLE/IDLE)
 constexpr uint8_t CMD_GET_STATUS      = 0x09;
+constexpr uint8_t CMD_SET_AMPLITUDE   = 0x0A; // arg1 = chirp amplitude, DAC counts 1..4095
+constexpr uint8_t CMD_SET_BURST       = 0x0B; // arg1 = chirps per capture window 1..1024
+constexpr uint8_t CMD_ABORT           = 0x0C; // abort current capture immediately
 
 // Modes
 constexpr uint16_t MODE_IDLE       = 0;
@@ -31,6 +34,29 @@ constexpr uint8_t FRAME_FLAG_HAS_RAW   = 1u << 0;
 constexpr uint8_t FRAME_FLAG_HAS_FFT   = 1u << 1;
 constexpr uint8_t FRAME_FLAG_FFT_VALID = 1u << 2;
 constexpr uint8_t FRAME_FLAG_IS_STATUS = 1u << 3;
+constexpr uint8_t FRAME_FLAG_IS_ACK    = 1u << 4;
+
+// Reserved frame_id values for service frames (header-only)
+constexpr uint32_t FRAME_ID_PONG   = 0xFFFFFFFFu;
+constexpr uint32_t FRAME_ID_STATUS = 0xFFFFFFFEu;
+constexpr uint32_t FRAME_ID_ACK    = 0xFFFFFFFDu;
+
+// ACK status codes (carried in fft_peak_bin of an ACK frame)
+constexpr uint32_t ACK_OK        = 0;
+constexpr uint32_t ACK_BAD_ARG   = 1;
+constexpr uint32_t ACK_BAD_STATE = 2;
+constexpr uint32_t ACK_HW_FAIL   = 3;
+
+// STATUS frame field mapping (see firmware CONTROL_API_PLAN.md §2.4):
+//   fft_size        <- mode
+//   fft_peak_bin    <- data_mask
+//   fft_peak_mag    <- interval_ms (as float)
+//   actual_samples  <- samples override (0 = auto)
+//   chirp_freq_hz   <- chirp frequency
+//   reserved1[0..1] <- amplitude, DAC counts (uint16 LE)
+//   reserved1[2..3] <- burst count (uint16 LE)
+//   reserved1[4]    <- MCU FSM state (0=idle-wait, 1=capturing)
+//   reserved1[5]    <- last error code (0 = none)
 
 #pragma pack(push, 1)
 

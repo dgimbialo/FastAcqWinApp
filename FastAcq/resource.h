@@ -2,6 +2,7 @@
 #pragma once
 
 #define IDR_MAINFRAME        128
+#define IDI_APPICON          129
 
 // CommandPanel child controls
 #define IDC_CMB_COM          1001
@@ -34,6 +35,13 @@
 #define IDC_BTN_APPLY_FFT    1026
 #define IDC_CHK_DOTS         1027
 
+// Chirp amplitude / burst / abort controls (row 2)
+#define IDC_EDT_AMPLITUDE    1028
+#define IDC_BTN_SET_AMP      1029
+#define IDC_EDT_BURST        1030
+#define IDC_BTN_SET_BURST    1031
+#define IDC_BTN_ABORT        1032
+
 // MainFrame child IDs
 #define IDC_CHIRP_LIST       1100
 #define IDC_TAB_CTRL         1101
@@ -41,3 +49,4 @@
 #define IDC_TAB1_WND         1103
 #define IDC_TAB2_WND         1104
 #define IDC_TAB3_WND         1105
+#define IDC_TAB4_WND         1106

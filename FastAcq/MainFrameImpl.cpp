@@ -30,6 +30,11 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
     ON_MESSAGE(WM_APP_CMD_SET_INTERVAL,  &CMainFrame::OnCmdSetInterval)
     ON_MESSAGE(WM_APP_CMD_TRIGGER,       &CMainFrame::OnCmdTrigger)
     ON_MESSAGE(WM_APP_CMD_GET_STATUS,    &CMainFrame::OnCmdGetStatus)
+    ON_MESSAGE(WM_APP_CMD_SET_AMPLITUDE, &CMainFrame::OnCmdSetAmplitude)
+    ON_MESSAGE(WM_APP_CMD_SET_BURST,     &CMainFrame::OnCmdSetBurst)
+    ON_MESSAGE(WM_APP_CMD_ABORT,         &CMainFrame::OnCmdAbort)
+    ON_MESSAGE(WM_APP_SERVICE_FRAME,     &CMainFrame::OnServiceFrame)
+    ON_MESSAGE(WM_APP_REFRESH_PORTS,     &CMainFrame::OnRefreshPorts)
     ON_MESSAGE(WM_APP_ACQ_MODE,          &CMainFrame::OnAcqMode)
     ON_MESSAGE(WM_APP_FFT_SETTINGS,      &CMainFrame::OnFftSettings)
 END_MESSAGE_MAP()
@@ -50,30 +55,38 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpcs)
     }
     m_status.SetPaneInfo(0, ID_SEPARATOR, SBPS_STRETCH, 0);
 
+    // Application icon (title bar + taskbar).
+    m_hIcon = AfxGetApp()->LoadIcon(IDI_APPICON);
+    if (m_hIcon) {
+        SetIcon(m_hIcon, TRUE);
+        SetIcon(m_hIcon, FALSE);
+    }
+
     m_list.Create(WS_CHILD | WS_VISIBLE | WS_BORDER | LVS_REPORT | LVS_SINGLESEL,
                   CRect(0, 0, 220, 400), this, IDC_CHIRP_LIST);
     m_list.InitColumns();
 
+    // Standard native tab control (system look).
     m_tab.Create(WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | TCS_TABS,
                  CRect(0, 0, 10, 10), this, IDC_TAB_CTRL);
 
-    // Custom font for tab labels (Segoe UI 10pt bold).
-    m_tabFont.CreateFont(-13, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-                         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                         CLEARTYPE_QUALITY, VARIABLE_PITCH | FF_SWISS, _T("Segoe UI"));
+    m_tabFont.CreatePointFont(90, _T("Segoe UI"));
     m_tab.SetFont(&m_tabFont);
 
     TCITEM ti{}; ti.mask = TCIF_TEXT;
     ti.pszText = const_cast<LPTSTR>(_T("Waveform"));        m_tab.InsertItem(0, &ti);
     ti.pszText = const_cast<LPTSTR>(_T("FFT / Waterfall")); m_tab.InsertItem(1, &ti);
     ti.pszText = const_cast<LPTSTR>(_T("Communication"));   m_tab.InsertItem(2, &ti);
+    ti.pszText = const_cast<LPTSTR>(_T("Settings"));        m_tab.InsertItem(3, &ti);
 
     m_tab1.CreateTab(&m_tab, IDC_TAB1_WND);
     m_tab2.CreateTab(&m_tab, IDC_TAB2_WND);
     m_tab3.CreateTab(&m_tab, IDC_TAB3_WND);
+    m_tab4.CreateTab(&m_tab, IDC_TAB4_WND);
     m_tab1.ShowWindow(SW_SHOW);
     m_tab2.ShowWindow(SW_HIDE);
     m_tab3.ShowWindow(SW_HIDE);
+    m_tab4.ShowWindow(SW_HIDE);
 
     m_cmd.CreatePanel(this, IDC_CMD_PANEL);
     m_cmd.PopulateComPorts(SerialWorker::EnumPorts());
@@ -103,7 +116,7 @@ void CMainFrame::RelayoutClient()
     RepositionBars(AFX_IDW_CONTROLBAR_FIRST, AFX_IDW_CONTROLBAR_LAST,
                    0, reposQuery, &client);
 
-    const int cmdH  = 58;   // 2 visible rows * (24+4)px + 2px margin
+    const int cmdH  = 34;   // single toolbar row (24px controls + padding)
     const int listW = 240;
     const int pad   = 2;
 
@@ -126,6 +139,7 @@ void CMainFrame::RelayoutClient()
         if (m_tab1.GetSafeHwnd()) m_tab1.MoveWindow(trc);
         if (m_tab2.GetSafeHwnd()) m_tab2.MoveWindow(trc);
         if (m_tab3.GetSafeHwnd()) m_tab3.MoveWindow(trc);
+        if (m_tab4.GetSafeHwnd()) m_tab4.MoveWindow(trc);
     }
 
     if (m_cmd.GetSafeHwnd())
@@ -138,6 +152,7 @@ void CMainFrame::OnTabSelChange(NMHDR*, LRESULT* pResult)
     m_tab1.ShowWindow(sel == 0 ? SW_SHOW : SW_HIDE);
     m_tab2.ShowWindow(sel == 1 ? SW_SHOW : SW_HIDE);
     m_tab3.ShowWindow(sel == 2 ? SW_SHOW : SW_HIDE);
+    m_tab4.ShowWindow(sel == 3 ? SW_SHOW : SW_HIDE);
     *pResult = 0;
 }
 
@@ -153,13 +168,6 @@ LRESULT CMainFrame::OnFrameReady(WPARAM wp, LPARAM)
 
     m_list.AddChirp(idx, f.header.frame_id, f.header.timestamp_ms, m_lastPeakHz);
 
-    if (m_pingPending) {
-        DWORD now = ::GetTickCount();
-        m_lastRttMs   = now - m_pingSentTick;
-        m_pingPending = false;
-        PostMessage(WM_APP_PONG_RX, 0, static_cast<LPARAM>(m_lastRttMs));
-    }
-
     ShowFrameAt(idx);
     UpdateStatusBar();
     return 0;
@@ -169,6 +177,7 @@ LRESULT CMainFrame::OnPortStatus(WPARAM wp, LPARAM)
 {
     m_connected = (wp != 0);
     m_cmd.SetConnected(m_connected);
+    m_tab4.SetConnected(m_connected);
     UpdateStatusBar();
     return 0;
 }
@@ -225,7 +234,13 @@ LRESULT CMainFrame::OnCmdDisconnect(WPARAM, LPARAM)
 LRESULT CMainFrame::OnCmdStart(WPARAM, LPARAM)
 {
     if (!m_serial || !m_serial->IsOpen()) return 0;
-    m_serial->SendCommand(CMD_START_CHIRP, m_cmd.GetFreqHz(), 0, 0);
+    // Start = configure chirp frequency, then switch the MCU into the mode
+    // selected on the Settings tab. "Idle" there means "not chosen" - treat
+    // it as Continuous. In Single mode each capture is fired by Trigger.
+    uint16_t mode = m_tab4.GetModeSel();
+    if (mode == MODE_IDLE) mode = MODE_CONTINUOUS;
+    m_serial->SendCommand(CMD_START_CHIRP, m_tab4.GetFreqHz(), 0, 0);
+    m_serial->SendCommand(CMD_SET_MODE, mode, 0, 0);
     return 0;
 }
 
@@ -246,8 +261,11 @@ LRESULT CMainFrame::OnCmdSetFreq(WPARAM wp, LPARAM)
 LRESULT CMainFrame::OnCmdSetSamples(WPARAM wp, LPARAM)
 {
     if (!m_serial || !m_serial->IsOpen()) return 0;
+    // 32-bit sample count split across arg1 (low) / arg2 (high).
     uint32_t v = static_cast<uint32_t>(wp);
-    m_serial->SendCommand(CMD_SET_SAMPLES, static_cast<uint16_t>(v & 0xFFFF), 0, 0);
+    m_serial->SendCommand(CMD_SET_SAMPLES,
+                          static_cast<uint16_t>(v & 0xFFFF),
+                          static_cast<uint16_t>((v >> 16) & 0xFFFF), 0);
     return 0;
 }
 
@@ -327,6 +345,97 @@ LRESULT CMainFrame::OnCmdGetStatus(WPARAM, LPARAM)
     return 0;
 }
 
+LRESULT CMainFrame::OnCmdSetAmplitude(WPARAM wp, LPARAM)
+{
+    if (!m_serial || !m_serial->IsOpen()) return 0;
+    m_serial->SendCommand(CMD_SET_AMPLITUDE, static_cast<uint16_t>(wp), 0, 0);
+    return 0;
+}
+
+LRESULT CMainFrame::OnCmdSetBurst(WPARAM wp, LPARAM)
+{
+    if (!m_serial || !m_serial->IsOpen()) return 0;
+    m_serial->SendCommand(CMD_SET_BURST, static_cast<uint16_t>(wp), 0, 0);
+    return 0;
+}
+
+LRESULT CMainFrame::OnCmdAbort(WPARAM, LPARAM)
+{
+    if (!m_serial || !m_serial->IsOpen()) return 0;
+    m_serial->SendCommand(CMD_ABORT, 0, 0, 0);
+    return 0;
+}
+
+LRESULT CMainFrame::OnRefreshPorts(WPARAM, LPARAM)
+{
+    m_cmd.PopulateComPorts(SerialWorker::EnumPorts());
+    return 0;
+}
+
+LRESULT CMainFrame::OnServiceFrame(WPARAM wp, LPARAM lp)
+{
+    std::unique_ptr<ChirpFrame> f(reinterpret_cast<ChirpFrame*>(lp));
+    if (!f) return 0;
+    const FrameHeader& h = f->header;
+    CString line;
+
+    switch (wp) {
+    case SVC_FRAME_PONG:
+        if (m_pingPending) {
+            m_lastRttMs   = ::GetTickCount() - m_pingSentTick;
+            m_pingPending = false;
+        }
+        line.Format(_T("[PONG]   RTT=%u ms"), m_lastRttMs);
+        break;
+
+    case SVC_FRAME_STATUS: {
+        // Field mapping documented in ProtocolDefs.h / CONTROL_API_PLAN.md §2.4.
+        const uint32_t mode  = h.fft_size;
+        const uint32_t mask  = h.fft_peak_bin;
+        const uint32_t intMs = static_cast<uint32_t>(h.fft_peak_mag);
+        const uint16_t amp   = static_cast<uint16_t>(h.reserved1[0] |
+                                                    (h.reserved1[1] << 8));
+        const uint16_t burst = static_cast<uint16_t>(h.reserved1[2] |
+                                                    (h.reserved1[3] << 8));
+        const uint8_t  state = h.reserved1[4];
+        const uint8_t  err   = h.reserved1[5];
+        LPCTSTR modeName = (mode == MODE_IDLE)       ? _T("IDLE")
+                         : (mode == MODE_CONTINUOUS) ? _T("CONT")
+                         : (mode == MODE_SINGLE)     ? _T("SINGLE") : _T("?");
+        CString samples;
+        if (h.actual_samples == 0) samples = _T("auto");
+        else samples.Format(_T("%u"), h.actual_samples);
+
+        m_mcuStatus.Format(_T("MCU: %s %uHz amp=%u burst=%u int=%ums smp=%s %s err=%u"),
+                           modeName, h.chirp_freq_hz, amp, burst, intMs,
+                           samples.GetString(),
+                           state ? _T("CAPTURING") : _T("IDLE"), err);
+        line.Format(_T("[STATUS] mode=%s mask=0x%02X interval=%u ms samples=%s ")
+                    _T("freq=%u Hz amp=%u burst=%u state=%s err=%u"),
+                    modeName, mask, intMs, samples.GetString(),
+                    h.chirp_freq_hz, amp, burst,
+                    state ? _T("CAPTURING") : _T("IDLE"), err);
+        break;
+    }
+
+    case SVC_FRAME_ACK: {
+        static LPCTSTR kStatus[] = { _T("OK"), _T("BAD_ARG"),
+                                     _T("BAD_STATE"), _T("HW_FAIL") };
+        LPCTSTR st = (h.fft_peak_bin < 4) ? kStatus[h.fft_peak_bin] : _T("?");
+        line.Format(_T("[ACK]    cmd=0x%02X status=%s applied=%u"),
+                    h.fft_size, st, h.actual_samples);
+        break;
+    }
+
+    default:
+        return 0;
+    }
+
+    m_tab3.AppendLine(line);
+    UpdateStatusBar();
+    return 0;
+}
+
 LRESULT CMainFrame::OnCommLog(WPARAM, LPARAM lp)
 {
     CString* pLine = reinterpret_cast<CString*>(lp);
@@ -360,6 +469,10 @@ void CMainFrame::UpdateStatusBar()
              static_cast<unsigned long long>(m_framesShown),
              m_lastPeakHz, m_lastTsMs, m_lastRttMs,
              static_cast<unsigned long long>(m_serial ? m_serial->FramesBadCrc() : 0));
+    if (!m_mcuStatus.IsEmpty()) {
+        s += _T("  |  ");
+        s += m_mcuStatus;
+    }
     m_status.SetPaneText(0, s);
 }
 

@@ -3,6 +3,13 @@
 #include "AppMessages.h"
 
 #include <process.h>
+#include <setupapi.h>
+#include <devguid.h>
+#pragma comment(lib, "setupapi.lib")
+
+// USB hardware id of the FastAcq Acquisition Device.
+// Must match firmware Core/Inc/usbd_desc.h (USBD_VID / USBD_PID_FS).
+static constexpr LPCTSTR kFastAcqHwId = _T("VID_0483&PID_5FA1");
 
 // ---------------------------------------------------------------------------
 static CString TimeStampNow()
@@ -20,10 +27,32 @@ SerialWorker::SerialWorker(ChirpStore& store, HWND targetHwnd)
     ::InitializeCriticalSection(&m_writeCs);
 
     m_parser.SetCallback([this](ChirpFrame&& f) {
+        const FrameHeader& h = f.header;
+
+        // Service frames (PONG / STATUS / ACK) are routed to the UI directly
+        // and never enter the ChirpStore -- they carry no capture data.
+        const bool isService =
+            (h.data_flags & (FRAME_FLAG_IS_STATUS | FRAME_FLAG_IS_ACK)) != 0 ||
+            h.frame_id >= FRAME_ID_ACK;
+        if (isService) {
+            WPARAM type = SVC_FRAME_PONG;
+            if ((h.data_flags & FRAME_FLAG_IS_STATUS) || h.frame_id == FRAME_ID_STATUS)
+                type = SVC_FRAME_STATUS;
+            else if ((h.data_flags & FRAME_FLAG_IS_ACK) || h.frame_id == FRAME_ID_ACK)
+                type = SVC_FRAME_ACK;
+            if (::IsWindow(m_hwnd)) {
+                auto* pf = new ChirpFrame(std::move(f));
+                if (!::PostMessage(m_hwnd, WM_APP_SERVICE_FRAME, type,
+                                   reinterpret_cast<LPARAM>(pf)))
+                    delete pf;
+            }
+            return;
+        }
+
         // Capture header info before the frame is moved into the store.
-        const uint32_t frameId  = f.header.frame_id;
-        const uint32_t tsMs     = f.header.timestamp_ms;
-        const uint16_t peakBin  = f.header.fft_peak_bin;
+        const uint32_t frameId  = h.frame_id;
+        const uint32_t tsMs     = h.timestamp_ms;
+        const uint16_t peakBin  = static_cast<uint16_t>(h.fft_peak_bin);
         const size_t   nSamples = f.raw.size();
 
         size_t idx = m_store.Push(std::move(f));
@@ -246,23 +275,44 @@ void SerialWorker::ThreadLoop()
 
 std::vector<CString> SerialWorker::EnumPorts()
 {
+    // Enumerate only COM ports that belong to the FastAcq Acquisition Device
+    // (matched by USB VID/PID from the device hardware id via SetupAPI).
     std::vector<CString> out;
-    HKEY hKey = nullptr;
-    if (::RegOpenKeyEx(HKEY_LOCAL_MACHINE,
-                       _T("HARDWARE\\DEVICEMAP\\SERIALCOMM"),
-                       0, KEY_READ, &hKey) != ERROR_SUCCESS)
+
+    HDEVINFO hDevInfo = ::SetupDiGetClassDevs(&GUID_DEVCLASS_PORTS, nullptr,
+                                              nullptr, DIGCF_PRESENT);
+    if (hDevInfo == INVALID_HANDLE_VALUE)
         return out;
 
-    for (DWORD i = 0;; ++i) {
-        TCHAR name[256]; DWORD nameLen = 256;
-        TCHAR value[256]; DWORD valueLen = sizeof(value);
-        DWORD type = 0;
-        LONG r = ::RegEnumValue(hKey, i, name, &nameLen, nullptr,
-                                &type, reinterpret_cast<LPBYTE>(value), &valueLen);
-        if (r == ERROR_NO_MORE_ITEMS) break;
-        if (r == ERROR_SUCCESS && type == REG_SZ)
-            out.emplace_back(value);
+    SP_DEVINFO_DATA did{};
+    did.cbSize = sizeof(did);
+    for (DWORD i = 0; ::SetupDiEnumDeviceInfo(hDevInfo, i, &did); ++i) {
+        TCHAR hwid[512]{};
+        if (!::SetupDiGetDeviceRegistryProperty(
+                hDevInfo, &did, SPDRP_HARDWAREID, nullptr,
+                reinterpret_cast<PBYTE>(hwid),
+                sizeof(hwid) - sizeof(TCHAR), nullptr))
+            continue;
+
+        CString id(hwid);   // first string of the REG_MULTI_SZ list
+        id.MakeUpper();
+        if (id.Find(kFastAcqHwId) < 0)
+            continue;
+
+        HKEY hKey = ::SetupDiOpenDevRegKey(hDevInfo, &did, DICS_FLAG_GLOBAL,
+                                           0, DIREG_DEV, KEY_READ);
+        if (hKey == INVALID_HANDLE_VALUE)
+            continue;
+        TCHAR port[64]{};
+        DWORD sz = sizeof(port), type = 0;
+        if (::RegQueryValueEx(hKey, _T("PortName"), nullptr, &type,
+                              reinterpret_cast<LPBYTE>(port), &sz) == ERROR_SUCCESS &&
+            type == REG_SZ && _tcsncmp(port, _T("COM"), 3) == 0)
+        {
+            out.emplace_back(port);
+        }
+        ::RegCloseKey(hKey);
     }
-    ::RegCloseKey(hKey);
+    ::SetupDiDestroyDeviceInfoList(hDevInfo);
     return out;
 }

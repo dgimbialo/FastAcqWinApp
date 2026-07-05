@@ -40,3 +40,21 @@ constexpr UINT WM_APP_FFT_SETTINGS      = WM_APP + 32;
 
 // Dots display mode (from CommandPanel). wParam = 0 lines / 1 dots.
 constexpr UINT WM_APP_DOTS_MODE         = WM_APP + 33;
+
+// New MCU control commands (from CommandPanel).
+constexpr UINT WM_APP_CMD_SET_AMPLITUDE = WM_APP + 34; // wParam = DAC counts 1..4095
+constexpr UINT WM_APP_CMD_SET_BURST     = WM_APP + 35; // wParam = chirps per capture
+constexpr UINT WM_APP_CMD_ABORT         = WM_APP + 36;
+
+// Service frame from SerialWorker (PONG / STATUS / ACK — not stored in ChirpStore).
+// wParam = ServiceFrameType, lParam = new ChirpFrame* (receiver must delete).
+constexpr UINT WM_APP_SERVICE_FRAME     = WM_APP + 37;
+
+// Re-enumerate FastAcq COM ports (sent when the COM combo drops down).
+constexpr UINT WM_APP_REFRESH_PORTS     = WM_APP + 38;
+
+enum ServiceFrameType : WPARAM {
+    SVC_FRAME_PONG   = 0,
+    SVC_FRAME_STATUS = 1,
+    SVC_FRAME_ACK    = 2,
+};

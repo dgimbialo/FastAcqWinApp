@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "Tab1Wnd.h"
 #include "AppMessages.h"
+#include "Theme.h"
 
 // ----- Tab1 -----
 BEGIN_MESSAGE_MAP(Tab1Wnd, CWnd)
@@ -8,6 +9,7 @@ BEGIN_MESSAGE_MAP(Tab1Wnd, CWnd)
     ON_WM_SIZE()
     ON_WM_PAINT()
     ON_WM_ERASEBKGND()
+    ON_WM_CTLCOLOR()
     ON_WM_LBUTTONDOWN()
     ON_WM_LBUTTONUP()
     ON_WM_MOUSEMOVE()
@@ -26,6 +28,7 @@ BOOL Tab1Wnd::CreateTab(CWnd* parent, UINT id)
 int Tab1Wnd::OnCreate(LPCREATESTRUCT lpcs)
 {
     if (CWnd::OnCreate(lpcs) == -1) return -1;
+    m_bgBrush.CreateSolidBrush(::GetSysColor(COLOR_BTNFACE));
     m_up.CreateView(this, 2001);
     m_dn.CreateView(this, 2002);
     m_up.SetTitle(_T("UP ramp"));
@@ -46,6 +49,23 @@ void Tab1Wnd::OnSize(UINT t, int cx, int cy)
     CWnd::OnSize(t, cx, cy);
     m_lastCy = cy;
     ApplySplit(cy);
+}
+
+BOOL Tab1Wnd::OnEraseBkgnd(CDC* pDC)
+{
+    CRect rc; GetClientRect(&rc);
+    pDC->FillSolidRect(rc, ::GetSysColor(COLOR_BTNFACE));
+    return TRUE;
+}
+
+HBRUSH Tab1Wnd::OnCtlColor(CDC* pDC, CWnd*, UINT nCtlColor)
+{
+    if (nCtlColor == CTLCOLOR_STATIC || nCtlColor == CTLCOLOR_BTN) {
+        pDC->SetBkMode(TRANSPARENT);
+        pDC->SetTextColor(::GetSysColor(COLOR_WINDOWTEXT));
+        return static_cast<HBRUSH>(m_bgBrush.GetSafeHandle());
+    }
+    return static_cast<HBRUSH>(m_bgBrush.GetSafeHandle());
 }
 
 void Tab1Wnd::ApplySplit(int cy)
@@ -86,14 +106,14 @@ void Tab1Wnd::OnPaint()
     if (upH > m_lastCy - kSplitH - 20) upH = m_lastCy - kSplitH - 20;
 
     CRect bar(rc.left, upH, rc.right, upH + kSplitH);
-    dc.FillSolidRect(bar, RGB(60, 60, 72));
+    dc.FillSolidRect(bar, ::GetSysColor(COLOR_BTNFACE));
 
     // Grip dots in the centre of the bar.
     int midY = bar.top + kSplitH / 2;
     int midX = bar.left + bar.Width() / 2;
     for (int i = -3; i <= 3; ++i) {
         CRect dot(midX + i * 6 - 1, midY - 1, midX + i * 6 + 2, midY + 2);
-        dc.FillSolidRect(dot, RGB(140, 140, 160));
+        dc.FillSolidRect(dot, ::GetSysColor(COLOR_BTNSHADOW));
     }
 }
 
@@ -204,6 +224,8 @@ void Tab1Wnd::ShowFrame(const ChirpFrame& f, bool rawMode,
 BEGIN_MESSAGE_MAP(Tab2Wnd, CWnd)
     ON_WM_CREATE()
     ON_WM_SIZE()
+    ON_WM_ERASEBKGND()
+    ON_WM_CTLCOLOR()
     ON_BN_CLICKED(2020, &Tab2Wnd::OnApplyFft)
 END_MESSAGE_MAP()
 
@@ -218,6 +240,7 @@ BOOL Tab2Wnd::CreateTab(CWnd* parent, UINT id)
 int Tab2Wnd::OnCreate(LPCREATESTRUCT lpcs)
 {
     if (CWnd::OnCreate(lpcs) == -1) return -1;
+    m_bgBrush.CreateSolidBrush(::GetSysColor(COLOR_BTNFACE));
     m_waterfall.CreateView(this, 2101);
     m_specUp.CreateView(this, 2102);
     m_specDn.CreateView(this, 2103);
@@ -284,6 +307,23 @@ void Tab2Wnd::OnSize(UINT t, int cx, int cy)
     if (m_cmbFftWin.GetSafeHwnd()) m_cmbFftWin.MoveWindow(x, footerY, 100, 200);
     x += 104;
     if (m_btnApplyFft.GetSafeHwnd()) m_btnApplyFft.MoveWindow(x, footerY, 80, 20);
+}
+
+BOOL Tab2Wnd::OnEraseBkgnd(CDC* pDC)
+{
+    CRect rc; GetClientRect(&rc);
+    pDC->FillSolidRect(rc, ::GetSysColor(COLOR_BTNFACE));
+    return TRUE;
+}
+
+HBRUSH Tab2Wnd::OnCtlColor(CDC* pDC, CWnd*, UINT nCtlColor)
+{
+    if (nCtlColor == CTLCOLOR_STATIC || nCtlColor == CTLCOLOR_BTN) {
+        pDC->SetBkMode(TRANSPARENT);
+        pDC->SetTextColor(::GetSysColor(COLOR_WINDOWTEXT));
+        return static_cast<HBRUSH>(m_bgBrush.GetSafeHandle());
+    }
+    return static_cast<HBRUSH>(m_bgBrush.GetSafeHandle());
 }
 
 void Tab2Wnd::SetAcqMode(bool rawMode)
