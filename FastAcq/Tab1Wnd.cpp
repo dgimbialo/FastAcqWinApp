@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "Tab1Wnd.h"
 #include "AppMessages.h"
+#include "ProtocolDefs.h"
 #include "Theme.h"
 
 // ----- Tab1 -----
@@ -194,29 +195,27 @@ void Tab1Wnd::ShowFrame(const ChirpFrame& f, bool rawMode,
     if (!rawMode) return;   // FFT mode: no waveform display
     if (f.raw.empty()) return;
 
-    size_t n    = f.raw.size();
-    size_t half = n / 2;
+    // Split the first chirp of the frame at its real rise/fall boundary
+    // (from the header); the capture may also contain a post-chirp tail up
+    // to the DMA chunk boundary, which is not part of either ramp.
+    const FrameHeaderExt* ext = f.hasExt ? &f.ext : nullptr;
+    const size_t n    = ChirpPeriodSamples(f.header, ext, f.raw.size());
+    const size_t half = ChirpRiseSamples(f.header, ext, f.raw.size());
 
     m_up.SetSamples(f.raw.data(),        half);
     m_dn.SetSamples(f.raw.data() + half, n - half);
     m_up.SetSampleRate(sampleRateHz);
     m_dn.SetSampleRate(sampleRateHz);
 
-    // Compute dominant frequency for each ramp via local FFT.
+    // Dominant tone of each ramp: dedicated sub-bin estimator, independent of
+    // the display FFT settings (cfg only affects the spectrum views).
+    (void)cfg;
     if (sampleRateHz > 0) {
-        float freqRes = 0.0f;
-        {
-            auto mag = LocalFft::Compute(f.raw.data(), half, sampleRateHz, cfg, freqRes);
-            float freqUp = LocalFft::PeakFrequencyHz(mag, freqRes);
-            m_up.SetFrequency(freqUp);
-            TRACE(_T("UP freq: %.1f Hz (res=%.1f Hz/bin, bins=%zu)\n"), freqUp, freqRes, mag.size());
-        }
-        {
-            auto mag = LocalFft::Compute(f.raw.data() + half, n - half, sampleRateHz, cfg, freqRes);
-            float freqDn = LocalFft::PeakFrequencyHz(mag, freqRes);
-            m_dn.SetFrequency(freqDn);
-            TRACE(_T("DN freq: %.1f Hz (res=%.1f Hz/bin)\n"), freqDn, freqRes);
-        }
+        const double freqUp = LocalFft::EstimateToneHz(f.raw.data(), half, sampleRateHz);
+        const double freqDn = LocalFft::EstimateToneHz(f.raw.data() + half, n - half, sampleRateHz);
+        m_up.SetFrequency(freqUp);
+        m_dn.SetFrequency(freqDn);
+        TRACE(_T("UP freq: %.1f Hz, DN freq: %.1f Hz\n"), freqUp, freqDn);
     }
 }
 
@@ -338,19 +337,28 @@ void Tab2Wnd::ShowFrame(const ChirpFrame& f, bool rawMode,
     m_fftCfg  = cfg;
 
     if (rawMode) {
-        // RAW mode: compute FFT locally from the full raw capture.
+        // RAW mode: separate spectra for the UP and DOWN ramps of the first
+        // chirp (earlier code fed one full-frame FFT to both views, so the
+        // "DOWN" spectrum was a copy of "UP").
         if (f.raw.empty()) return;
-        float freqRes = 0.0f;
-        auto  mag     = LocalFft::Compute(f.raw.data(), f.raw.size(),
-                                          sampleRateHz, cfg, freqRes);
-        if (mag.empty()) return;
-        m_waterfall.PushFft(mag.data(), mag.size());
-        m_specUp.SetFft(mag.data(), mag.size(), freqRes);
-        m_specDn.SetFft(mag.data(), mag.size(), freqRes);
+        const FrameHeaderExt* ext = f.hasExt ? &f.ext : nullptr;
+        const size_t n    = ChirpPeriodSamples(f.header, ext, f.raw.size());
+        const size_t half = ChirpRiseSamples(f.header, ext, f.raw.size());
+        float resUp = 0.0f, resDn = 0.0f;
+        auto magUp = LocalFft::Compute(f.raw.data(),        half,     sampleRateHz, cfg, resUp);
+        auto magDn = LocalFft::Compute(f.raw.data() + half, n - half, sampleRateHz, cfg, resDn);
+        if (magUp.empty()) return;
+        m_waterfall.PushFft(magUp.data(), magUp.size());
+        m_specUp.SetFft(magUp.data(), magUp.size(), resUp);
+        if (!magDn.empty())
+            m_specDn.SetFft(magDn.data(), magDn.size(), resDn);
     } else {
         // FFT mode: use data already computed by the firmware.
         if (f.fft.empty()) return;
         float res = f.header.fft_freq_res_hz;
+        // Bin width scales with the calibrated ADC rate passed in by the frame.
+        if (f.header.sample_rate_hz > 0 && sampleRateHz > 0)
+            res *= static_cast<float>(static_cast<double>(sampleRateHz) / f.header.sample_rate_hz);
         m_waterfall.PushFft(f.fft.data(), f.fft.size());
         m_specUp.SetFft(f.fft.data(), f.fft.size(), res);
         m_specDn.SetFft(f.fft.data(), f.fft.size(), res);

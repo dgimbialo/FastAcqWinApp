@@ -101,6 +101,9 @@
     <ClInclude Include="SpectrumView.h" />
     <ClInclude Include="Tab1Wnd.h" />
     <ClInclude Include="SettingsTab.h" />
+    <ClInclude Include="TraceDefs.h" />
+    <ClInclude Include="ChirpPreview.h" />
+    <ClInclude Include="TraceTab.h" />
     <ClInclude Include="MainFrame.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
@@ -123,6 +126,8 @@
     <ClCompile Include="SpectrumView.cpp" />
     <ClCompile Include="Tab1Wnd.cpp" />
     <ClCompile Include="SettingsTab.cpp" />
+    <ClCompile Include="TraceTab.cpp" />
+    <ClCompile Include="ChirpPreview.cpp" />
     <ClCompile Include="MainFrameImpl.cpp" />
     <ClCompile Include="FastAcqApp.cpp" />
   </ItemGroup>

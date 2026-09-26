@@ -76,9 +76,8 @@ void WaterfallView::PushFft(const float* mag, size_t n)
 {
     if (!mag || n == 0 || !::IsWindow(m_hWnd)) return;
 
-    // Only use first half of FFT (real signal -> symmetric).
-    size_t use = n / 2;
-    if (use == 0) use = n;
+    // `mag` is the one-sided spectrum already (N/2 bins, 0..fs/2).
+    const size_t use = n;
 
     // Width of the DIB == use (cap at 4096).
     int w = static_cast<int>((std::min)(use, static_cast<size_t>(4096)));
@@ -101,12 +100,18 @@ void WaterfallView::PushFft(const float* mag, size_t n)
     const COLORREF* jet = ColorMap::Jet();
     DWORD* row = m_pPixels;
     for (int x = 0; x < m_dibWidth; ++x) {
-        size_t srcIdx = (static_cast<size_t>(x) * use) / static_cast<size_t>(m_dibWidth);
+        // Max-pool every bin that maps onto this column so a 1-2 bin wide
+        // peak is never skipped by nearest-neighbour decimation.
+        size_t i0 = (static_cast<size_t>(x) * use) / static_cast<size_t>(m_dibWidth);
+        size_t i1 = (static_cast<size_t>(x + 1) * use) / static_cast<size_t>(m_dibWidth);
+        if (i1 <= i0) i1 = i0 + 1;
+        if (i1 > use) i1 = use;
         // Guard against NaN/inf: comparisons with NaN always return false,
         // so a raw clamp would leave v == NaN and cause static_cast<int>(NaN)
         // to produce 0x80000000 on x64, sending jet[] wildly out of bounds.
-        float v = mag[srcIdx];
-        if (!_finite(v) || v < 0.0f) v = 0.0f;
+        float v = 0.0f;
+        for (size_t i = i0; i < i1; ++i)
+            if (_finite(mag[i]) && mag[i] > v) v = mag[i];
         v /= m_maxSeen;
         if (v > 1.0f) v = 1.0f;
         int idx = static_cast<int>(v * 255.0f + 0.5f);

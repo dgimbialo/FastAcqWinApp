@@ -26,8 +26,9 @@ public:
                                       const FftSettings& cfg,
                                       float& outFreqResHz);
 
-    // Estimate dominant frequency (Hz) by FFT peak.
-    static float PeakFrequencyHz(const std::vector<float>& mag, float freqResHz);
+    // Frequency (Hz) of the dominant tone in a raw sample segment, with
+    // sub-bin accuracy. Uses its own FFT; independent of FftSettings.
+    static double EstimateToneHz(const uint16_t* samples, size_t nSamples, uint32_t sampleRateHz);
 
 private:
     static void   Radix2FFT(std::vector<std::complex<float>>& x);

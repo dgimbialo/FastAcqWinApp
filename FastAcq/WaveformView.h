@@ -13,7 +13,7 @@ public:
 
     void SetSamples(const uint16_t* data, size_t n);
     void SetTitle(const CString& t)    { m_title     = t;  Invalidate(FALSE); }
-    void SetFrequency(float hz)        { m_freqHz    = hz; Invalidate(FALSE); }
+    void SetFrequency(double hz)       { m_freqHz    = hz; Invalidate(FALSE); }
     void SetSampleRate(uint32_t rateHz){ m_sampleRateHz = rateHz; }
     void SetDotsMode(bool dots)        { m_dotsMode = dots; Invalidate(FALSE); }
 
@@ -71,7 +71,7 @@ private:
     // ADC config
     int      m_adcBits{12};        // AD9226 = 12-bit
     float    m_vRef{3.3f};         // 3.3 V reference
-    float    m_freqHz{0.0f};       // measured dominant frequency (0 = unknown)
+    double   m_freqHz{0.0};        // measured dominant frequency (0 = unknown)
     uint32_t m_sampleRateHz{60000000}; // 60 MS/s
     bool     m_dotsMode{false};    // true = draw dots only, false = lines
 };

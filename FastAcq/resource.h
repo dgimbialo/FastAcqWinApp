@@ -42,6 +42,24 @@
 #define IDC_BTN_SET_BURST    1031
 #define IDC_BTN_ABORT        1032
 
+// Chirp ramp geometry (Settings tab) + follow-latest toggle (toolbar)
+#define IDC_EDT_RISE         1033
+#define IDC_EDT_FALL         1034
+#define IDC_BTN_SET_RAMP     1035
+#define IDC_CHK_FOLLOW       1036
+#define IDC_CHIRP_PREVIEW    1037
+// ADC clock calibration (Settings tab, PC processing)
+#define IDC_EDT_PPM          1038
+#define IDC_BTN_APPLY_PPM    1039
+
+// Trace tab
+#define IDC_TRC_CHK_ENABLE   1040
+#define IDC_TRC_BTN_SHOT     1041
+#define IDC_TRC_BTN_GET      1042
+#define IDC_TRC_BTN_CLEAR    1043
+#define IDC_TRC_BTN_EXPORT   1044
+#define IDC_TRC_LIST         1045
+
 // MainFrame child IDs
 #define IDC_CHIRP_LIST       1100
 #define IDC_TAB_CTRL         1101
@@ -50,3 +68,4 @@
 #define IDC_TAB2_WND         1104
 #define IDC_TAB3_WND         1105
 #define IDC_TAB4_WND         1106
+#define IDC_TAB5_WND         1107

@@ -9,6 +9,7 @@
 #include "CommandPanel.h"
 #include "Tab1Wnd.h"
 #include "SettingsTab.h"
+#include "TraceTab.h"
 #include "CommLogWnd.h"
 #include "SerialWorker.h"
 #include "LocalFft.h"
@@ -42,6 +43,7 @@ protected:
     afx_msg LRESULT OnCmdClear      (WPARAM, LPARAM);
     afx_msg LRESULT OnCommLog       (WPARAM, LPARAM);
     afx_msg LRESULT OnAcqMode       (WPARAM, LPARAM); // wParam=0 RAW, 1 FFT
+    afx_msg LRESULT OnFsPpm         (WPARAM, LPARAM); // ADC clock correction changed
     afx_msg LRESULT OnFftSettings   (WPARAM, LPARAM); // lParam=new FftSettings*
     afx_msg LRESULT OnCmdSetMode     (WPARAM, LPARAM);
     afx_msg LRESULT OnCmdSetDataMask (WPARAM, LPARAM);
@@ -51,8 +53,12 @@ protected:
     afx_msg LRESULT OnCmdSetAmplitude(WPARAM, LPARAM);
     afx_msg LRESULT OnCmdSetBurst    (WPARAM, LPARAM);
     afx_msg LRESULT OnCmdAbort       (WPARAM, LPARAM);
-    afx_msg LRESULT OnServiceFrame   (WPARAM, LPARAM); // PONG / STATUS / ACK
+    afx_msg LRESULT OnServiceFrame   (WPARAM, LPARAM); // PONG / STATUS / ACK / TRACE
     afx_msg LRESULT OnRefreshPorts   (WPARAM, LPARAM); // re-enumerate COM list
+    afx_msg LRESULT OnCmdSetTrace    (WPARAM, LPARAM); // wParam = 1/0
+    afx_msg LRESULT OnCmdSetRamp     (WPARAM, LPARAM); // wParam = rise | fall<<16
+    afx_msg LRESULT OnCmdGetTrace    (WPARAM, LPARAM);
+    afx_msg LRESULT OnCmdSingleShot  (WPARAM, LPARAM); // SET_MODE(SINGLE) + TRIGGER
 
     DECLARE_MESSAGE_MAP()
 
@@ -72,6 +78,7 @@ private:
     Tab2Wnd        m_tab2;
     CommLogWnd     m_tab3;
     SettingsTabWnd m_tab4;
+    TraceTabWnd    m_tab5;
 
     ChirpStore                    m_store;
     std::unique_ptr<SerialWorker> m_serial;
@@ -89,13 +96,17 @@ private:
     bool     m_pingPending{false};
     DWORD    m_lastRttMs{0};
 
-    // Currently displayed frame (for Save)
+    // Sequence number of the currently displayed frame (for Save); npos = none
     size_t   m_currentIdx{static_cast<size_t>(-1)};
 
     // PC-side acquisition mode
     bool        m_rawMode{true};
     FftSettings m_fftSettings;
-    uint32_t    m_sampleRateHz{60058600};  // Calibrated via 3.000 MHz reference
+    uint32_t    m_sampleRateHz{60000000};  // nominal ADC rate, from the frame header
+    // ADC clock correction, ppm: real Fs = nominal * (1 + ppm * 1e-6).
+    // Positive = the ADC clock runs fast, i.e. uncorrected frequencies read low.
+    double      m_fsPpm{0.0};
+    double   FsFactor() const { return 1.0 + m_fsPpm * 1e-6; }
 };
 
 CFrameWnd* CreateMainFrame();

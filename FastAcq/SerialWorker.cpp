@@ -32,14 +32,22 @@ SerialWorker::SerialWorker(ChirpStore& store, HWND targetHwnd)
         // Service frames (PONG / STATUS / ACK) are routed to the UI directly
         // and never enter the ChirpStore -- they carry no capture data.
         const bool isService =
-            (h.data_flags & (FRAME_FLAG_IS_STATUS | FRAME_FLAG_IS_ACK)) != 0 ||
-            h.frame_id >= FRAME_ID_ACK;
+            (h.data_flags & (FRAME_FLAG_IS_STATUS | FRAME_FLAG_IS_ACK | FRAME_FLAG_IS_TRACE)) != 0 ||
+            h.frame_id >= FRAME_ID_TRACE;
         if (isService) {
             WPARAM type = SVC_FRAME_PONG;
             if ((h.data_flags & FRAME_FLAG_IS_STATUS) || h.frame_id == FRAME_ID_STATUS)
                 type = SVC_FRAME_STATUS;
             else if ((h.data_flags & FRAME_FLAG_IS_ACK) || h.frame_id == FRAME_ID_ACK)
                 type = SVC_FRAME_ACK;
+            else if ((h.data_flags & FRAME_FLAG_IS_TRACE) || h.frame_id == FRAME_ID_TRACE)
+                type = SVC_FRAME_TRACE;
+            if (type == SVC_FRAME_TRACE) {
+                CString line;
+                line.Format(_T("[RX] %s  TRACE: %u records, %u dropped"),
+                            TimeStampNow().GetString(), h.actual_samples, h.fft_peak_bin);
+                PostCommLog(line);
+            }
             if (::IsWindow(m_hwnd)) {
                 auto* pf = new ChirpFrame(std::move(f));
                 if (!::PostMessage(m_hwnd, WM_APP_SERVICE_FRAME, type,

@@ -17,6 +17,7 @@ public:
     void SetConnected(bool c);
     void PopulateComPorts(const std::vector<CString>& ports);
     CString GetSelectedPort() const;
+    bool    IsFollowLatest() const;   // auto-select every new frame
 
 protected:
     afx_msg int  OnCreate(LPCREATESTRUCT lpcs);
@@ -42,6 +43,7 @@ private:
     CButton   m_btnAbort;
     CButton   m_btnSaveFrame;
     CButton   m_btnClear;
+    CButton   m_chkFollow;
     CFont     m_font;
     bool      m_connected{false};
 };

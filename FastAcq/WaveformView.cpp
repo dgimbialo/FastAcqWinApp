@@ -395,8 +395,8 @@ void WaveformView::Render(CDC& dc, const CRect& full)
         dc.DrawText(m_title, tRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
 
-    if (m_freqHz > 1.0f) {
-        long long hz = static_cast<long long>(m_freqHz + 0.5f);
+    if (m_freqHz > 1.0) {
+        long long hz = static_cast<long long>(m_freqHz + 0.5);
         CString freqStr;
         if (hz >= 1000)
             freqStr.Format(_T("%lld.%03lld kHz"), hz / 1000, hz % 1000);
@@ -404,9 +404,9 @@ void WaveformView::Render(CDC& dc, const CRect& full)
             freqStr.Format(_T("%lld Hz"), hz);
 
         if (m_sampleRateHz > 0) {
-            uint32_t spp = static_cast<uint32_t>(static_cast<float>(m_sampleRateHz) / m_freqHz + 0.5f);
+            const double spp = static_cast<double>(m_sampleRateHz) / m_freqHz;
             CString ext;
-            ext.Format(_T("%s   |   %u samp/period"), freqStr.GetString(), spp);
+            ext.Format(_T("%s   |   %.3f samp/period"), freqStr.GetString(), spp);
             freqStr = ext;
         }
 
