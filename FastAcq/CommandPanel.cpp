@@ -45,9 +45,12 @@ int CommandPanel::OnCreate(LPCREATESTRUCT lpcs)
     m_btnAbort.Create  (_T("Abort"),        bs, rc, this, IDC_BTN_ABORT);
     m_btnSaveFrame.Create(_T("Save Frame"), bs, rc, this, IDC_BTN_SAVE_FRAME);
     m_btnClear.Create  (_T("Clear"),        bs, rc, this, IDC_BTN_CLEAR);
+    m_chkFollow.Create (_T("Follow latest"), WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+                        rc, this, IDC_CHK_FOLLOW);
+    m_chkFollow.SetCheck(BST_CHECKED);
 
     CWnd* kids[] = { &m_cmbCom, &m_btnConnect, &m_btnStart, &m_btnStop,
-                     &m_btnTrigger, &m_btnAbort, &m_btnSaveFrame, &m_btnClear };
+                     &m_btnTrigger, &m_btnAbort, &m_btnSaveFrame, &m_btnClear, &m_chkFollow };
     for (auto* c : kids) c->SetFont(&m_font);
 
     SetConnected(false);
@@ -79,6 +82,13 @@ void CommandPanel::Relayout()
     place(m_btnAbort,     70, h);
     place(m_btnSaveFrame,100, h);
     place(m_btnClear,     70, h);
+    x += 8;
+    place(m_chkFollow,   110, h);
+}
+
+bool CommandPanel::IsFollowLatest() const
+{
+    return !m_chkFollow.GetSafeHwnd() || m_chkFollow.GetCheck() == BST_CHECKED;
 }
 
 void CommandPanel::SetConnected(bool c)

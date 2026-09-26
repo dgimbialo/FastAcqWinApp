@@ -35,7 +35,12 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
     ON_MESSAGE(WM_APP_CMD_ABORT,         &CMainFrame::OnCmdAbort)
     ON_MESSAGE(WM_APP_SERVICE_FRAME,     &CMainFrame::OnServiceFrame)
     ON_MESSAGE(WM_APP_REFRESH_PORTS,     &CMainFrame::OnRefreshPorts)
+    ON_MESSAGE(WM_APP_CMD_SET_TRACE,     &CMainFrame::OnCmdSetTrace)
+    ON_MESSAGE(WM_APP_CMD_SET_RAMP,      &CMainFrame::OnCmdSetRamp)
+    ON_MESSAGE(WM_APP_CMD_GET_TRACE,     &CMainFrame::OnCmdGetTrace)
+    ON_MESSAGE(WM_APP_CMD_SINGLE_SHOT,   &CMainFrame::OnCmdSingleShot)
     ON_MESSAGE(WM_APP_ACQ_MODE,          &CMainFrame::OnAcqMode)
+    ON_MESSAGE(WM_APP_FS_PPM,            &CMainFrame::OnFsPpm)
     ON_MESSAGE(WM_APP_FFT_SETTINGS,      &CMainFrame::OnFftSettings)
 END_MESSAGE_MAP()
 
@@ -78,15 +83,18 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpcs)
     ti.pszText = const_cast<LPTSTR>(_T("FFT / Waterfall")); m_tab.InsertItem(1, &ti);
     ti.pszText = const_cast<LPTSTR>(_T("Communication"));   m_tab.InsertItem(2, &ti);
     ti.pszText = const_cast<LPTSTR>(_T("Settings"));        m_tab.InsertItem(3, &ti);
+    ti.pszText = const_cast<LPTSTR>(_T("Trace"));           m_tab.InsertItem(4, &ti);
 
     m_tab1.CreateTab(&m_tab, IDC_TAB1_WND);
     m_tab2.CreateTab(&m_tab, IDC_TAB2_WND);
     m_tab3.CreateTab(&m_tab, IDC_TAB3_WND);
     m_tab4.CreateTab(&m_tab, IDC_TAB4_WND);
+    m_tab5.CreateTab(&m_tab, IDC_TAB5_WND);
     m_tab1.ShowWindow(SW_SHOW);
     m_tab2.ShowWindow(SW_HIDE);
     m_tab3.ShowWindow(SW_HIDE);
     m_tab4.ShowWindow(SW_HIDE);
+    m_tab5.ShowWindow(SW_HIDE);
 
     m_cmd.CreatePanel(this, IDC_CMD_PANEL);
     m_cmd.PopulateComPorts(SerialWorker::EnumPorts());
@@ -140,6 +148,7 @@ void CMainFrame::RelayoutClient()
         if (m_tab2.GetSafeHwnd()) m_tab2.MoveWindow(trc);
         if (m_tab3.GetSafeHwnd()) m_tab3.MoveWindow(trc);
         if (m_tab4.GetSafeHwnd()) m_tab4.MoveWindow(trc);
+        if (m_tab5.GetSafeHwnd()) m_tab5.MoveWindow(trc);
     }
 
     if (m_cmd.GetSafeHwnd())
@@ -153,22 +162,37 @@ void CMainFrame::OnTabSelChange(NMHDR*, LRESULT* pResult)
     m_tab2.ShowWindow(sel == 1 ? SW_SHOW : SW_HIDE);
     m_tab3.ShowWindow(sel == 2 ? SW_SHOW : SW_HIDE);
     m_tab4.ShowWindow(sel == 3 ? SW_SHOW : SW_HIDE);
+    m_tab5.ShowWindow(sel == 4 ? SW_SHOW : SW_HIDE);
     *pResult = 0;
 }
 
 LRESULT CMainFrame::OnFrameReady(WPARAM wp, LPARAM)
 {
-    size_t idx = static_cast<size_t>(wp);
+    size_t seq = static_cast<size_t>(wp);   // store sequence number
     ChirpFrame f;
-    if (!m_store.GetAt(idx, f)) return 0;
+    if (!m_store.GetAt(seq, f)) return 0;
 
     m_framesShown++;
     m_lastTsMs   = f.header.timestamp_ms;
-    m_lastPeakHz = f.header.fft_freq_res_hz * static_cast<float>(f.header.fft_peak_bin);
+    if (f.hasExt && (f.header.data_flags & FRAME_FLAG_HAS_FFT) && f.ext.peak_freq_hz > 0.0f) {
+        m_lastPeakHz = f.ext.peak_freq_hz;            // v2: full-precision interpolated peak
+    } else {
+        float peakBin = static_cast<float>(f.header.fft_peak_bin);
+        if (f.header.data_flags & FRAME_FLAG_PEAK_FRAC)   // v1: sub-bin offset, 1/256 bin
+            peakBin += static_cast<float>(static_cast<int8_t>(f.header.reserved0)) / 256.0f;
+        m_lastPeakHz = f.header.fft_freq_res_hz * peakBin;
+    }
+    // MCU frequencies assume the nominal ADC clock: apply the calibration.
+    m_lastPeakHz = static_cast<float>(m_lastPeakHz * FsFactor());
 
-    m_list.AddChirp(idx, f.header.frame_id, f.header.timestamp_ms, m_lastPeakHz);
+    m_list.AddChirp(seq, f.header.frame_id, f.header.timestamp_ms, m_lastPeakHz);
+    // Keep the list in step with the ring buffer: rows of evicted frames go.
+    while (m_list.GetItemCount() > static_cast<int>(m_store.Capacity()))
+        m_list.DeleteItem(0);
 
-    ShowFrameAt(idx);
+    // Follow the stream unless the user is inspecting an older frame.
+    if (m_cmd.IsFollowLatest() || m_currentIdx == static_cast<size_t>(-1))
+        ShowFrameAt(seq);
     UpdateStatusBar();
     return 0;
 }
@@ -178,6 +202,10 @@ LRESULT CMainFrame::OnPortStatus(WPARAM wp, LPARAM)
     m_connected = (wp != 0);
     m_cmd.SetConnected(m_connected);
     m_tab4.SetConnected(m_connected);
+    m_tab5.SetConnected(m_connected);
+    // Learn the device configuration (incl. trace state) right after connect.
+    if (m_connected && m_serial && m_serial->IsOpen())
+        m_serial->SendCommand(CMD_GET_STATUS, 0, 0, 0);
     UpdateStatusBar();
     return 0;
 }
@@ -207,8 +235,10 @@ void CMainFrame::ShowFrameAt(size_t logicalIdx)
     if (f.header.sample_rate_hz > 0)
         m_sampleRateHz = f.header.sample_rate_hz;
 
-    m_tab1.ShowFrame(f, m_rawMode, m_fftSettings, m_sampleRateHz);
-    m_tab2.ShowFrame(f, m_rawMode, m_fftSettings, m_sampleRateHz);
+    // Views work with the calibrated (real) ADC rate.
+    const uint32_t fsReal = static_cast<uint32_t>(m_sampleRateHz * FsFactor() + 0.5);
+    m_tab1.ShowFrame(f, m_rawMode, m_fftSettings, fsReal);
+    m_tab2.ShowFrame(f, m_rawMode, m_fftSettings, fsReal);
 }
 
 LRESULT CMainFrame::OnCmdConnect(WPARAM, LPARAM)
@@ -372,6 +402,39 @@ LRESULT CMainFrame::OnRefreshPorts(WPARAM, LPARAM)
     return 0;
 }
 
+LRESULT CMainFrame::OnCmdSetTrace(WPARAM wp, LPARAM)
+{
+    if (!m_serial || !m_serial->IsOpen()) return 0;
+    m_serial->SendCommand(CMD_SET_TRACE, wp ? 1 : 0, 0, 0);
+    return 0;
+}
+
+LRESULT CMainFrame::OnCmdSetRamp(WPARAM wp, LPARAM)
+{
+    if (!m_serial || !m_serial->IsOpen()) return 0;
+    m_serial->SendCommand(CMD_SET_RAMP,
+                          static_cast<uint16_t>(wp & 0xFFFF),
+                          static_cast<uint16_t>((wp >> 16) & 0xFFFF), 0);
+    return 0;
+}
+
+LRESULT CMainFrame::OnCmdGetTrace(WPARAM, LPARAM)
+{
+    if (!m_serial || !m_serial->IsOpen()) return 0;
+    m_serial->SendCommand(CMD_GET_TRACE, 0, 0, 0);
+    return 0;
+}
+
+LRESULT CMainFrame::OnCmdSingleShot(WPARAM, LPARAM)
+{
+    if (!m_serial || !m_serial->IsOpen()) return 0;
+    // One traced capture: SINGLE mode so the CONTINUOUS timer stays quiet,
+    // then one TRIGGER. Chirp geometry comes from the Settings tab.
+    m_serial->SendCommand(CMD_SET_MODE, MODE_SINGLE, 0, 0);
+    m_serial->SendCommand(CMD_TRIGGER, 0, 0, 0);
+    return 0;
+}
+
 LRESULT CMainFrame::OnServiceFrame(WPARAM wp, LPARAM lp)
 {
     std::unique_ptr<ChirpFrame> f(reinterpret_cast<ChirpFrame*>(lp));
@@ -399,6 +462,10 @@ LRESULT CMainFrame::OnServiceFrame(WPARAM wp, LPARAM lp)
                                                     (h.reserved1[3] << 8));
         const uint8_t  state = h.reserved1[4];
         const uint8_t  err   = h.reserved1[5];
+        const uint16_t rise  = HeaderU16(h, 6);
+        const uint16_t fall  = static_cast<uint16_t>(h.fft_freq_res_hz);
+        const bool traceOn   = (h.reserved0 & 1u) != 0;
+        m_tab5.SetDeviceTraceEnabled(traceOn);
         LPCTSTR modeName = (mode == MODE_IDLE)       ? _T("IDLE")
                          : (mode == MODE_CONTINUOUS) ? _T("CONT")
                          : (mode == MODE_SINGLE)     ? _T("SINGLE") : _T("?");
@@ -411,10 +478,12 @@ LRESULT CMainFrame::OnServiceFrame(WPARAM wp, LPARAM lp)
                            samples.GetString(),
                            state ? _T("CAPTURING") : _T("IDLE"), err);
         line.Format(_T("[STATUS] mode=%s mask=0x%02X interval=%u ms samples=%s ")
-                    _T("freq=%u Hz amp=%u burst=%u state=%s err=%u"),
+                    _T("freq=%u Hz amp=%u burst=%u ramp=%u/%u us state=%s err=%u trace=%s%s"),
                     modeName, mask, intMs, samples.GetString(),
-                    h.chirp_freq_hz, amp, burst,
-                    state ? _T("CAPTURING") : _T("IDLE"), err);
+                    h.chirp_freq_hz, amp, burst, rise, fall,
+                    state ? _T("CAPTURING") : _T("IDLE"), err,
+                    traceOn ? _T("ON") : _T("off"),
+                    (h.reserved0 & 2u) ? _T("") : _T(" (not compiled in)"));
         break;
     }
 
@@ -424,8 +493,19 @@ LRESULT CMainFrame::OnServiceFrame(WPARAM wp, LPARAM lp)
         LPCTSTR st = (h.fft_peak_bin < 4) ? kStatus[h.fft_peak_bin] : _T("?");
         line.Format(_T("[ACK]    cmd=0x%02X status=%s applied=%u"),
                     h.fft_size, st, h.actual_samples);
+        if (h.fft_peak_bin != ACK_OK) {
+            CString warn;
+            warn.Format(_T("MCU rejected command 0x%02X: %s"), h.fft_size, st);
+            m_status.SetPaneText(0, warn);
+        }
         break;
     }
+
+    case SVC_FRAME_TRACE:
+        m_tab5.ShowTrace(*f);
+        line.Format(_T("[TRACE]  %u records, %u dropped (see Trace tab)"),
+                    h.actual_samples, h.fft_peak_bin);
+        break;
 
     default:
         return 0;
@@ -448,6 +528,18 @@ LRESULT CMainFrame::OnAcqMode(WPARAM wp, LPARAM)
     m_rawMode = (wp == 0);   // 0 = RAW (local FFT), 1 = FFT (from MCU)
     m_tab1.SetAcqMode(m_rawMode);
     m_tab2.SetAcqMode(m_rawMode);
+    return 0;
+}
+
+LRESULT CMainFrame::OnFsPpm(WPARAM, LPARAM)
+{
+    m_fsPpm = m_tab4.GetFsPpm();
+    CString line;
+    line.Format(_T("[CAL] ADC clock correction = %+.3f ppm (Fs = %.1f Hz)"),
+                m_fsPpm, m_sampleRateHz * FsFactor());
+    m_tab3.AppendLine(line);
+    if (m_currentIdx != static_cast<size_t>(-1))
+        ShowFrameAt(m_currentIdx);   // redraw the current frame with the new rate
     return 0;
 }
 
@@ -491,6 +583,12 @@ bool CMainFrame::SaveFrameCsv(const ChirpFrame& f, const CString& path)
     line.Format(_T("# fft_size,%u\n"),          f.header.fft_size);          fp.WriteString(line);
     line.Format(_T("# fft_peak_bin,%u\n"),      f.header.fft_peak_bin);      fp.WriteString(line);
     line.Format(_T("# fft_freq_res_hz,%.6f\n"), f.header.fft_freq_res_hz);   fp.WriteString(line);
+    if (f.hasExt) {
+        line.Format(_T("# protocol_version,%u\n"), f.ext.proto_version);     fp.WriteString(line);
+        line.Format(_T("# peak_freq_hz,%.3f\n"),   f.ext.peak_freq_hz);      fp.WriteString(line);
+        line.Format(_T("# samples_per_chirp,%u\n"), f.ext.samples_per_chirp); fp.WriteString(line);
+        line.Format(_T("# rise_samples,%u\n"),     f.ext.rise_samples);      fp.WriteString(line);
+    }
     fp.WriteString(_T("index,raw,fft_mag\n"));
 
     size_t n = (std::max)(f.raw.size(), f.fft.size());

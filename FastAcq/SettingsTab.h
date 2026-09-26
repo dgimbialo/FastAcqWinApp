@@ -8,6 +8,7 @@
 //
 
 #include "pch.h"
+#include "ChirpPreview.h"
 
 class SettingsTabWnd : public CWnd {
 public:
@@ -22,7 +23,11 @@ public:
     uint16_t GetIntervalMs() const;
     uint16_t GetAmplitude() const;
     uint16_t GetBurst() const;
+    void     GetRampUs(uint16_t& riseUs, uint16_t& fallUs) const;
     bool     IsPcRawMode() const;
+    // ADC clock correction, ppm (+ = ADC clock fast). Persisted in
+    // %APPDATA%\FastAcq\FastAcq.ini, [Calibration] FsPpm.
+    double   GetFsPpm() const { return m_fsPpm; }
 
 protected:
     afx_msg int  OnCreate(LPCREATESTRUCT lpcs);
@@ -34,14 +39,28 @@ protected:
     afx_msg void OnApplyData();
     afx_msg void OnSetAmplitude();
     afx_msg void OnSetBurst();
+    afx_msg void OnSetRamp();
     afx_msg void OnPing();
     afx_msg void OnGetStatus();
     afx_msg void OnPcModeChanged();
+    afx_msg void OnApplyPpm();
+    afx_msg void OnParamChanged();   // any edit / mode change -> redraw preview
+    afx_msg void OnFreqChanged();    // freq edited -> rise/fall follow (symmetric), freq mode
+    afx_msg void OnRampChanged();    // rise/fall edited -> freq follows, ramp mode
     DECLARE_MESSAGE_MAP()
 
 private:
     void Relayout();
     void PostToMain(UINT msg, WPARAM wp = 0, LPARAM lp = 0);
+    void UpdatePreview();
+    bool ControlsReady() const;
+    static CString IniPath();
+    void LoadFsPpm();
+    void SaveFsPpm() const;
+
+    ChirpPreviewCtrl m_preview;
+    bool m_rampMode{false};   // which of freq / rise-fall was edited last
+    bool m_syncing{false};    // guard against EN_CHANGE recursion while mirroring
 
     // MCU acquisition settings
     CStatic   m_lblMode;
@@ -62,6 +81,10 @@ private:
     CStatic   m_lblBurst;
     CEdit     m_edtBurst;
     CButton   m_btnSetBurst;
+    CStatic   m_lblRamp;
+    CEdit     m_edtRise;
+    CEdit     m_edtFall;
+    CButton   m_btnSetRamp;
 
     // Data selection
     CStatic   m_lblData;
@@ -77,6 +100,11 @@ private:
     CStatic   m_lblPcMode;
     CButton   m_rdoPcRaw;
     CButton   m_rdoPcFft;
+    CStatic   m_lblPpm;
+    CEdit     m_edtPpm;
+    CButton   m_btnApplyPpm;
+    CStatic   m_lblPpmHint;
+    double    m_fsPpm{0.0};
 
     // Section headers
     CStatic   m_hdrMcu;

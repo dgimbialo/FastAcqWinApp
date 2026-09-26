@@ -6,7 +6,8 @@
 #include <algorithm>
 
 // ---------------------------------------------------------------------------
-static constexpr float kPi = 3.14159265358979323846f;
+static constexpr float  kPi  = 3.14159265358979323846f;
+static constexpr double kPiD = 3.14159265358979323846;
 
 float LocalFft::WindowVal(FftWindow w, int i, int N)
 {
@@ -25,7 +26,11 @@ float LocalFft::WindowVal(FftWindow w, int i, int N)
     }
 }
 
-void LocalFft::Radix2FFT(std::vector<std::complex<float>>& x)
+// Iterative radix-2 Cooley-Tukey FFT. Twiddles are computed directly in
+// double for every stage: the former recurrence w *= wlen in float drifted by
+// ~1e-3 over thousands of steps and raised the spectral noise floor.
+template <typename T>
+static void Radix2FftT(std::vector<std::complex<T>>& x)
 {
     const size_t N = x.size();
     if (N <= 1) return;
@@ -38,21 +43,28 @@ void LocalFft::Radix2FFT(std::vector<std::complex<float>>& x)
         if (i < j) std::swap(x[i], x[j]);
     }
 
-    // Cooley-Tukey iterative FFT.
+    std::vector<std::complex<T>> tw;
     for (size_t len = 2; len <= N; len <<= 1) {
-        float ang = -2.0f * kPi / static_cast<float>(len);
-        std::complex<float> wlen(cosf(ang), sinf(ang));
+        const size_t halfLen = len / 2;
+        tw.resize(halfLen);
+        for (size_t j = 0; j < halfLen; ++j) {
+            const double ang = -2.0 * kPiD * static_cast<double>(j) / static_cast<double>(len);
+            tw[j] = std::complex<T>(static_cast<T>(cos(ang)), static_cast<T>(sin(ang)));
+        }
         for (size_t i = 0; i < N; i += len) {
-            std::complex<float> w(1.0f, 0.0f);
-            for (size_t j = 0; j < len / 2; ++j) {
-                std::complex<float> u = x[i + j];
-                std::complex<float> v = x[i + j + len / 2] * w;
+            for (size_t j = 0; j < halfLen; ++j) {
+                std::complex<T> u = x[i + j];
+                std::complex<T> v = x[i + j + halfLen] * tw[j];
                 x[i + j]           = u + v;
-                x[i + j + len / 2] = u - v;
-                w *= wlen;
+                x[i + j + halfLen] = u - v;
             }
         }
     }
+}
+
+void LocalFft::Radix2FFT(std::vector<std::complex<float>>& x)
+{
+    Radix2FftT(x);
 }
 
 std::vector<float> LocalFft::Compute(const uint16_t* samples, size_t nSamples,
@@ -93,26 +105,46 @@ std::vector<float> LocalFft::Compute(const uint16_t* samples, size_t nSamples,
     return mag;
 }
 
-float LocalFft::PeakFrequencyHz(const std::vector<float>& mag, float freqResHz)
+double LocalFft::EstimateToneHz(const uint16_t* samples, size_t nSamples, uint32_t sampleRateHz)
 {
-    if (mag.empty() || freqResHz <= 0.0f) return 0.0f;
-    // Skip DC bin (i=0).
-    size_t peakIdx = 1;
-    for (size_t i = 2; i < mag.size(); ++i)
-        if (mag[i] > mag[peakIdx]) peakIdx = i;
+    // Dedicated estimator, independent of the display FFT settings (size,
+    // window, dB scale): largest power-of-two block of the segment (<= 65536),
+    // periodic Hann window, double precision, LINEAR magnitudes, then the
+    // Hann ratio estimator delta = (2a - 1) / (a + 1), a = larger neighbour /
+    // peak. Verified on captured 1 MHz data: +-0.4 Hz vs a sine fit, where the
+    // former log-parabolic interpolation was biased by 20-50 Hz.
+    if (samples == nullptr || sampleRateHz == 0 || nSamples < 64) return 0.0;
+    size_t N = 1;
+    while (N * 2 <= nSamples && N * 2 <= 65536) N *= 2;
 
-    // Parabolic interpolation for sub-bin precision.
-    // If peak is not at edges, refine using neighbors.
-    float peakFrac = 0.0f;
-    if (peakIdx > 0 && peakIdx + 1 < mag.size()) {
-        float alpha = mag[peakIdx - 1];
-        float beta  = mag[peakIdx];
-        float gamma = mag[peakIdx + 1];
-        // Parabolic vertex offset: delta = (alpha - gamma) / (2*(alpha - 2*beta + gamma))
-        float denom = alpha - 2.0f * beta + gamma;
-        if (fabsf(denom) > 1e-9f)
-            peakFrac = 0.5f * (alpha - gamma) / denom;
+    double mean = 0.0;
+    for (size_t i = 0; i < N; ++i) mean += static_cast<double>(samples[i] & 0x0FFF);
+    mean /= static_cast<double>(N);
+
+    std::vector<std::complex<double>> buf(N);
+    for (size_t i = 0; i < N; ++i) {
+        const double w = 0.5 * (1.0 - cos(2.0 * kPiD * static_cast<double>(i) / static_cast<double>(N)));
+        buf[i] = { (static_cast<double>(samples[i] & 0x0FFF) - mean) * w, 0.0 };
     }
+    Radix2FftT(buf);
 
-    return freqResHz * (static_cast<float>(peakIdx) + peakFrac);
+    const size_t half = N / 2;
+    std::vector<double> mag(half);
+    for (size_t i = 0; i < half; ++i) mag[i] = std::abs(buf[i]);
+
+    // Skip the DC main lobe (Hann leaks residual offset into bins 1..3).
+    const size_t first = 4;
+    size_t k = first;
+    for (size_t i = first + 1; i + 1 < half; ++i)
+        if (mag[i] > mag[k]) k = i;
+    if (k + 1 >= half || mag[k] <= 0.0)
+        return static_cast<double>(k) * sampleRateHz / static_cast<double>(N);
+
+    const double l = mag[k - 1], r = mag[k + 1];
+    const double side = (r > l) ? 1.0 : -1.0;
+    const double a = ((r > l) ? r : l) / mag[k];
+    double d = (2.0 * a - 1.0) / (a + 1.0);
+    if (d < 0.0) d = 0.0;
+    if (d > 0.5) d = 0.5;
+    return (static_cast<double>(k) + side * d) * sampleRateHz / static_cast<double>(N);
 }

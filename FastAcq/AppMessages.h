@@ -53,8 +53,17 @@ constexpr UINT WM_APP_SERVICE_FRAME     = WM_APP + 37;
 // Re-enumerate FastAcq COM ports (sent when the COM combo drops down).
 constexpr UINT WM_APP_REFRESH_PORTS     = WM_APP + 38;
 
+// MCU test mode / chirp geometry (from TraceTab / SettingsTab).
+constexpr UINT WM_APP_CMD_SET_TRACE     = WM_APP + 39; // wParam = 1 enable / 0 disable
+constexpr UINT WM_APP_CMD_SET_RAMP      = WM_APP + 40; // wParam = rise_us | (fall_us << 16)
+constexpr UINT WM_APP_CMD_GET_TRACE     = WM_APP + 41;
+constexpr UINT WM_APP_CMD_SINGLE_SHOT   = WM_APP + 42; // SET_MODE(SINGLE) + TRIGGER
+// ADC clock correction changed on the Settings tab (value: SettingsTabWnd::GetFsPpm)
+constexpr UINT WM_APP_FS_PPM            = WM_APP + 43;
+
 enum ServiceFrameType : WPARAM {
     SVC_FRAME_PONG   = 0,
     SVC_FRAME_STATUS = 1,
     SVC_FRAME_ACK    = 2,
+    SVC_FRAME_TRACE  = 3,
 };
