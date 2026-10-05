@@ -474,12 +474,14 @@ void WaveformView::Render(CDC& dc, const CRect& full)
         CFont* pOld = dc.SelectObject(&m_fontTitle);
         const int btnAreaEnd = S(kAxisW96) + 5 * S(kBtnW96) + 4 * S(3) + 2 * S(6) + S(4) + S(10);
         dc.SetTextColor(th.textHdr);
-        CRect tRc(btnAreaEnd, tbRc.top, tbRc.right - S(140), tbRc.bottom);
+        const int textRight = tbRc.right - S(140);
+        const int titleW = (std::min)(static_cast<int>(dc.GetTextExtent(m_title).cx), (std::max)(0, textRight - btnAreaEnd));
+        CRect tRc(btnAreaEnd, tbRc.top, btnAreaEnd + titleW + S(2), tbRc.bottom);
         dc.DrawText(m_title, tRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-        if (!m_info.IsEmpty()) {
+        if (!m_info.IsEmpty() && tRc.right + S(24) < textRight) {
             dc.SelectObject(&m_fontLabel);
             dc.SetTextColor(th.peak);
-            CRect iRc(btnAreaEnd + S(160), tbRc.top, tbRc.right - S(140), tbRc.bottom);
+            CRect iRc(tRc.right + S(16), tbRc.top, textRight, tbRc.bottom);
             dc.DrawText(m_info, iRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
         }
         dc.SelectObject(&m_fontAxis);

@@ -317,7 +317,8 @@ void WaterfallView::Render(CDC& dc, const CRect& rc)
             CString lbl;
             if (row < m_rows.size()) {
                 const uint32_t ts = m_rows[row].tsMs;
-                if (ts0 >= ts) lbl = _T("-") + FormatTime((ts0 - ts) / 1000.0);
+                if (ts0 == ts)     lbl = _T("0");            // newest row
+                else if (ts0 > ts) lbl = _T("-") + FormatTime((ts0 - ts) / 1000.0);
                 else lbl.Format(_T("-%zu"), row);
             } else if (m_rows.empty() && y == L.plot.top) {
                 lbl = _T("0");

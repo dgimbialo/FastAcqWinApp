@@ -184,6 +184,7 @@ CString PlotWnd::FormatRange(double m)
 CString PlotWnd::FormatTime(double sec)
 {
     CString s;
+    if (std::fabs(sec) < 1e-12) sec = 0.0;      // no "-0.0"
     double a = std::fabs(sec);
     if (a >= 1.0)       s.Format(_T("%.3f s"), sec);
     else if (a >= 1e-3) s.Format(_T("%.3f ms"), sec * 1e3);
@@ -228,9 +229,16 @@ void PlotWnd::DrawXAxis(CDC& dc, const CRect& plotRc, const CRect& axisRc, const
         else             { dc.MoveTo(x, plotRc.bottom); dc.LineTo(x, plotRc.bottom + S(3)); }
         dc.SelectObject(p);
         CString lbl = fmt(std::fabs(v) < step * 1e-9 ? 0.0 : v);
-        CRect r(x - S(45), axisRc.top, x + S(45), axisRc.bottom);
+        // Centre the label on the tick, but keep it inside the plot's horizontal
+        // extent so the first / last labels do not run into the y-axis strip
+        // (or off the right edge) and collide with other text.
+        const int tw = dc.GetTextExtent(lbl).cx;
+        int left = x - tw / 2;
+        if (left < plotRc.left - S(2)) left = plotRc.left - S(2);
+        if (left + tw > plotRc.right + S(2)) left = plotRc.right + S(2) - tw;
+        CRect r(left, axisRc.top, left + tw + S(2), axisRc.bottom);
         dc.SetTextColor(th.axisText);
-        dc.DrawText(lbl, r, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP);
+        dc.DrawText(lbl, r, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP);
     }
     dc.SelectObject(pOld);
 }
