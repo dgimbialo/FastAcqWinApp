@@ -53,6 +53,10 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
     ON_MESSAGE(WM_APP_CMD_RECORD,        &CMainFrame::OnCmdRecord)
     ON_MESSAGE(WM_APP_CMD_OPEN_REPLAY,   &CMainFrame::OnCmdOpenReplay)
     ON_MESSAGE(WM_APP_REPLAY_CTRL,       &CMainFrame::OnReplayCtrl)
+    ON_MESSAGE(WM_APP_CMD_SET_TRACE,     &CMainFrame::OnCmdSetTrace)
+    ON_MESSAGE(WM_APP_CMD_SET_RAMP,      &CMainFrame::OnCmdSetRamp)
+    ON_MESSAGE(WM_APP_CMD_GET_TRACE,     &CMainFrame::OnCmdGetTrace)
+    ON_MESSAGE(WM_APP_CMD_SINGLE_SHOT,   &CMainFrame::OnCmdSingleShot)
     ON_COMMAND(ID_FILE_OPEN_REPLAY,    &CMainFrame::OnFileOpenReplay)
     ON_COMMAND(ID_FILE_CLOSE_REPLAY,   &CMainFrame::OnFileCloseReplay)
     ON_COMMAND(ID_FILE_RECORD,         &CMainFrame::OnFileRecord)
@@ -61,7 +65,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
     ON_COMMAND(ID_FILE_EXPORT_WAV,     &CMainFrame::OnFileExportWav)
     ON_COMMAND(ID_FILE_SCREENSHOT,     &CMainFrame::OnFileScreenshot)
     ON_COMMAND(ID_FILE_EXIT,           &CMainFrame::OnFileExit)
-    ON_COMMAND_RANGE(ID_VIEW_RADAR, ID_VIEW_SETTINGS, &CMainFrame::OnViewTab)
+    ON_COMMAND_RANGE(ID_VIEW_RADAR, ID_VIEW_TRACE, &CMainFrame::OnViewTab)
     ON_COMMAND(ID_VIEW_DARK,           &CMainFrame::OnViewDark)
     ON_UPDATE_COMMAND_UI(ID_VIEW_DARK,         &CMainFrame::OnUpdateViewDark)
     ON_UPDATE_COMMAND_UI(ID_FILE_CLOSE_REPLAY, &CMainFrame::OnUpdateCloseReplay)
@@ -140,11 +144,13 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpcs)
     ti.pszText = const_cast<LPTSTR>(_T("Scope"));          m_tab.InsertItem(1, &ti);
     ti.pszText = const_cast<LPTSTR>(_T("Communication"));  m_tab.InsertItem(2, &ti);
     ti.pszText = const_cast<LPTSTR>(_T("Settings"));       m_tab.InsertItem(3, &ti);
+    ti.pszText = const_cast<LPTSTR>(_T("Trace"));          m_tab.InsertItem(4, &ti);
 
     m_radarTab.CreateTab(&m_tab, IDC_TAB_RADAR);
     m_scopeTab.CreateTab(&m_tab, IDC_TAB_SCOPE);
     m_logTab.CreateTab(&m_tab, IDC_TAB_COMM);
     m_settingsTab.CreateTab(&m_tab, IDC_TAB_SETTINGS);
+    m_traceTab.CreateTab(&m_tab, IDC_TAB_TRACE);
 
     m_cmd.CreatePanel(this, IDC_CMD_PANEL);
     m_cmd.PopulateComPorts(SerialWorker::EnumPorts(), m_settings.lastPort);
@@ -160,7 +166,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpcs)
     ApplyTheme();
 
     int tab = m_settings.activeTab;
-    if (tab < 0 || tab > 3) tab = 0;
+    if (tab < 0 || tab > 4) tab = 0;
     m_tab.SetCurSel(tab);
     SelectTab(tab);
 
@@ -253,7 +259,8 @@ void CMainFrame::RelayoutClient()
         CRect trc; m_tab.GetClientRect(&trc);
         m_tab.AdjustRect(FALSE, &trc);
         for (CWnd* w : { static_cast<CWnd*>(&m_radarTab), static_cast<CWnd*>(&m_scopeTab),
-                         static_cast<CWnd*>(&m_logTab), static_cast<CWnd*>(&m_settingsTab) })
+                         static_cast<CWnd*>(&m_logTab), static_cast<CWnd*>(&m_settingsTab),
+                         static_cast<CWnd*>(&m_traceTab) })
             if (w->GetSafeHwnd()) w->MoveWindow(trc);
     }
     if (m_cmd.GetSafeHwnd())
@@ -266,6 +273,7 @@ void CMainFrame::SelectTab(int idx)
     m_scopeTab.ShowWindow(idx == 1 ? SW_SHOW : SW_HIDE);
     m_logTab.ShowWindow(idx == 2 ? SW_SHOW : SW_HIDE);
     m_settingsTab.ShowWindow(idx == 3 ? SW_SHOW : SW_HIDE);
+    m_traceTab.ShowWindow(idx == 4 ? SW_SHOW : SW_HIDE);
 }
 
 void CMainFrame::OnTabSelChange(NMHDR*, LRESULT* pResult)
@@ -277,7 +285,7 @@ void CMainFrame::OnTabSelChange(NMHDR*, LRESULT* pResult)
 void CMainFrame::OnViewTab(UINT id)
 {
     int idx = static_cast<int>(id - ID_VIEW_RADAR);
-    if (idx < 0 || idx > 3) return;
+    if (idx < 0 || idx > 4) return;
     m_tab.SetCurSel(idx);
     SelectTab(idx);
 }
@@ -308,7 +316,7 @@ BOOL CMainFrame::PreTranslateMessage(MSG* pMsg)
         case 'R': if (!typing && !ctrl) { OnFileRecord(); return TRUE; } break;
         case 'S': if (ctrl) { OnFileSaveFrame(); return TRUE; } break;
         case 'O': if (ctrl) { OnFileOpenReplay(); return TRUE; } break;
-        case '1': case '2': case '3': case '4':
+        case '1': case '2': case '3': case '4': case '5':
             if (ctrl) { OnViewTab(ID_VIEW_RADAR + static_cast<UINT>(pMsg->wParam - '1')); return TRUE; }
             break;
         case VK_F5:  OnAcqConnect(); return TRUE;
@@ -402,6 +410,7 @@ LRESULT CMainFrame::OnPortStatus(WPARAM wp, LPARAM lp)
     }
     m_cmd.SetConnected(m_connected);
     m_settingsTab.SetConnected(m_connected);
+    m_traceTab.SetConnected(m_connected);
     if (m_connected) SetTimer(kTimerPostConnect, 300, nullptr);
     UpdateStatusBar();
     return 0;
@@ -531,6 +540,25 @@ LRESULT CMainFrame::OnCmdGetStatus(WPARAM, LPARAM)      { SendCmd(CMD_GET_STATUS
 LRESULT CMainFrame::OnCmdSetAmplitude(WPARAM wp, LPARAM){ SendCmd(CMD_SET_AMPLITUDE, static_cast<uint16_t>(wp)); return 0; }
 LRESULT CMainFrame::OnCmdSetBurst(WPARAM wp, LPARAM)    { SendCmd(CMD_SET_BURST, static_cast<uint16_t>(wp)); return 0; }
 LRESULT CMainFrame::OnCmdAbort(WPARAM, LPARAM)          { SendCmd(CMD_ABORT); return 0; }
+LRESULT CMainFrame::OnCmdSetTrace(WPARAM wp, LPARAM)    { SendCmd(CMD_SET_TRACE, wp ? 1 : 0); return 0; }
+LRESULT CMainFrame::OnCmdGetTrace(WPARAM, LPARAM)       { SendCmd(CMD_GET_TRACE); return 0; }
+
+LRESULT CMainFrame::OnCmdSetRamp(WPARAM wp, LPARAM)
+{
+    // wParam = rise_us | (fall_us << 16); 0/0 = symmetric chirp from the frequency.
+    SendCmd(CMD_SET_RAMP, static_cast<uint16_t>(wp & 0xFFFF), static_cast<uint16_t>((wp >> 16) & 0xFFFF));
+    return 0;
+}
+
+LRESULT CMainFrame::OnCmdSingleShot(WPARAM, LPARAM)
+{
+    // One traced capture: SINGLE mode keeps the CONTINUOUS timer quiet, then
+    // one TRIGGER. Chirp geometry is whatever the Settings tab programmed.
+    SendCmd(CMD_SET_MODE, MODE_SINGLE);
+    m_running = true;
+    SendCmd(CMD_TRIGGER);
+    return 0;
+}
 
 LRESULT CMainFrame::OnCmdClear(WPARAM, LPARAM)
 {
@@ -578,13 +606,19 @@ LRESULT CMainFrame::OnServiceFrame(WPARAM wp, LPARAM lp)
                          : (m_device.mode == MODE_SINGLE) ? _T("SINGLE") : _T("?");
         CString samples;
         if (m_device.samples == 0) samples = _T("auto"); else samples.Format(_T("%u"), m_device.samples);
-        m_mcuStatus.Format(_T("MCU: %s %uHz amp=%u burst=%u int=%ums smp=%s %s err=%u"),
-                           modeName, m_device.chirpFreqHz, m_device.amplitude, m_device.burst, m_device.intervalMs,
-                           samples.GetString(), m_device.fsmState ? _T("CAPTURING") : _T("IDLE"), m_device.lastError);
-        line.Format(_T("STATUS mode=%s mask=0x%02X interval=%u ms samples=%s freq=%u Hz amp=%u burst=%u state=%s err=%u"),
+        CString ramp;
+        if (m_device.riseUs && m_device.fallUs) ramp.Format(_T(" ramp=%u/%uus"), m_device.riseUs, m_device.fallUs);
+        m_mcuStatus.Format(_T("MCU: %s %uHz%s amp=%u burst=%u int=%ums smp=%s %s err=%u%s"),
+                           modeName, m_device.chirpFreqHz, ramp.GetString(), m_device.amplitude, m_device.burst, m_device.intervalMs,
+                           samples.GetString(), m_device.fsmState ? _T("CAPTURING") : _T("IDLE"), m_device.lastError,
+                           m_device.traceOn ? _T(" TRACE") : _T(""));
+        line.Format(_T("STATUS mode=%s mask=0x%02X interval=%u ms samples=%s freq=%u Hz ramp=%u/%u us amp=%u burst=%u state=%s err=%u trace=%s%s"),
                     modeName, m_device.dataMask, m_device.intervalMs, samples.GetString(), m_device.chirpFreqHz,
-                    m_device.amplitude, m_device.burst, m_device.fsmState ? _T("CAPTURING") : _T("IDLE"), m_device.lastError);
+                    m_device.riseUs, m_device.fallUs, m_device.amplitude, m_device.burst,
+                    m_device.fsmState ? _T("CAPTURING") : _T("IDLE"), m_device.lastError,
+                    m_device.traceOn ? _T("ON") : _T("off"), m_device.traceAvail ? _T("") : _T(" (not compiled in)"));
         m_running = (m_device.mode != MODE_IDLE);
+        m_traceTab.SetDeviceTraceState(m_device.traceOn, m_device.traceAvail);
         // The device is the source of truth: mirror its settings into the UI.
         bool changed = false;
         if (m_settings.acq.chirpFreqHz != m_device.chirpFreqHz && m_device.chirpFreqHz > 0) { m_settings.acq.chirpFreqHz = m_device.chirpFreqHz; changed = true; }
@@ -593,6 +627,9 @@ LRESULT CMainFrame::OnServiceFrame(WPARAM wp, LPARAM lp)
         if (m_settings.acq.intervalMs != static_cast<int>(m_device.intervalMs) && m_device.intervalMs > 0) { m_settings.acq.intervalMs = static_cast<int>(m_device.intervalMs); changed = true; }
         if (m_settings.acq.samples != static_cast<int>(m_device.samples)) { m_settings.acq.samples = static_cast<int>(m_device.samples); changed = true; }
         if (static_cast<int>(m_device.mode) <= 2 && m_settings.acq.mode != static_cast<int>(m_device.mode)) { m_settings.acq.mode = static_cast<int>(m_device.mode); changed = true; }
+        if (m_settings.acq.riseUs != m_device.riseUs || m_settings.acq.fallUs != m_device.fallUs) {
+            m_settings.acq.riseUs = m_device.riseUs; m_settings.acq.fallUs = m_device.fallUs; changed = true;
+        }
         m_settings.acq.sendRaw = (m_device.dataMask & 0x01) != 0;
         m_settings.acq.sendFft = (m_device.dataMask & 0x02) != 0;
         if (m_settings.chirpsFromBurst && m_settings.dsp.chirpsInFrame != m_device.burst) {
@@ -607,9 +644,19 @@ LRESULT CMainFrame::OnServiceFrame(WPARAM wp, LPARAM lp)
         static LPCTSTR kStatus[] = { _T("OK"), _T("BAD_ARG"), _T("BAD_STATE"), _T("HW_FAIL") };
         LPCTSTR st = (h.fft_peak_bin < 4) ? kStatus[h.fft_peak_bin] : _T("?");
         line.Format(_T("ACK cmd=0x%02X status=%s applied=%u"), h.fft_size, st, h.actual_samples);
-        if (h.fft_peak_bin != ACK_OK) m_logTab.AppendLine(LOG_ERR, line);
+        if (h.fft_peak_bin != ACK_OK) {
+            m_logTab.AppendLine(LOG_ERR, line);
+            m_lastWarn.Format(_T("MCU rejected command 0x%02X: %s"), h.fft_size, st);
+            m_lastWarnTick = ::GetTickCount();
+        }
         break;
     }
+
+    case SVC_FRAME_TRACE:
+        m_traceTab.ShowTrace(*f);
+        line.Format(_T("TRACE %u records, %u dropped (see Trace tab)"), h.actual_samples, h.fft_peak_bin);
+        break;
+
     default:
         return 0;
     }
@@ -641,7 +688,7 @@ LRESULT CMainFrame::OnSettingsChanged(WPARAM wp, LPARAM)
 
 void CMainFrame::ApplySettingsToAll(bool syncSettingsTab)
 {
-    if (m_dsp) m_dsp->Configure(m_settings.dsp, m_settings.radar, static_cast<double>(m_settings.sampleRateCalHz));
+    if (m_dsp) m_dsp->Configure(m_settings.dsp, m_settings.radar, static_cast<double>(m_settings.sampleRateCalHz), m_settings.FsFactor());
     if (m_serial) m_serial->SetVerbose(m_settings.verboseLog);
     m_radarTab.ApplySettings(m_settings);
     m_scopeTab.ApplySettings(m_settings);
@@ -657,6 +704,7 @@ void CMainFrame::ApplyTheme()
     m_scopeTab.ApplyTheme();
     m_logTab.ApplyTheme();
     m_settingsTab.ApplyTheme();
+    m_traceTab.ApplyTheme();
     m_cmd.ApplyTheme();
     m_list.ApplyTheme();
     Invalidate();
@@ -717,12 +765,13 @@ void CMainFrame::UpdateStatusBar()
     else
         s = _T("Disconnected");
     if (m_recording) s += _T("  \u25CF REC");
+    if (!m_lastWarn.IsEmpty() && ::GetTickCount() - m_lastWarnTick < 6000) s += _T("  |  ") + m_lastWarn;
     m_status.SetPaneText(0, s);
     m_status.SetPaneText(1, m_mcuStatus.IsEmpty() ? CString(_T("MCU: -")) : m_mcuStatus);
 
     CString rate;
-    rate.Format(_T("Fs %.3f MS/s  %zu smp  %.1f fps  %.2f MB/s  RTT %lu ms"),
-                (m_obsFs > 0.0 ? m_obsFs : m_settings.sampleRateCalHz) / 1e6, m_obsSamples,
+    rate.Format(_T("Fs %.4f MS/s  %zu smp  %.1f fps  %.2f MB/s  RTT %lu ms"),
+                (m_obsFs > 0.0 ? m_obsFs * m_settings.FsFactor() : m_settings.sampleRateCalHz) / 1e6, m_obsSamples,
                 m_link.framesPerSec, m_link.bytesPerSec / 1e6, m_lastRttMs);
     m_status.SetPaneText(2, rate);
 
@@ -792,6 +841,7 @@ void CMainFrame::ExportTargetsCsv(const CString& path)
     local.SetParams(m_settings.radar);
     local.SetSettings(m_settings.dsp);
     local.SetFallbackSampleRate(static_cast<double>(m_settings.sampleRateCalHz));
+    local.SetSampleRateScale(m_settings.FsFactor());
     CStdioFile f;
     if (!f.Open(path, CFile::modeCreate | CFile::modeWrite | CFile::typeText)) { AfxMessageBox(_T("Cannot create file.")); return; }
     f.WriteString(TargetListCtrl::CsvHeader());
@@ -825,7 +875,9 @@ void CMainFrame::ExportWav(const CString& path)
 {
     ChirpFramePtr fr = CurrentFrame();
     if (!fr) return;
-    const uint32_t fs = fr->header.sample_rate_hz > 0 ? fr->header.sample_rate_hz : m_settings.sampleRateCalHz;
+    const uint32_t fs = fr->header.sample_rate_hz > 0
+                      ? static_cast<uint32_t>(fr->header.sample_rate_hz * m_settings.FsFactor() + 0.5)
+                      : m_settings.sampleRateCalHz;
     std::string err;
     if (!core::WriteWav16FromCodes(ToPath(path), fr->raw.data(), fr->raw.size(), fs, &err))
         AfxMessageBox(_T("WAV export failed."));
@@ -1035,7 +1087,7 @@ void CMainFrame::OnHelpKeys()
         _T("Ctrl+O\tOpen replay\n")
         _T("Ctrl+S\tSave frame as CSV\n")
         _T("F12\tSave screenshot (PNG)\n")
-        _T("Ctrl+1..4\tSwitch tab\n")
+        _T("Ctrl+1..5\tSwitch tab\n")
         _T("PgUp / PgDn, Ctrl+Left / Right\tPrevious / next frame\n\n")
         _T("In plots: wheel = zoom at cursor, Shift+wheel = pan, drag = pan, double-click = reset,\n")
         _T("click = marker A, Shift+click = marker B, Esc = clear markers, Home = reset zoom, A = autoscale dB."),

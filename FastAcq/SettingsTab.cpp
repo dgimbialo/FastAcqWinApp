@@ -18,6 +18,15 @@ BEGIN_MESSAGE_MAP(SettingsTab, CWnd)
     ON_BN_CLICKED(IDC_BTN_APPLY_DATA,  &SettingsTab::OnApplyData)
     ON_BN_CLICKED(IDC_BTN_SET_AMP,     &SettingsTab::OnSetAmplitude)
     ON_BN_CLICKED(IDC_BTN_SET_BURST,   &SettingsTab::OnSetBurst)
+    ON_BN_CLICKED(IDC_BTN_SET_RAMP,    &SettingsTab::OnSetRamp)
+    ON_BN_CLICKED(IDC_BTN_APPLY_PPM,   &SettingsTab::OnApplyPpm)
+    ON_EN_CHANGE(IDC_EDT_FREQ,         &SettingsTab::OnFreqChanged)
+    ON_EN_CHANGE(IDC_EDT_RISE,         &SettingsTab::OnRampChanged)
+    ON_EN_CHANGE(IDC_EDT_FALL,         &SettingsTab::OnRampChanged)
+    ON_CBN_SELCHANGE(IDC_CMB_MODE,     &SettingsTab::OnModeSelChanged)
+    ON_BN_CLICKED(IDC_CHK_FW_GEOM,     &SettingsTab::OnAutoApply)
+    ON_BN_CLICKED(IDC_CHK_TONE,        &SettingsTab::OnAutoApply)
+    ON_CONTROL_RANGE(EN_CHANGE, IDC_EDT_SAMPLES, IDC_EDT_BURST, &SettingsTab::OnPreviewInput)
     ON_BN_CLICKED(IDC_BTN_PING,        &SettingsTab::OnPing)
     ON_BN_CLICKED(IDC_BTN_GET_STATUS,  &SettingsTab::OnGetStatus)
     ON_BN_CLICKED(IDC_BTN_SEND_ALL,    &SettingsTab::OnSendAll)
@@ -74,6 +83,10 @@ int SettingsTab::OnCreate(LPCREATESTRUCT lpcs)
     m_lblBurst.Create(_T("Chirps per capture"), ss, rc, this);
     m_edtBurst.Create(es, rc, this, IDC_EDT_BURST);
     m_btnSetBurst.Create(_T("Set"), bs, rc, this, IDC_BTN_SET_BURST);
+    m_lblRamp.Create(_T("Ramp rise / fall, us"), ss, rc, this);
+    m_edtRise.Create(es, rc, this, IDC_EDT_RISE);
+    m_edtFall.Create(es, rc, this, IDC_EDT_FALL);
+    m_btnSetRamp.Create(_T("Set ramp"), bs, rc, this, IDC_BTN_SET_RAMP);
     m_lblData.Create(_T("Frame content"), ss, rc, this);
     m_chkRaw.Create(_T("Raw"), chk, rc, this, IDC_CHK_RAW);
     m_chkFft.Create(_T("FFT"), chk, rc, this, IDC_CHK_FFT);
@@ -113,7 +126,9 @@ int SettingsTab::OnCreate(LPCREATESTRUCT lpcs)
     m_lblDark.Create(_T("Theme"), ss, rc, this);                  m_chkDark.Create(_T("Dark"), chk, rc, this, IDC_CHK_DARK);
     m_lblAdcBits.Create(_T("ADC bits"), ss, rc, this);            m_edtAdcBits.Create(es, rc, this, IDC_EDT_ADCBITS);
     m_lblVref.Create(_T("ADC full scale, V"), ss, rc, this);      m_edtVref.Create(esf, rc, this, IDC_EDT_VREF);
-    m_lblFsCal.Create(_T("Calibrated Fs, Hz"), ss, rc, this);     m_edtFsCal.Create(es, rc, this, IDC_EDT_FSCAL);
+    m_lblFsCal.Create(_T("Fallback Fs, Hz"), ss, rc, this);       m_edtFsCal.Create(es, rc, this, IDC_EDT_FSCAL);
+    m_lblPpm.Create(_T("ADC clock corr., ppm"), ss, rc, this);     m_edtPpm.Create(esf, rc, this, IDC_EDT_PPM);
+    m_btnApplyPpm.Create(_T("Apply"), bs, rc, this, IDC_BTN_APPLY_PPM);
     m_lblVerbose.Create(_T("Log"), ss, rc, this);                 m_chkVerbose.Create(_T("Per-frame RX lines"), chk, rc, this, IDC_CHK_VERBOSE);
     m_lblAutoConn.Create(_T("Start-up"), ss, rc, this);           m_chkAutoConnect.Create(_T("Auto-connect"), chk, rc, this, IDC_CHK_AUTOCONNECT);
 
@@ -155,10 +170,13 @@ int SettingsTab::OnCreate(LPCREATESTRUCT lpcs)
     m_lblMaxPeaks.Create(_T("Max targets"), ss, rc, this);        m_edtMaxPeaks.Create(es, rc, this, IDC_EDT_MAXPEAKS);
     m_lblMti.Create(_T("Doppler"), ss, rc, this);                 m_chkMti.Create(_T("MTI (subtract mean)"), chk, rc, this, IDC_CHK_MTI);
     m_lblTrack.Create(_T("Tracking"), ss, rc, this);              m_chkTrack.Create(_T("Stable target IDs"), chk, rc, this, IDC_CHK_TRACK);
+    m_lblFwGeom.Create(_T("Chirp split"), ss, rc, this);          m_chkFwGeom.Create(_T("From frame header (v2 exact)"), chk, rc, this, IDC_CHK_FW_GEOM);
+    m_lblTone.Create(_T("Tone estimate"), ss, rc, this);          m_chkTone.Create(_T("Precise (double FFT)"), chk, rc, this, IDC_CHK_TONE);
     m_btnApplyProc.Create(_T("Apply"), bs, rc, this, IDC_BTN_APPLY_PROC);
     m_btnDefaults.Create(_T("Defaults"), bs, rc, this, IDC_BTN_DEFAULTS);
     m_hdrDerived.Create(_T("Derived values"), ss, rc, this);
     m_lblDerived.Create(_T(""), WS_CHILD | WS_VISIBLE | SS_LEFT, rc, this, IDC_LBL_DERIVED);
+    m_preview.CreateCtrl(this, IDC_CHIRP_PREVIEW);
 
     // Fonts.
     CWnd* pw = GetWindow(GW_CHILD);
@@ -176,6 +194,7 @@ void SettingsTab::ApplyTheme()
 {
     if (m_bgBrush.GetSafeHandle()) m_bgBrush.DeleteObject();
     m_bgBrush.CreateSolidBrush(Theme::Get().bg);
+    m_preview.ApplyTheme();
     Invalidate();
     CWnd* pw = GetWindow(GW_CHILD);
     while (pw) { pw->Invalidate(); pw = pw->GetWindow(GW_HWNDNEXT); }
@@ -208,6 +227,15 @@ void SettingsTab::ApplySettings(const AppSettings& s)
     SetInt(m_edtInterval, s.acq.intervalMs);
     SetInt(m_edtAmplitude, s.acq.amplitude);
     SetInt(m_edtBurst, s.acq.burst);
+    m_rampMode = (s.acq.riseUs > 0 && s.acq.fallUs > 0);
+    if (m_rampMode) {
+        SetInt(m_edtRise, s.acq.riseUs);
+        SetInt(m_edtFall, s.acq.fallUs);
+    } else {
+        const int half = s.acq.chirpFreqHz > 0 ? static_cast<int>(500000.0 / s.acq.chirpFreqHz + 0.5) : 0;
+        SetInt(m_edtRise, half);
+        SetInt(m_edtFall, half);
+    }
     m_chkRaw.SetCheck(s.acq.sendRaw ? BST_CHECKED : BST_UNCHECKED);
     m_chkFft.SetCheck(s.acq.sendFft ? BST_CHECKED : BST_UNCHECKED);
     m_rdoSrcRaw.SetCheck(s.dsp.useMcuFft ? BST_UNCHECKED : BST_CHECKED);
@@ -231,6 +259,7 @@ void SettingsTab::ApplySettings(const AppSettings& s)
     SetInt(m_edtAdcBits, s.display.adcBits);
     SetDouble(m_edtVref, s.display.vRef, _T("%.3f"));
     SetInt(m_edtFsCal, s.sampleRateCalHz);
+    SetDouble(m_edtPpm, s.fsPpm, _T("%.3f"));
     m_chkVerbose.SetCheck(s.verboseLog ? BST_CHECKED : BST_UNCHECKED);
     m_chkAutoConnect.SetCheck(s.autoConnect ? BST_CHECKED : BST_UNCHECKED);
 
@@ -255,6 +284,8 @@ void SettingsTab::ApplySettings(const AppSettings& s)
     SetInt(m_edtMaxPeaks, s.dsp.maxPeaks);
     m_chkMti.SetCheck(s.dsp.mti ? BST_CHECKED : BST_UNCHECKED);
     m_chkTrack.SetCheck(s.dsp.trackTargets ? BST_CHECKED : BST_UNCHECKED);
+    m_chkFwGeom.SetCheck(s.dsp.firmwareGeometry ? BST_CHECKED : BST_UNCHECKED);
+    m_chkTone.SetCheck(s.dsp.toneEstimate ? BST_CHECKED : BST_UNCHECKED);
     m_suppress = false;
     RefreshDerived();
 }
@@ -267,6 +298,8 @@ void SettingsTab::ReadInto(AppSettings& s) const
     s.acq.intervalMs  = GetIntervalMs();
     s.acq.amplitude   = GetAmplitude();
     s.acq.burst       = GetBurst();
+    s.acq.riseUs      = GetRiseUs();
+    s.acq.fallUs      = GetFallUs();
     s.acq.sendRaw     = m_chkRaw.GetCheck() == BST_CHECKED;
     s.acq.sendFft     = m_chkFft.GetCheck() == BST_CHECKED;
     s.dsp.useMcuFft   = m_rdoSrcMcu.GetCheck() == BST_CHECKED;
@@ -292,6 +325,7 @@ void SettingsTab::ReadInto(AppSettings& s) const
     s.display.vRef      = static_cast<float>(GetDouble(m_edtVref, 3.3));
     int fs = GetInt(m_edtFsCal, 60058600);
     s.sampleRateCalHz   = fs > 1000 ? static_cast<uint32_t>(fs) : 60058600u;
+    s.fsPpm             = GetFsPpm();
     s.verboseLog        = m_chkVerbose.GetCheck() == BST_CHECKED;
     s.autoConnect       = m_chkAutoConnect.GetCheck() == BST_CHECKED;
 
@@ -320,6 +354,8 @@ void SettingsTab::ReadInto(AppSettings& s) const
     s.dsp.maxPeaks = (std::max)(1, (std::min)(64, GetInt(m_edtMaxPeaks, 10)));
     s.dsp.mti          = m_chkMti.GetCheck() == BST_CHECKED;
     s.dsp.trackTargets = m_chkTrack.GetCheck() == BST_CHECKED;
+    s.dsp.firmwareGeometry = m_chkFwGeom.GetCheck() == BST_CHECKED;
+    s.dsp.toneEstimate     = m_chkTone.GetCheck() == BST_CHECKED;
 }
 
 void SettingsTab::SetObserved(double fsHz, size_t samplesPerFrame, size_t mcuFftSize)
@@ -336,7 +372,9 @@ void SettingsTab::RefreshDerived()
     const double fs = (m_obsFs > 0.0) ? m_obsFs : static_cast<double>(s.sampleRateCalHz);
     size_t samples = m_obsSamples;
     if (samples == 0) {
+        const core::ChirpGeometry& g = m_preview.Geometry();
         if (s.acq.samples > 0) samples = static_cast<size_t>(s.acq.samples);
+        else if (g.valid) samples = g.samplesPerBurst;
         else if (s.acq.chirpFreqHz > 0) samples = static_cast<size_t>(fs / s.acq.chirpFreqHz + 0.5) * static_cast<size_t>((std::max)(1, s.acq.burst));
     }
     dsp::DerivedValues d = dsp::ComputeDerived(s.radar, s.dsp, fs, s.acq.chirpFreqHz, samples,
@@ -356,14 +394,70 @@ void SettingsTab::RefreshDerived()
         line.Format(_T("Velocity: resolution %.3f m/s (burst %d), unambiguous +/- %.2f m/s\r\n"), d.velResMps, (std::max)(1, s.dsp.chirpsInFrame), d.velMaxMps); t += line;
     }
     line.Format(_T("USB load at %d ms interval: %.2f MB/s (FS CDC limit ~0.8 MB/s)"), s.acq.intervalMs, d.usbMBps); t += line;
+    if (s.fsPpm != 0.0) {
+        line.Format(_T("\r\nADC clock correction %+.3f ppm: nominal %.6f -> %.6f MS/s"), s.fsPpm,
+                    fs / 1e6, fs * (1.0 + s.fsPpm * 1e-6) / 1e6);
+        t += line;
+    }
     m_lblDerived.SetWindowText(t);
 }
+
+void SettingsTab::UpdatePreview()
+{
+    if (!m_preview.GetSafeHwnd()) return;
+    core::ChirpParams p;
+    p.freqHz     = GetFreqHz();
+    p.riseUs     = GetRiseUs();
+    p.fallUs     = GetFallUs();
+    p.amplitude  = GetAmplitude();
+    p.burst      = GetBurst();
+    p.intervalMs = GetIntervalMs();
+    p.samplesOvr = GetSamples();
+    p.mode       = GetModeSel();
+    m_preview.SetParams(p);
+}
+
+// Frequency typed: the ramp fields mirror the symmetric chirp the MCU will
+// generate from CMD_START_CHIRP (and the ramp mode is left).
+void SettingsTab::OnFreqChanged()
+{
+    if (m_suppress || m_syncing) return;
+    m_syncing = true;
+    m_rampMode = false;
+    const int f = GetFreqHz();
+    const int half = f > 0 ? static_cast<int>(500000.0 / f + 0.5) : 0;
+    SetInt(m_edtRise, half);
+    SetInt(m_edtFall, half);
+    m_syncing = false;
+    UpdatePreview();
+    RefreshDerived();
+}
+
+// Rise / fall typed: the frequency field shows the resulting repetition
+// rate and "Set ramp" becomes the way to program the device.
+void SettingsTab::OnRampChanged()
+{
+    if (m_suppress || m_syncing) return;
+    m_syncing = true;
+    const int rise = GetInt(m_edtRise, 0), fall = GetInt(m_edtFall, 0);
+    m_rampMode = (rise > 0 && fall > 0);
+    if (m_rampMode) {
+        const double f = 1e6 / static_cast<double>(rise + fall);
+        SetInt(m_edtFreq, static_cast<long long>(f + 0.5));
+    }
+    m_syncing = false;
+    UpdatePreview();
+    RefreshDerived();
+}
+
+void SettingsTab::OnPreviewInput(UINT)   { if (!m_suppress) UpdatePreview(); }
+void SettingsTab::OnModeSelChanged()     { if (!m_suppress) UpdatePreview(); }
 
 void SettingsTab::SetConnected(bool c)
 {
     m_connected = c;
     for (CButton* b : { &m_btnApplyMode, &m_btnSetFreq, &m_btnSetSamples, &m_btnApplyInterval, &m_btnSetAmp,
-                        &m_btnSetBurst, &m_btnApplyData, &m_btnPing, &m_btnGetStatus, &m_btnSendAll })
+                        &m_btnSetBurst, &m_btnSetRamp, &m_btnApplyData, &m_btnPing, &m_btnGetStatus, &m_btnSendAll })
         b->EnableWindow(c);
 }
 
@@ -424,6 +518,31 @@ uint16_t SettingsTab::GetBurst() const
     return static_cast<uint16_t>(v);
 }
 
+uint16_t SettingsTab::GetRiseUs() const
+{
+    if (!m_rampMode) return 0;
+    int v = GetInt(m_edtRise, 0);
+    if (v < 0) v = 0;
+    if (v > 65535) v = 65535;
+    return static_cast<uint16_t>(v);
+}
+
+uint16_t SettingsTab::GetFallUs() const
+{
+    if (!m_rampMode) return 0;
+    int v = GetInt(m_edtFall, 0);
+    if (v < 0) v = 0;
+    if (v > 65535) v = 65535;
+    return static_cast<uint16_t>(v);
+}
+
+double SettingsTab::GetFsPpm() const
+{
+    double v = GetDouble(m_edtPpm, 0.0);
+    if (!(v > -100000.0 && v < 100000.0)) v = 0.0;
+    return v;
+}
+
 // ---------------------------------------------------------------------------
 void SettingsTab::PostToMain(UINT msg, WPARAM wp, LPARAM lp)
 {
@@ -435,6 +554,7 @@ void SettingsTab::NotifyChanged()
 {
     if (m_suppress) return;
     m_edtChirps.EnableWindow(m_chkChirpsAuto.GetCheck() != BST_CHECKED);
+    UpdatePreview();
     RefreshDerived();
     PostToMain(WM_APP_SETTINGS_CHANGED, SETTINGS_FROM_TAB);
 }
@@ -446,12 +566,31 @@ void SettingsTab::OnApplyInterval() { PostToMain(WM_APP_CMD_SET_INTERVAL,  GetIn
 void SettingsTab::OnApplyData()     { PostToMain(WM_APP_CMD_SET_DATA_MASK, GetDataMask()); NotifyChanged(); }
 void SettingsTab::OnSetAmplitude()  { PostToMain(WM_APP_CMD_SET_AMPLITUDE, GetAmplitude()); NotifyChanged(); }
 void SettingsTab::OnSetBurst()      { PostToMain(WM_APP_CMD_SET_BURST,     GetBurst()); NotifyChanged(); }
+void SettingsTab::OnApplyPpm()      { NotifyChanged(); }
+
+void SettingsTab::OnSetRamp()
+{
+    // Explicit rise/fall: CMD_SET_RAMP. Both fields 0 (or ramp mode off) fall
+    // back to the symmetric chirp defined by the frequency (CMD_START_CHIRP).
+    const int rise = GetInt(m_edtRise, 0), fall = GetInt(m_edtFall, 0);
+    m_rampMode = (rise > 0 && fall > 0);
+    if (m_rampMode) {
+        const WPARAM wp = static_cast<WPARAM>(GetRiseUs()) | (static_cast<WPARAM>(GetFallUs()) << 16);
+        PostToMain(WM_APP_CMD_SET_RAMP, wp);
+    } else {
+        PostToMain(WM_APP_CMD_SET_FREQ, GetFreqHz());
+    }
+    NotifyChanged();
+}
 void SettingsTab::OnPing()          { PostToMain(WM_APP_CMD_PING); }
 void SettingsTab::OnGetStatus()     { PostToMain(WM_APP_CMD_GET_STATUS); }
 
 void SettingsTab::OnSendAll()
 {
-    PostToMain(WM_APP_CMD_SET_FREQ,      GetFreqHz());
+    if (m_rampMode)
+        PostToMain(WM_APP_CMD_SET_RAMP, static_cast<WPARAM>(GetRiseUs()) | (static_cast<WPARAM>(GetFallUs()) << 16));
+    else
+        PostToMain(WM_APP_CMD_SET_FREQ, GetFreqHz());
     PostToMain(WM_APP_CMD_SET_SAMPLES,   GetSamples());
     PostToMain(WM_APP_CMD_SET_INTERVAL,  GetIntervalMs());
     PostToMain(WM_APP_CMD_SET_AMPLITUDE, GetAmplitude());
@@ -471,6 +610,7 @@ void SettingsTab::OnDefaults()
     AppSettings cur; ReadInto(cur);
     d.acq = cur.acq;                       // keep MCU values; reset radar/processing/display
     d.sampleRateCalHz = cur.sampleRateCalHz;
+    d.fsPpm = cur.fsPpm;
     d.autoConnect = cur.autoConnect;
     ApplySettings(d);
     NotifyChanged();
@@ -515,6 +655,11 @@ void SettingsTab::Relayout()
     row(0, y0, m_lblBurst, m_edtBurst, &m_btnSetBurst);
     {
         const int x = colX[0];
+        m_lblRamp.MoveWindow(x, y0, lblW, h);
+        m_edtRise.MoveWindow(x + lblW + pad, y0, (ctlW - pad) / 2, h);
+        m_edtFall.MoveWindow(x + lblW + pad + (ctlW - pad) / 2 + pad, y0, ctlW - (ctlW - pad) / 2 - pad, h);
+        m_btnSetRamp.MoveWindow(x + lblW + pad + ctlW + pad, y0, btnW, h);
+        y0 += rowH;
         m_lblData.MoveWindow(x, y0, lblW, h);
         m_chkRaw.MoveWindow(x + lblW + pad, y0, sc(44), h);
         m_chkFft.MoveWindow(x + lblW + pad + sc(46), y0, sc(44), h);
@@ -542,6 +687,7 @@ void SettingsTab::Relayout()
     row(0, y0, m_lblAdcBits, m_edtAdcBits);
     row(0, y0, m_lblVref, m_edtVref);
     row(0, y0, m_lblFsCal, m_edtFsCal);
+    row(0, y0, m_lblPpm, m_edtPpm, &m_btnApplyPpm);
     row(0, y0, m_lblVerbose, m_chkVerbose, nullptr, 0, sc(150));
     row(0, y0, m_lblAutoConn, m_chkAutoConnect, nullptr, 0, sc(150));
 
@@ -564,7 +710,11 @@ void SettingsTab::Relayout()
     row(col1, y1, m_lblPairV, m_edtPairV);
     y1 += sc(6);
     header(m_hdrDerived, col1, y1);
-    m_lblDerived.MoveWindow(colX[col1], y1, narrow ? rc.Width() - colX[col1] - sc(10) : colW + sc(10), sc(120));
+    const int derivedW = narrow ? rc.Width() - colX[col1] - sc(10) : colW + sc(10);
+    m_lblDerived.MoveWindow(colX[col1], y1, derivedW, sc(136));
+    y1 += sc(142);
+    // Chirp preview fills the remaining height of the column (in the narrow
+    // layout it goes below the processing column, full width).
 
     // Column 2: Processing.
     int y2 = narrow ? (std::max)(y0, y1 + sc(130)) : sc(10);
@@ -587,8 +737,22 @@ void SettingsTab::Relayout()
     row(col2, y2, m_lblMaxPeaks, m_edtMaxPeaks);
     row(col2, y2, m_lblMti, m_chkMti, nullptr, 0, sc(150));
     row(col2, y2, m_lblTrack, m_chkTrack, nullptr, 0, sc(150));
+    row(col2, y2, m_lblFwGeom, m_chkFwGeom, nullptr, 0, sc(200));
+    row(col2, y2, m_lblTone, m_chkTone, nullptr, 0, sc(200));
     m_btnApplyProc.MoveWindow(colX[col2] + lblW + pad, y2, sc(80), h);
     m_btnDefaults.MoveWindow(colX[col2] + lblW + pad + sc(86), y2, sc(80), h);
+    y2 += rowH;
+
+    if (m_preview.GetSafeHwnd()) {
+        CRect pr;
+        if (narrow) {
+            const int top = (std::max)(y0, y2) + sc(6);
+            pr.SetRect(colX[0], top, rc.Width() - sc(10), (std::max)(top + sc(260), rc.Height() - sc(10)));
+        } else {
+            pr.SetRect(colX[col1], y1, colX[col1] + derivedW, (std::max)(y1 + sc(260), rc.Height() - sc(10)));
+        }
+        m_preview.MoveWindow(pr);
+    }
 }
 
 BOOL SettingsTab::OnEraseBkgnd(CDC* pDC)

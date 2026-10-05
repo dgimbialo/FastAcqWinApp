@@ -167,8 +167,14 @@ void ScopeTab::ShowFrame(ChirpFramePtr f, std::shared_ptr<const dsp::FrameResult
             CString s; s.Format(_T("   R = %s"), WaveformView::FormatRange(m_res->targets[0].rangeM).GetString()); info += s;
             if (m_res->targets[0].paired) { CString v; v.Format(_T("  v = %+.2f m/s"), m_res->targets[0].velocityMps); info += v; }
         }
-        CString d; d.Format(_T("   decim x%d, fs_eff %s, ramp %s"), m_res->decimation,
-                            WaveformView::FormatFreq(m_res->up.fsEffHz).GetString(), WaveformView::FormatTime(m_res->rampSec).GetString());
+        if (m_res->up.tone.valid) {
+            CString s; s.Format(_T("   tone UP %.1f Hz"), m_res->up.tone.freqHz); info += s;
+            if (m_res->down.tone.valid) { CString t; t.Format(_T(" / DOWN %.1f Hz"), m_res->down.tone.freqHz); info += t; }
+        }
+        if (m_res->mcuPeakHz > 0.0) { CString s; s.Format(_T("   MCU peak %.1f Hz"), m_res->mcuPeakHz); info += s; }
+        CString d; d.Format(_T("   decim x%d, fs_eff %s, ramp %s%s"), m_res->decimation,
+                            WaveformView::FormatFreq(m_res->up.fsEffHz).GetString(), WaveformView::FormatTime(m_res->rampSec).GetString(),
+                            m_res->geometryFromHeader ? _T(" (hdr)") : _T(""));
         info += d;
     }
     m_frame.SetInfo(info);

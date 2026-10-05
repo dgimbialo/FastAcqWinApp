@@ -25,7 +25,8 @@
 #define ID_VIEW_SCOPE           32782
 #define ID_VIEW_COMM            32783
 #define ID_VIEW_SETTINGS        32784
-#define ID_VIEW_DARK            32785
+#define ID_VIEW_TRACE           32785
+#define ID_VIEW_DARK            32786
 #define ID_ACQ_CONNECT          32791
 #define ID_ACQ_START            32792
 #define ID_ACQ_STOP             32793
@@ -75,6 +76,7 @@
 #define IDC_TAB_SCOPE        1104
 #define IDC_TAB_COMM         1105
 #define IDC_TAB_SETTINGS     1106
+#define IDC_TAB_TRACE        1107
 
 // SettingsTab controls (1200..1299)
 #define IDC_CMB_MODE         1200
@@ -136,6 +138,15 @@
 #define IDC_BTN_APPLY_PROC   1261
 #define IDC_LBL_DERIVED      1262
 #define IDC_BTN_DEFAULTS     1263
+// (1270+ are outside the auto-apply ON_CONTROL_RANGE spans)
+#define IDC_EDT_RISE         1270
+#define IDC_EDT_FALL         1271
+#define IDC_BTN_SET_RAMP     1272
+#define IDC_EDT_PPM          1273
+#define IDC_BTN_APPLY_PPM    1274
+#define IDC_CHIRP_PREVIEW    1275
+#define IDC_CHK_FW_GEOM      1276
+#define IDC_CHK_TONE         1277
 
 // Radar tab (1300..1399)
 #define IDC_RP_VIEW          1300
@@ -171,6 +182,15 @@
 #define IDC_BTN_LOG_SAVE     1504
 #define IDC_BTN_LOG_CLEAR    1505
 #define IDC_CHK_LOG_SCROLL   1506
+
+// Trace tab (1700..1799)
+#define IDC_TRC_CHK_ENABLE   1700
+#define IDC_TRC_BTN_SHOT     1701
+#define IDC_TRC_BTN_GET      1702
+#define IDC_TRC_BTN_CLEAR    1703
+#define IDC_TRC_BTN_EXPORT   1704
+#define IDC_TRC_LIST         1705
+#define IDC_TRC_LBL_SUMMARY  1706
 
 // WaveformView children (1600..1699)
 #define IDC_WV_XM            1600

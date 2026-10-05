@@ -7,6 +7,7 @@
 
 #include "pch.h"
 #include "AppSettings.h"
+#include "ChirpPreview.h"
 
 class SettingsTab : public CWnd {
 public:
@@ -27,6 +28,9 @@ public:
     uint16_t GetIntervalMs() const;
     uint16_t GetAmplitude() const;
     uint16_t GetBurst() const;
+    uint16_t GetRiseUs() const;       // 0 when the chirp is defined by its frequency
+    uint16_t GetFallUs() const;
+    double   GetFsPpm() const;
 
 protected:
     afx_msg int    OnCreate(LPCREATESTRUCT lpcs);
@@ -40,6 +44,12 @@ protected:
     afx_msg void   OnApplyData();
     afx_msg void   OnSetAmplitude();
     afx_msg void   OnSetBurst();
+    afx_msg void   OnSetRamp();
+    afx_msg void   OnApplyPpm();
+    afx_msg void   OnFreqChanged();               // mirror frequency -> rise/fall
+    afx_msg void   OnRampChanged();               // mirror rise/fall -> frequency
+    afx_msg void   OnPreviewInput(UINT id);       // any chirp parameter typed: refresh the preview
+    afx_msg void   OnModeSelChanged();
     afx_msg void   OnPing();
     afx_msg void   OnGetStatus();
     afx_msg void   OnSendAll();
@@ -54,6 +64,7 @@ private:
     void Relayout();
     void PostToMain(UINT msg, WPARAM wp = 0, LPARAM lp = 0);
     void NotifyChanged();
+    void UpdatePreview();
     static int    GetInt(const CEdit& e, int def);
     static double GetDouble(const CEdit& e, double def);
     static void   SetInt(CEdit& e, long long v);
@@ -67,6 +78,7 @@ private:
     CStatic m_lblInterval;  CEdit m_edtInterval;      CButton m_btnApplyInterval;
     CStatic m_lblAmplitude; CEdit m_edtAmplitude;     CButton m_btnSetAmp;
     CStatic m_lblBurst;     CEdit m_edtBurst;         CButton m_btnSetBurst;
+    CStatic m_lblRamp;      CEdit m_edtRise;          CEdit m_edtFall;       CButton m_btnSetRamp;
     CStatic m_lblData;      CButton m_chkRaw;         CButton m_chkFft;      CButton m_btnApplyData;
     CButton m_btnPing;      CButton m_btnGetStatus;   CButton m_btnSendAll;
     CStatic m_hdrSource;
@@ -90,6 +102,7 @@ private:
     CStatic m_lblAdcBits;   CEdit m_edtAdcBits;
     CStatic m_lblVref;      CEdit m_edtVref;
     CStatic m_lblFsCal;     CEdit m_edtFsCal;
+    CStatic m_lblPpm;       CEdit m_edtPpm;           CButton m_btnApplyPpm;
     CStatic m_lblVerbose;   CButton m_chkVerbose;
     CStatic m_lblAutoConn;  CButton m_chkAutoConnect;
     // --- Processing
@@ -111,14 +124,19 @@ private:
     CStatic m_lblMaxPeaks;  CEdit m_edtMaxPeaks;
     CStatic m_lblMti;       CButton m_chkMti;
     CStatic m_lblTrack;     CButton m_chkTrack;
+    CStatic m_lblFwGeom;    CButton m_chkFwGeom;
+    CStatic m_lblTone;      CButton m_chkTone;
     CButton m_btnApplyProc; CButton m_btnDefaults;
     CStatic m_hdrDerived;   CStatic m_lblDerived;
+    ChirpPreviewCtrl m_preview;
 
     CFont   m_font;
     CFont   m_hdrFont;
     CBrush  m_bgBrush;
     bool    m_connected{false};
     bool    m_suppress{false};
+    bool    m_syncing{false};         // inside a freq <-> rise/fall mirror update
+    bool    m_rampMode{false};        // rise/fall typed explicitly (CMD_SET_RAMP)
     double  m_obsFs{0.0};
     size_t  m_obsSamples{0};
     size_t  m_obsMcuFft{0};

@@ -26,7 +26,7 @@ public:
     void Start();
     void Stop();
 
-    void Configure(const dsp::DspSettings& s, const dsp::RadarParams& p, double fallbackFs);
+    void Configure(const dsp::DspSettings& s, const dsp::RadarParams& p, double fallbackFs, double fsScale = 1.0);
     void ResetState();
 
     // live = true: part of the stream (updates averaging / phase / tracks);
@@ -48,6 +48,7 @@ private:
     dsp::DspSettings        m_settings;
     dsp::RadarParams        m_params;
     double                  m_fallbackFs{60058600.0};
+    double                  m_fsScale{1.0};
     ChirpFramePtr           m_liveFrame;
     ChirpFramePtr           m_selFrame;
     std::atomic<double>     m_lastMs{0.0};

@@ -23,13 +23,14 @@ void DspWorker::Stop()
     if (m_thread.joinable()) m_thread.join();
 }
 
-void DspWorker::Configure(const dsp::DspSettings& s, const dsp::RadarParams& p, double fallbackFs)
+void DspWorker::Configure(const dsp::DspSettings& s, const dsp::RadarParams& p, double fallbackFs, double fsScale)
 {
     {
         std::lock_guard<std::mutex> lock(m_mx);
         m_settings    = s;
         m_params      = p;
         m_fallbackFs  = fallbackFs;
+        m_fsScale     = fsScale;
         m_configDirty = true;
     }
     m_cv.notify_all();
@@ -61,18 +62,18 @@ void DspWorker::Loop()
         ChirpFramePtr frame;
         bool live = false;
         bool applyConfig = false, reset = false;
-        dsp::DspSettings s; dsp::RadarParams p; double fs = 0.0;
+        dsp::DspSettings s; dsp::RadarParams p; double fs = 0.0, fsScale = 1.0;
         {
             std::unique_lock<std::mutex> lock(m_mx);
             m_cv.wait(lock, [this] { return m_quit || m_liveFrame || m_selFrame || m_configDirty || m_resetPending; });
             if (m_quit) return;
-            if (m_configDirty) { applyConfig = true; s = m_settings; p = m_params; fs = m_fallbackFs; m_configDirty = false; }
+            if (m_configDirty) { applyConfig = true; s = m_settings; p = m_params; fs = m_fallbackFs; fsScale = m_fsScale; m_configDirty = false; }
             if (m_resetPending) { reset = true; m_resetPending = false; }
             // A user-selected frame has priority over the stream.
             if (m_selFrame)       { frame = std::move(m_selFrame); m_selFrame.reset(); live = false; }
             else if (m_liveFrame) { frame = std::move(m_liveFrame); m_liveFrame.reset(); live = true; }
         }
-        if (applyConfig) { m_dsp.SetParams(p); m_dsp.SetSettings(s); m_dsp.SetFallbackSampleRate(fs); }
+        if (applyConfig) { m_dsp.SetParams(p); m_dsp.SetSettings(s); m_dsp.SetFallbackSampleRate(fs); m_dsp.SetSampleRateScale(fsScale); }
         if (reset) m_dsp.ResetState();
         if (!frame) continue;
 

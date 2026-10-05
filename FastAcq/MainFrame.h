@@ -1,7 +1,7 @@
 #pragma once
 //
 // MainFrame -- top-level CFrameWnd: frame list, tabs (Radar / Scope /
-// Communication / Settings), command panel, status bar. Owns the store, the
+// Communication / Settings / Trace), command panel, status bar. Owns the store, the
 // serial reader, the DSP worker, the session recorder and the replay player.
 //
 
@@ -17,6 +17,7 @@
 #include "ScopeTab.h"
 #include "SerialWorker.h"
 #include "SettingsTab.h"
+#include "TraceTab.h"
 
 class CMainFrame : public CFrameWnd {
 public:
@@ -67,6 +68,10 @@ protected:
     afx_msg LRESULT OnCmdRecord      (WPARAM, LPARAM);
     afx_msg LRESULT OnCmdOpenReplay  (WPARAM, LPARAM);
     afx_msg LRESULT OnReplayCtrl     (WPARAM wp, LPARAM lp);
+    afx_msg LRESULT OnCmdSetTrace    (WPARAM wp, LPARAM);
+    afx_msg LRESULT OnCmdSetRamp     (WPARAM wp, LPARAM);
+    afx_msg LRESULT OnCmdGetTrace    (WPARAM, LPARAM);
+    afx_msg LRESULT OnCmdSingleShot  (WPARAM, LPARAM);
 
     // Menu
     afx_msg void OnFileOpenReplay();
@@ -137,6 +142,7 @@ private:
     ScopeTab       m_scopeTab;
     CommLogWnd     m_logTab;
     SettingsTab    m_settingsTab;
+    TraceTab       m_traceTab;
 
     AppSettings                   m_settings;
     ChirpStore                    m_store;
@@ -154,6 +160,8 @@ private:
     bool     m_pingPending{false};
     DWORD    m_lastRttMs{0};
     LinkStats m_link;
+    CString  m_lastWarn;          // last MCU command rejection (status bar, a few seconds)
+    DWORD    m_lastWarnTick{0};
 
     // Display state
     bool     m_live{true};

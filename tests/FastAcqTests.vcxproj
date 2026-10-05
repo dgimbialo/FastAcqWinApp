@@ -60,6 +60,7 @@
     <ClCompile Include="test_main.cpp" />
     <ClCompile Include="..\FastAcq\ChirpStore.cpp" />
     <ClCompile Include="..\FastAcq\ProtocolParser.cpp" />
+    <ClCompile Include="..\FastAcq\Core\ChirpGeometry.cpp" />
     <ClCompile Include="..\FastAcq\Core\Export.cpp" />
     <ClCompile Include="..\FastAcq\Core\SessionFile.cpp" />
     <ClCompile Include="..\FastAcq\Dsp\Cfar.cpp" />
@@ -67,6 +68,7 @@
     <ClCompile Include="..\FastAcq\Dsp\FftPlan.cpp" />
     <ClCompile Include="..\FastAcq\Dsp\PeakFinder.cpp" />
     <ClCompile Include="..\FastAcq\Dsp\RadarDsp.cpp" />
+    <ClCompile Include="..\FastAcq\Dsp\ToneEstimator.cpp" />
     <ClCompile Include="..\FastAcq\Dsp\Window.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

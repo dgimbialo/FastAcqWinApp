@@ -66,7 +66,15 @@ bool WriteFrameCsv(const std::filesystem::path& path, const ChirpFrame& f, std::
       << "# fft_size," << h.fft_size << "\n"
       << "# fft_peak_bin," << h.fft_peak_bin << "\n"
       << "# fft_freq_res_hz," << h.fft_freq_res_hz << "\n"
-      << "index,raw,fft_mag\n";
+      << "# rise_us," << HeaderRiseUs(h) << "\n"
+      << "# fall_us," << HeaderFallUs(h) << "\n";
+    if (f.hasExt) {
+        o << "# protocol_version," << static_cast<unsigned>(f.ext.proto_version) << "\n"
+          << "# peak_freq_hz," << f.ext.peak_freq_hz << "\n"
+          << "# samples_per_chirp," << f.ext.samples_per_chirp << "\n"
+          << "# rise_samples," << f.ext.rise_samples << "\n";
+    }
+    o << "index,raw,fft_mag\n";
     const size_t n = f.raw.size() > f.fft.size() ? f.raw.size() : f.fft.size();
     for (size_t i = 0; i < n; ++i) {
         o << i << ',';
