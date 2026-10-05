@@ -387,8 +387,11 @@ LRESULT CMainFrame::OnResultReady(WPARAM wp, LPARAM lp)
     return 0;
 }
 
-LRESULT CMainFrame::OnPortStatus(WPARAM wp, LPARAM)
+LRESULT CMainFrame::OnPortStatus(WPARAM wp, LPARAM lp)
 {
+    // Status messages carry the connection generation; drop the ones queued by
+    // a previous session (Open() closes the old port first and re-opens).
+    if (m_serial && static_cast<uint32_t>(lp) != m_serial->Generation()) return 0;
     m_connected = (wp != 0);
     if (!m_connected) {
         // The reader thread exited on its own (device unplugged / read error):
@@ -462,6 +465,7 @@ LRESULT CMainFrame::OnResetAverages(WPARAM, LPARAM)
 LRESULT CMainFrame::OnCmdConnect(WPARAM, LPARAM)
 {
     if (!m_serial) return 0;
+    if (Connected()) return 0;   // already open: the toggle button sends DISCONNECT
     if (m_replayActive) CloseReplay();
     CString port = m_cmd.GetSelectedPort();
     if (port.IsEmpty()) { AfxMessageBox(_T("Select a COM port first.")); return 0; }
