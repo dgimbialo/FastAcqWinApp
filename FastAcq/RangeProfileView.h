@@ -21,6 +21,9 @@ public:
     // Shared x-range (Hz) with peer views. (0,0) = full span.
     void SetXRange(double f0, double f1);
     void GetXRange(double& f0, double& f1) const { f0 = m_x0; f1 = m_x1; }
+    // Widest span the wheel may zoom out to: the undecimated fs/2 (the DSP
+    // lowers the decimation when the view asks for more than it computed).
+    double MaxSpanHz() const;
     bool HasZoom() const { return m_haveZoom; }
     void ResetZoom();
     void ClearMarkers();

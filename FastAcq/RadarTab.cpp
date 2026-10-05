@@ -101,6 +101,7 @@ void RadarTab::ApplySettings(const AppSettings& s)
     m_disp = s.display;
     m_showRd = s.display.showRangeDoppler;
     m_profile.SetDisplay(s.display);
+    m_maxRangeM = s.dsp.maxRangeM;
     m_profile.SetMaxRangeM(s.dsp.maxRangeM);
     m_waterfall.SetDisplay(s.display);
     m_waterfall.SetMaxRangeM(s.dsp.maxRangeM);
@@ -127,6 +128,25 @@ void RadarTab::ReadFooter(AppSettings& s) const
     s.display.showThreshold    = m_chkThr.GetCheck() == BST_CHECKED;
     s.display.showNoise        = m_chkNoise.GetCheck() == BST_CHECKED;
     s.display.showRangeDoppler = m_chkRd.GetCheck() == BST_CHECKED;
+    if (m_maxRangeM > 0.0) s.dsp.maxRangeM = m_maxRangeM;
+}
+
+// Zooming out past what the current decimation computed asks the DSP for a
+// larger range of interest (lower decimation); zooming in hands the range
+// back so processing stays fast. The zoom itself is left untouched, so the
+// view does not jump when the next frame arrives with the new grid.
+void RadarTab::FollowZoomWithRangeOfInterest()
+{
+    if (!m_profile.HasZoom() || !m_res || !m_res->valid || m_res->rangePerHz <= 0.0) return;
+    double f0 = 0.0, f1 = 0.0;
+    m_profile.GetXRange(f0, f1);
+    if (f1 <= f0) return;
+    const double wanted = (std::max)(0.5, f1 * m_res->rangePerHz);
+    if (std::fabs(wanted - m_maxRangeM) <= 0.05 * m_maxRangeM) return;   // same decimation anyway
+    m_maxRangeM = wanted;
+    m_profile.SetMaxRangeM(wanted);
+    m_waterfall.SetMaxRangeM(wanted);
+    PostSettingsChanged();
 }
 
 void RadarTab::PostSettingsChanged()
@@ -198,6 +218,7 @@ LRESULT RadarTab::OnXRangeChanged(WPARAM src, LPARAM)
     double f0, f1;
     if (src == IDC_RP_VIEW) { m_profile.GetXRange(f0, f1); m_waterfall.SetXRange(m_profile.HasZoom() ? f0 : 0.0, m_profile.HasZoom() ? f1 : 0.0); }
     else if (src == IDC_WF_VIEW) { m_waterfall.GetXRange(f0, f1); m_profile.SetXRange(f0, f1); }
+    FollowZoomWithRangeOfInterest();
     return 0;
 }
 

@@ -46,11 +46,14 @@ void WaterfallView::PushResult(const dsp::FrameResult& r)
     const int cols = static_cast<int>((std::min<size_t>)(bins, kMaxCols));
     const double hzPerCol = s.freqResHz * static_cast<double>(bins) / cols;
 
+    // Rows keep their own Hz-per-column, so a decimation change (zooming the
+    // view out or in) re-grids the picture instead of wiping the history.
     const bool gridChanged = (m_hzPerCol > 0.0 && std::fabs(hzPerCol - m_hzPerCol) > 1e-9 * hzPerCol) ||
                              std::fabs(m_fsEffHz - s.fsEffHz) > 1e-6;
-    if (gridChanged) { m_rows.clear(); m_dirty = true; }
+    if (gridChanged) m_dirty = true;
     m_hzPerCol    = hzPerCol;
     m_fsEffHz     = s.fsEffHz;
+    m_fsHz        = r.fsHz;
     m_rangePerHz  = r.rangePerHz;
     m_rangeOffsetM= r.rangeOffsetM;
 
@@ -95,6 +98,12 @@ void WaterfallView::SetDisplay(const DisplaySettings& d)
 double WaterfallView::FullSpanHz() const
 {
     return m_fsEffHz > 0.0 ? m_fsEffHz / 2.0 : kEmptySpanHz;
+}
+
+double WaterfallView::MaxSpanHz() const
+{
+    const double full = FullSpanHz();
+    return (m_fsHz > 0.0) ? (std::max)(full, m_fsHz / 2.0) : full;
 }
 
 void WaterfallView::EffectiveX(double& f0, double& f1) const
@@ -415,9 +424,10 @@ BOOL WaterfallView::OnPlotMouseWheel(UINT flags, short zDelta, CPoint pt)
         f1 = fc + (f1 - fc) * k;
         if (f1 - f0 < 10.0 * (m_hzPerCol > 0.0 ? m_hzPerCol : 1.0)) return TRUE;
     }
+    const double maxSpan = MaxSpanHz();
     if (f0 < 0.0) { f1 -= f0; f0 = 0.0; }
-    if (f1 > full) { f0 -= (f1 - full); f1 = full; if (f0 < 0.0) f0 = 0.0; }
-    m_x0 = f0; m_x1 = f1; m_haveZoom = (f0 > 0.0 || f1 < full);
+    if (f1 > maxSpan) { f0 -= (f1 - maxSpan); f1 = maxSpan; if (f0 < 0.0) f0 = 0.0; }
+    m_x0 = f0; m_x1 = f1; m_haveZoom = (f0 > 0.0 || f1 < full || f1 > full * 1.0001);
     m_dirty = true;
     NotifyXRange();
     Invalidate(FALSE);

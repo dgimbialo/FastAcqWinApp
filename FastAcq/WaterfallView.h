@@ -21,6 +21,7 @@ public:
     void SetMaxRangeM(double m) { m_maxRangeM = m; m_dirty = true; Invalidate(FALSE); }
     void SetXRange(double f0, double f1);
     void GetXRange(double& f0, double& f1) const { f0 = m_x0; f1 = m_x1; }
+    double MaxSpanHz() const;
     void ResetZoom();
     void Clear();
     void AutoscaleDb();
@@ -59,6 +60,7 @@ private:
     static constexpr int kMaxCols = 4096;
     double   m_hzPerCol{0.0};
     double   m_fsEffHz{0.0};
+    double   m_fsHz{0.0};          // undecimated sample rate of the last result
     double   m_rangePerHz{0.0};
     double   m_rangeOffsetM{0.0};
     double   m_maxRangeM{100.0};

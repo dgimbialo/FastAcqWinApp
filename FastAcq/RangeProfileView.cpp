@@ -24,6 +24,13 @@ double RangeProfileView::FullSpanHz() const
     return span > 0.0 ? span : kEmptySpanHz;
 }
 
+double RangeProfileView::MaxSpanHz() const
+{
+    const double full = FullSpanHz();
+    if (!m_res || !m_res->valid || m_res->fsHz <= 0.0) return full;
+    return (std::max)(full, m_res->fsHz / 2.0);
+}
+
 void RangeProfileView::EffectiveX(double& f0, double& f1) const
 {
     const double full = FullSpanHz();
@@ -512,9 +519,10 @@ BOOL RangeProfileView::OnPlotMouseWheel(UINT flags, short zDelta, CPoint pt)
         f1 = fc + (f1 - fc) * k;
         if (f1 - f0 < 10.0 * ((m_res && m_res->up.valid) ? m_res->up.freqResHz : 1.0)) return TRUE;
     }
+    const double maxSpan = MaxSpanHz();
     if (f0 < 0.0) { f1 -= f0; f0 = 0.0; }
-    if (f1 > full) { f0 -= (f1 - full); f1 = full; if (f0 < 0.0) f0 = 0.0; }
-    m_x0 = f0; m_x1 = f1; m_haveZoom = (f0 > 0.0 || f1 < full);
+    if (f1 > maxSpan) { f0 -= (f1 - maxSpan); f1 = maxSpan; if (f0 < 0.0) f0 = 0.0; }
+    m_x0 = f0; m_x1 = f1; m_haveZoom = (f0 > 0.0 || f1 < full || f1 > full * 1.0001);
     NotifyXRange();
     Invalidate(FALSE);
     return TRUE;

@@ -49,6 +49,7 @@ private:
     void Relayout();
     int  HitSplitter(CPoint pt) const;   // 0 none, 1 first, 2 second
     void PostSettingsChanged();
+    void FollowZoomWithRangeOfInterest();
 
     static constexpr int kSplitH96  = 6;
     static constexpr int kFooterH96 = 30;
@@ -71,6 +72,7 @@ private:
 
     std::shared_ptr<const dsp::FrameResult> m_res;
     DisplaySettings m_disp;
+    double m_maxRangeM{100.0};           // dsp.maxRangeM as shown / driven by the zoom
     float m_split1{0.42f};
     float m_split2{0.78f};
     int   m_dragging{0};
