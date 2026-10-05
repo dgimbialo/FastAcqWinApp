@@ -170,6 +170,7 @@
 #define IDC_CHK_SHOW_NOISE   1312
 #define IDC_CHK_SHOW_RD      1313
 #define IDC_LBL_PHASE        1314
+#define IDC_PROC_PANEL       1315
 
 // Scope tab (1400..1499)
 #define IDC_WAVE_FRAME       1400

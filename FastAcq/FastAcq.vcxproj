@@ -101,6 +101,7 @@
     <ClInclude Include="DspWorker.h" />
     <ClInclude Include="MainFrame.h" />
     <ClInclude Include="PlotWnd.h" />
+    <ClInclude Include="ProcPanel.h" />
     <ClInclude Include="ProtocolDefs.h" />
     <ClInclude Include="ProtocolParser.h" />
     <ClInclude Include="RadarTab.h" />
@@ -144,6 +145,7 @@
     <ClCompile Include="FastAcqApp.cpp" />
     <ClCompile Include="MainFrameImpl.cpp" />
     <ClCompile Include="PlotWnd.cpp" />
+    <ClCompile Include="ProcPanel.cpp" />
     <ClCompile Include="RadarTab.cpp" />
     <ClCompile Include="RangeDopplerView.cpp" />
     <ClCompile Include="RangeProfileView.cpp" />

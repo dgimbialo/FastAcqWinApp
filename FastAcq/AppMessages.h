@@ -83,6 +83,7 @@ enum SettingsSource : WPARAM {
     SETTINGS_FROM_RADAR = 1,  // Radar tab footer: display/trace
     SETTINGS_FROM_SCOPE = 2,  // Scope tab footer: dots/units
     SETTINGS_FROM_LOG   = 3,  // Communication tab: verbose
+    SETTINGS_FROM_PROC  = 4,  // Radar tab right column: processing / detection / display
 };
 
 // Link statistics snapshot posted by SerialWorker (heap allocated).

@@ -1,13 +1,15 @@
 #pragma once
 //
 // RadarTab -- main measurement view: range profile (top), waterfall and
-// range-Doppler map (middle), target table (bottom) and a footer with the
-// trace mode / palette / visibility controls. Two draggable splitters.
+// range-Doppler map (middle), target table (bottom), a footer with the
+// trace mode / palette / visibility controls, and the processing /
+// detection / display settings column on the right. Two draggable splitters.
 //
 
 #include "pch.h"
 #include "AppSettings.h"
 #include "Dsp/RadarDsp.h"
+#include "ProcPanel.h"
 #include "RangeDopplerView.h"
 #include "RangeProfileView.h"
 #include "TargetListCtrl.h"
@@ -20,6 +22,7 @@ public:
     void ShowResult(std::shared_ptr<const dsp::FrameResult> r, bool pushWaterfall);
     void ApplySettings(const AppSettings& s);
     void ReadFooter(AppSettings& s) const;
+    void ReadProcPanel(AppSettings& s) const { m_proc.ReadInto(s); }
     void ClearHistory();
     void ResetZoom();
     void ClearMarkers();
@@ -59,6 +62,7 @@ private:
     WaterfallView    m_waterfall;
     RangeDopplerView m_rd;
     TargetListCtrl   m_targets;
+    ProcPanel        m_proc;
 
     CStatic   m_lblTrace;
     CComboBox m_cmbTrace;

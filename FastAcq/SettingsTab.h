@@ -1,8 +1,9 @@
 #pragma once
 //
-// SettingsTab -- MCU acquisition, radar geometry, processing chain, display
-// and application settings in three columns, with a live "derived values"
-// read-out (range resolution, max range, velocity limits, USB load...).
+// SettingsTab -- MCU acquisition, radar geometry (VCO) and application
+// settings, with a live "derived values" read-out and the chirp preview.
+// Processing, detection and display settings live on the Radar tab
+// (ProcPanel) so their effect is seen immediately.
 //
 
 #include "pch.h"
@@ -55,8 +56,6 @@ protected:
     afx_msg void   OnPing();
     afx_msg void   OnGetStatus();
     afx_msg void   OnSendAll();
-    afx_msg void   OnApplyProc();
-    afx_msg void   OnDefaults();
     afx_msg void   OnAutoApply();                 // combos / checkboxes / radios
     afx_msg void   OnAutoApplyRange(UINT id);
     afx_msg void   OnEditKillFocus(UINT id);
@@ -85,8 +84,6 @@ private:
     CStatic m_lblRamp;      CEdit m_edtRise;          CEdit m_edtFall;       CButton m_btnSetRamp;
     CStatic m_lblData;      CButton m_chkRaw;         CButton m_chkFft;      CButton m_btnApplyData;
     CButton m_btnPing;      CButton m_btnGetStatus;   CButton m_btnSendAll;
-    CStatic m_hdrSource;
-    CStatic m_lblSource;    CButton m_rdoSrcRaw;      CButton m_rdoSrcMcu;
     // --- Radar
     CStatic m_hdrRadar;
     CStatic m_lblVco;       CButton m_chkVco;
@@ -99,47 +96,20 @@ private:
     CStatic m_lblShape;     CComboBox m_cmbShape;
     CStatic m_lblChirps;    CButton m_chkChirpsAuto;  CEdit m_edtChirps;
     CStatic m_lblPairV;     CEdit m_edtPairV;
-    // --- Display
+    // --- Application
     CStatic m_hdrDisplay;
-    CStatic m_lblDbTop;     CEdit m_edtDbTop;
-    CStatic m_lblDbBottom;  CEdit m_edtDbBottom;
-    CStatic m_lblPalette;   CComboBox m_cmbPalette;
-    CStatic m_lblWfRows;    CEdit m_edtWfRows;
     CStatic m_lblDark;      CButton m_chkDark;
-    CStatic m_lblAdcBits;   CEdit m_edtAdcBits;
-    CStatic m_lblVref;      CEdit m_edtVref;
     CStatic m_lblFsCal;     CEdit m_edtFsCal;
     CStatic m_lblPpm;       CEdit m_edtPpm;           CButton m_btnApplyPpm;
     CStatic m_lblVerbose;   CButton m_chkVerbose;
     CStatic m_lblAutoConn;  CButton m_chkAutoConnect;
-    // --- Processing
-    CStatic m_hdrProc;
-    CStatic m_lblGuard;     CEdit m_edtGuard;
-    CStatic m_lblDetrend;   CButton m_chkDetrend;
-    CStatic m_lblDecim;     CComboBox m_cmbDecim;
-    CStatic m_lblMaxRange;  CEdit m_edtMaxRange;
-    CStatic m_lblWindow;    CComboBox m_cmbWindow;
-    CStatic m_lblKaiser;    CEdit m_edtKaiser;
-    CStatic m_lblZeroPad;   CComboBox m_cmbZeroPad;
-    CStatic m_lblRangeGain; CComboBox m_cmbRangeGain;
-    CStatic m_lblDetector;  CComboBox m_cmbDetector;
-    CStatic m_lblThresh;    CEdit m_edtThresh;
-    CStatic m_lblPfa;       CComboBox m_cmbPfa;
-    CStatic m_lblCfarGuard; CEdit m_edtCfarGuard;
-    CStatic m_lblCfarTrain; CEdit m_edtCfarTrain;
-    CStatic m_lblInterp;    CComboBox m_cmbInterp;
-    CStatic m_lblMaxPeaks;  CEdit m_edtMaxPeaks;
-    CStatic m_lblMti;       CButton m_chkMti;
-    CStatic m_lblTrack;     CButton m_chkTrack;
-    CStatic m_lblFwGeom;    CButton m_chkFwGeom;
-    CStatic m_lblTone;      CButton m_chkTone;
-    CButton m_btnApplyProc; CButton m_btnDefaults;
     CStatic m_hdrDerived;   CStatic m_lblDerived;
     ChirpPreviewCtrl m_preview;
 
     CFont   m_font;
     CFont   m_hdrFont;
     CBrush  m_bgBrush;
+    AppSettings m_last;               // last applied settings (fields owned elsewhere pass through)
     bool    m_connected{false};
     bool    m_suppress{false};
     bool    m_syncing{false};         // inside a freq <-> rise/fall mirror update

@@ -680,6 +680,7 @@ LRESULT CMainFrame::OnSettingsChanged(WPARAM wp, LPARAM)
     case SETTINGS_FROM_RADAR: m_radarTab.ReadFooter(s);  break;
     case SETTINGS_FROM_SCOPE: m_scopeTab.ReadFooter(s);  break;
     case SETTINGS_FROM_LOG:   m_logTab.ReadFooter(s);    break;
+    case SETTINGS_FROM_PROC:  m_radarTab.ReadProcPanel(s); break;
     default: break;
     }
     if (s.chirpsFromBurst) s.dsp.chirpsInFrame = (std::max)(1, m_haveDevice ? static_cast<int>(m_device.burst) : s.acq.burst);

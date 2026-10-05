@@ -26,19 +26,17 @@ BEGIN_MESSAGE_MAP(SettingsTab, CWnd)
     ON_EN_CHANGE(IDC_EDT_RISE,         &SettingsTab::OnRampChanged)
     ON_EN_CHANGE(IDC_EDT_FALL,         &SettingsTab::OnRampChanged)
     ON_CBN_SELCHANGE(IDC_CMB_MODE,     &SettingsTab::OnModeSelChanged)
-    ON_BN_CLICKED(IDC_CHK_FW_GEOM,     &SettingsTab::OnAutoApply)
-    ON_BN_CLICKED(IDC_CHK_TONE,        &SettingsTab::OnAutoApply)
     ON_BN_CLICKED(IDC_CHK_VCO,         &SettingsTab::OnAutoApply)
     ON_CONTROL_RANGE(EN_KILLFOCUS, IDC_EDT_VTUNE_LO, IDC_EDT_VCO_CURVE, &SettingsTab::OnEditKillFocus)
     ON_CONTROL_RANGE(EN_CHANGE, IDC_EDT_SAMPLES, IDC_EDT_BURST, &SettingsTab::OnPreviewInput)
     ON_BN_CLICKED(IDC_BTN_PING,        &SettingsTab::OnPing)
     ON_BN_CLICKED(IDC_BTN_GET_STATUS,  &SettingsTab::OnGetStatus)
     ON_BN_CLICKED(IDC_BTN_SEND_ALL,    &SettingsTab::OnSendAll)
-    ON_BN_CLICKED(IDC_BTN_APPLY_PROC,  &SettingsTab::OnApplyProc)
-    ON_BN_CLICKED(IDC_BTN_DEFAULTS,    &SettingsTab::OnDefaults)
-    ON_CONTROL_RANGE(CBN_SELCHANGE, IDC_EDT_F0, IDC_BTN_DEFAULTS, &SettingsTab::OnAutoApplyRange)
-    ON_CONTROL_RANGE(BN_CLICKED,    IDC_EDT_F0, IDC_BTN_APPLY_PROC - 1, &SettingsTab::OnAutoApplyRange)
-    ON_CONTROL_RANGE(EN_KILLFOCUS,  IDC_EDT_FREQ, IDC_BTN_DEFAULTS, &SettingsTab::OnEditKillFocus)
+    ON_CONTROL_RANGE(CBN_SELCHANGE, IDC_EDT_F0, IDC_EDT_PAIR_V, &SettingsTab::OnAutoApplyRange)
+    ON_CONTROL_RANGE(BN_CLICKED,    IDC_EDT_F0, IDC_EDT_PAIR_V, &SettingsTab::OnAutoApplyRange)
+    ON_CONTROL_RANGE(BN_CLICKED,    IDC_CHK_DARK, IDC_CHK_AUTOCONNECT, &SettingsTab::OnAutoApplyRange)
+    ON_CONTROL_RANGE(EN_KILLFOCUS,  IDC_EDT_FREQ, IDC_EDT_PAIR_V, &SettingsTab::OnEditKillFocus)
+    ON_CONTROL_RANGE(EN_KILLFOCUS,  IDC_EDT_FSCAL, IDC_EDT_FSCAL, &SettingsTab::OnEditKillFocus)
 END_MESSAGE_MAP()
 
 // ON_CONTROL_RANGE handlers take the control id.
@@ -101,11 +99,6 @@ int SettingsTab::OnCreate(LPCREATESTRUCT lpcs)
     m_btnPing.Create(_T("Ping"), bs, rc, this, IDC_BTN_PING);
     m_btnGetStatus.Create(_T("Get status"), bs, rc, this, IDC_BTN_GET_STATUS);
     m_btnSendAll.Create(_T("Send all"), bs, rc, this, IDC_BTN_SEND_ALL);
-    m_hdrSource.Create(_T("Spectrum source"), ss, rc, this);
-    m_lblSource.Create(_T("Process"), ss, rc, this);
-    m_rdoSrcRaw.Create(_T("RAW on PC"), WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON | WS_GROUP, rc, this, IDC_RDO_SRC_RAW);
-    m_rdoSrcMcu.Create(_T("MCU FFT"), WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON, rc, this, IDC_RDO_SRC_MCU);
-    m_rdoSrcRaw.SetCheck(BST_CHECKED);
 
     // --- Radar
     m_hdrRadar.Create(_T("Radar geometry"), ss, rc, this);
@@ -129,65 +122,15 @@ int SettingsTab::OnCreate(LPCREATESTRUCT lpcs)
     m_edtChirps.Create(es, rc, this, IDC_EDT_CHIRPS);
     m_lblPairV.Create(_T("UP/DOWN pair gate, m/s"), ss, rc, this); m_edtPairV.Create(esf, rc, this, IDC_EDT_PAIR_V);
 
-    // --- Display
-    m_hdrDisplay.Create(_T("Display"), ss, rc, this);
-    m_lblDbTop.Create(_T("dB axis top"), ss, rc, this);           m_edtDbTop.Create(esf, rc, this, IDC_EDT_DBTOP);
-    m_lblDbBottom.Create(_T("dB axis bottom"), ss, rc, this);     m_edtDbBottom.Create(esf, rc, this, IDC_EDT_DBBOTTOM);
-    m_lblPalette.Create(_T("Waterfall palette"), ss, rc, this);
-    m_cmbPalette.Create(cs, rc, this, IDC_CMB_PALETTE);
-    for (int i = 0; i < static_cast<int>(Palette::Count); ++i) m_cmbPalette.AddString(ColorMap::Name(static_cast<Palette>(i)));
-    m_lblWfRows.Create(_T("Waterfall rows"), ss, rc, this);       m_edtWfRows.Create(es, rc, this, IDC_EDT_WF_ROWS);
+    // --- Application
+    m_hdrDisplay.Create(_T("Application"), ss, rc, this);
     m_lblDark.Create(_T("Theme"), ss, rc, this);                  m_chkDark.Create(_T("Dark"), chk, rc, this, IDC_CHK_DARK);
-    m_lblAdcBits.Create(_T("ADC bits"), ss, rc, this);            m_edtAdcBits.Create(es, rc, this, IDC_EDT_ADCBITS);
-    m_lblVref.Create(_T("ADC full scale, V"), ss, rc, this);      m_edtVref.Create(esf, rc, this, IDC_EDT_VREF);
     m_lblFsCal.Create(_T("Fallback Fs, Hz"), ss, rc, this);       m_edtFsCal.Create(es, rc, this, IDC_EDT_FSCAL);
     m_lblPpm.Create(_T("ADC clock corr., ppm"), ss, rc, this);     m_edtPpm.Create(esf, rc, this, IDC_EDT_PPM);
     m_btnApplyPpm.Create(_T("Apply"), bs, rc, this, IDC_BTN_APPLY_PPM);
     m_lblVerbose.Create(_T("Log"), ss, rc, this);                 m_chkVerbose.Create(_T("Per-frame RX lines"), chk, rc, this, IDC_CHK_VERBOSE);
     m_lblAutoConn.Create(_T("Start-up"), ss, rc, this);           m_chkAutoConnect.Create(_T("Auto-connect"), chk, rc, this, IDC_CHK_AUTOCONNECT);
 
-    // --- Processing
-    m_hdrProc.Create(_T("Processing"), ss, rc, this);
-    m_lblGuard.Create(_T("Ramp guard, % each end"), ss, rc, this); m_edtGuard.Create(esf, rc, this, IDC_EDT_GUARD);
-    m_lblDetrend.Create(_T("Detrend"), ss, rc, this);             m_chkDetrend.Create(_T("Remove linear trend"), chk, rc, this, IDC_CHK_DETREND);
-    m_lblDecim.Create(_T("Decimation"), ss, rc, this);
-    m_cmbDecim.Create(cs, rc, this, IDC_CMB_DECIM);
-    m_cmbDecim.AddString(_T("Auto"));
-    for (int d = 1; d <= 512; d *= 2) { CString s; s.Format(_T("x%d"), d); m_cmbDecim.AddString(s); }
-    m_lblMaxRange.Create(_T("Range of interest, m"), ss, rc, this); m_edtMaxRange.Create(esf, rc, this, IDC_EDT_MAXRANGE);
-    m_lblWindow.Create(_T("Window"), ss, rc, this);
-    m_cmbWindow.Create(cs, rc, this, IDC_CMB_WINDOW);
-    for (int i = 0; i < static_cast<int>(dsp::WindowType::Count); ++i)
-        m_cmbWindow.AddString(CString(dsp::WindowName(static_cast<dsp::WindowType>(i))));
-    m_lblKaiser.Create(_T("Kaiser beta"), ss, rc, this);          m_edtKaiser.Create(esf, rc, this, IDC_EDT_KAISER);
-    m_lblZeroPad.Create(_T("Zero padding"), ss, rc, this);
-    m_cmbZeroPad.Create(cs, rc, this, IDC_CMB_ZEROPAD);
-    for (int z = 1; z <= 8; z *= 2) { CString s; s.Format(_T("x%d"), z); m_cmbZeroPad.AddString(s); }
-    m_lblRangeGain.Create(_T("Range gain"), ss, rc, this);
-    m_cmbRangeGain.Create(cs, rc, this, IDC_CMB_RANGEGAIN);
-    m_cmbRangeGain.AddString(_T("Off")); m_cmbRangeGain.AddString(_T("20 dB/dec (R^2)")); m_cmbRangeGain.AddString(_T("40 dB/dec (R^4)"));
-    m_lblDetector.Create(_T("Detector"), ss, rc, this);
-    m_cmbDetector.Create(cs, rc, this, IDC_CMB_DETECTOR);
-    for (int i = 0; i < static_cast<int>(dsp::DetectorType::Count); ++i)
-        m_cmbDetector.AddString(CString(dsp::DetectorName(static_cast<dsp::DetectorType>(i))));
-    m_lblThresh.Create(_T("Threshold above noise, dB"), ss, rc, this); m_edtThresh.Create(esf, rc, this, IDC_EDT_THRESH);
-    m_lblPfa.Create(_T("CFAR Pfa"), ss, rc, this);
-    m_cmbPfa.Create(cs, rc, this, IDC_CMB_PFA);
-    m_cmbPfa.AddString(_T("1e-2")); m_cmbPfa.AddString(_T("1e-3")); m_cmbPfa.AddString(_T("1e-4"));
-    m_cmbPfa.AddString(_T("1e-5")); m_cmbPfa.AddString(_T("1e-6"));
-    m_lblCfarGuard.Create(_T("CFAR guard cells"), ss, rc, this);  m_edtCfarGuard.Create(es, rc, this, IDC_EDT_CFAR_GUARD);
-    m_lblCfarTrain.Create(_T("CFAR training cells"), ss, rc, this); m_edtCfarTrain.Create(es, rc, this, IDC_EDT_CFAR_TRAIN);
-    m_lblInterp.Create(_T("Peak interpolation"), ss, rc, this);
-    m_cmbInterp.Create(cs, rc, this, IDC_CMB_INTERP);
-    for (int i = 0; i < static_cast<int>(dsp::PeakInterp::Count); ++i)
-        m_cmbInterp.AddString(CString(dsp::PeakInterpName(static_cast<dsp::PeakInterp>(i))));
-    m_lblMaxPeaks.Create(_T("Max targets"), ss, rc, this);        m_edtMaxPeaks.Create(es, rc, this, IDC_EDT_MAXPEAKS);
-    m_lblMti.Create(_T("Doppler"), ss, rc, this);                 m_chkMti.Create(_T("MTI (subtract mean)"), chk, rc, this, IDC_CHK_MTI);
-    m_lblTrack.Create(_T("Tracking"), ss, rc, this);              m_chkTrack.Create(_T("Stable target IDs"), chk, rc, this, IDC_CHK_TRACK);
-    m_lblFwGeom.Create(_T("Chirp split"), ss, rc, this);          m_chkFwGeom.Create(_T("From frame header (v2 exact)"), chk, rc, this, IDC_CHK_FW_GEOM);
-    m_lblTone.Create(_T("Tone estimate"), ss, rc, this);          m_chkTone.Create(_T("Precise (double FFT)"), chk, rc, this, IDC_CHK_TONE);
-    m_btnApplyProc.Create(_T("Apply"), bs, rc, this, IDC_BTN_APPLY_PROC);
-    m_btnDefaults.Create(_T("Defaults"), bs, rc, this, IDC_BTN_DEFAULTS);
     m_hdrDerived.Create(_T("Derived values"), ss, rc, this);
     m_lblDerived.Create(_T(""), WS_CHILD | WS_VISIBLE | SS_LEFT, rc, this, IDC_LBL_DERIVED);
     m_preview.CreateCtrl(this, IDC_CHIRP_PREVIEW);
@@ -195,7 +138,7 @@ int SettingsTab::OnCreate(LPCREATESTRUCT lpcs)
     // Fonts.
     CWnd* pw = GetWindow(GW_CHILD);
     while (pw) { pw->SetFont(&m_font); pw = pw->GetWindow(GW_HWNDNEXT); }
-    for (CStatic* h : { &m_hdrMcu, &m_hdrSource, &m_hdrRadar, &m_hdrDisplay, &m_hdrProc, &m_hdrDerived })
+    for (CStatic* h : { &m_hdrMcu, &m_hdrRadar, &m_hdrDisplay, &m_hdrDerived })
         h->SetFont(&m_hdrFont);
 
     AppSettings defaults;
@@ -234,6 +177,7 @@ void SettingsTab::SetDouble(CEdit& e, double v, LPCTSTR fmt) { CString s; s.Form
 
 void SettingsTab::ApplySettings(const AppSettings& s)
 {
+    m_last = s;
     m_suppress = true;
     m_cmbMode.SetCurSel(s.acq.mode >= 0 && s.acq.mode <= 2 ? s.acq.mode : 1);
     SetInt(m_edtFreq, s.acq.chirpFreqHz);
@@ -253,8 +197,6 @@ void SettingsTab::ApplySettings(const AppSettings& s)
     }
     m_chkRaw.SetCheck(s.acq.sendRaw ? BST_CHECKED : BST_UNCHECKED);
     m_chkFft.SetCheck(s.acq.sendFft ? BST_CHECKED : BST_UNCHECKED);
-    m_rdoSrcRaw.SetCheck(s.dsp.useMcuFft ? BST_UNCHECKED : BST_CHECKED);
-    m_rdoSrcMcu.SetCheck(s.dsp.useMcuFft ? BST_CHECKED : BST_UNCHECKED);
 
     m_chkVco.SetCheck(s.vco.useCurve ? BST_CHECKED : BST_UNCHECKED);
     SetDouble(m_edtVtuneLo, s.vco.vtuneAtDac0V, _T("%.3f"));
@@ -272,41 +214,12 @@ void SettingsTab::ApplySettings(const AppSettings& s)
     m_edtChirps.EnableWindow(!s.chirpsFromBurst);
     SetDouble(m_edtPairV, s.radar.pairMaxVelocityMps, _T("%.1f"));
 
-    SetDouble(m_edtDbTop, s.display.dbTop, _T("%.0f"));
-    SetDouble(m_edtDbBottom, s.display.dbBottom, _T("%.0f"));
-    m_cmbPalette.SetCurSel(s.display.palette);
-    SetInt(m_edtWfRows, s.display.waterfallRows);
     m_chkDark.SetCheck(s.display.darkTheme ? BST_CHECKED : BST_UNCHECKED);
-    SetInt(m_edtAdcBits, s.display.adcBits);
-    SetDouble(m_edtVref, s.display.vRef, _T("%.3f"));
     SetInt(m_edtFsCal, s.sampleRateCalHz);
     SetDouble(m_edtPpm, s.fsPpm, _T("%.3f"));
     m_chkVerbose.SetCheck(s.verboseLog ? BST_CHECKED : BST_UNCHECKED);
     m_chkAutoConnect.SetCheck(s.autoConnect ? BST_CHECKED : BST_UNCHECKED);
 
-    SetDouble(m_edtGuard, s.dsp.guardPct, _T("%.1f"));
-    m_chkDetrend.SetCheck(s.dsp.detrend ? BST_CHECKED : BST_UNCHECKED);
-    int dsel = 0;
-    if (s.dsp.decimation >= 1) { int d = 1; dsel = 1; while (d < s.dsp.decimation && d < 512) { d *= 2; ++dsel; } }
-    m_cmbDecim.SetCurSel(dsel);
-    SetDouble(m_edtMaxRange, s.dsp.maxRangeM, _T("%.1f"));
-    m_cmbWindow.SetCurSel(static_cast<int>(s.dsp.window));
-    SetDouble(m_edtKaiser, s.dsp.kaiserBeta, _T("%.1f"));
-    int zsel = 0; { int z = 1; while (z < s.dsp.zeroPad && z < 8) { z *= 2; ++zsel; } }
-    m_cmbZeroPad.SetCurSel(zsel);
-    m_cmbRangeGain.SetCurSel(s.dsp.rangeGainDbPerDecade >= 40.0f ? 2 : s.dsp.rangeGainDbPerDecade >= 20.0f ? 1 : 0);
-    m_cmbDetector.SetCurSel(static_cast<int>(s.dsp.detector.type));
-    SetDouble(m_edtThresh, s.dsp.detector.thresholdDb, _T("%.1f"));
-    int psel = 2; { double p = s.dsp.detector.pfa; psel = (p >= 5e-3) ? 0 : (p >= 5e-4) ? 1 : (p >= 5e-5) ? 2 : (p >= 5e-6) ? 3 : 4; }
-    m_cmbPfa.SetCurSel(psel);
-    SetInt(m_edtCfarGuard, s.dsp.detector.guardCells);
-    SetInt(m_edtCfarTrain, s.dsp.detector.trainCells);
-    m_cmbInterp.SetCurSel(static_cast<int>(s.dsp.interp));
-    SetInt(m_edtMaxPeaks, s.dsp.maxPeaks);
-    m_chkMti.SetCheck(s.dsp.mti ? BST_CHECKED : BST_UNCHECKED);
-    m_chkTrack.SetCheck(s.dsp.trackTargets ? BST_CHECKED : BST_UNCHECKED);
-    m_chkFwGeom.SetCheck(s.dsp.firmwareGeometry ? BST_CHECKED : BST_UNCHECKED);
-    m_chkTone.SetCheck(s.dsp.toneEstimate ? BST_CHECKED : BST_UNCHECKED);
     m_suppress = false;
     RefreshDerived();
 }
@@ -324,7 +237,6 @@ void SettingsTab::ReadInto(AppSettings& s) const
     s.acq.fallUs      = GetFallUs();
     s.acq.sendRaw     = m_chkRaw.GetCheck() == BST_CHECKED;
     s.acq.sendFft     = m_chkFft.GetCheck() == BST_CHECKED;
-    s.dsp.useMcuFft   = m_rdoSrcMcu.GetCheck() == BST_CHECKED;
 
     s.radar.f0Hz        = GetDouble(m_edtF0, 5.5) * 1e9;
     s.radar.bandwidthHz = GetDouble(m_edtBw, 1000.0) * 1e6;
@@ -346,48 +258,13 @@ void SettingsTab::ReadInto(AppSettings& s) const
     s.chirpsFromBurst = m_chkChirpsAuto.GetCheck() == BST_CHECKED;
     s.dsp.chirpsInFrame = s.chirpsFromBurst ? s.acq.burst : (std::max)(1, GetInt(m_edtChirps, 1));
 
-    s.display.dbTop    = static_cast<float>(GetDouble(m_edtDbTop, 0.0));
-    s.display.dbBottom = static_cast<float>(GetDouble(m_edtDbBottom, -120.0));
-    if (s.display.dbTop <= s.display.dbBottom) { s.display.dbTop = 0.0f; s.display.dbBottom = -120.0f; }
-    int pal = m_cmbPalette.GetCurSel();
-    if (pal >= 0 && pal < static_cast<int>(Palette::Count)) s.display.palette = pal;
-    s.display.waterfallRows = (std::max)(64, (std::min)(4096, GetInt(m_edtWfRows, 512)));
     s.display.darkTheme = m_chkDark.GetCheck() == BST_CHECKED;
-    s.display.adcBits   = (std::max)(8, (std::min)(16, GetInt(m_edtAdcBits, 12)));
-    s.display.vRef      = static_cast<float>(GetDouble(m_edtVref, 3.3));
     int fs = GetInt(m_edtFsCal, 60058600);
     s.sampleRateCalHz   = fs > 1000 ? static_cast<uint32_t>(fs) : 60058600u;
     s.fsPpm             = GetFsPpm();
     s.verboseLog        = m_chkVerbose.GetCheck() == BST_CHECKED;
     s.autoConnect       = m_chkAutoConnect.GetCheck() == BST_CHECKED;
 
-    s.dsp.guardPct   = static_cast<float>((std::max)(0.0, (std::min)(45.0, GetDouble(m_edtGuard, 5.0))));
-    s.dsp.detrend    = m_chkDetrend.GetCheck() == BST_CHECKED;
-    int dsel = m_cmbDecim.GetCurSel();
-    s.dsp.decimation = (dsel <= 0) ? 0 : (1 << (dsel - 1));
-    s.dsp.maxRangeM  = (std::max)(0.1, GetDouble(m_edtMaxRange, 100.0));
-    int win = m_cmbWindow.GetCurSel();
-    if (win >= 0 && win < static_cast<int>(dsp::WindowType::Count)) s.dsp.window = static_cast<dsp::WindowType>(win);
-    s.dsp.kaiserBeta = static_cast<float>((std::max)(0.0, GetDouble(m_edtKaiser, 9.0)));
-    int zsel = m_cmbZeroPad.GetCurSel();
-    s.dsp.zeroPad = (zsel < 0) ? 2 : (1 << zsel);
-    int rg = m_cmbRangeGain.GetCurSel();
-    s.dsp.rangeGainDbPerDecade = (rg == 1) ? 20.0f : (rg == 2) ? 40.0f : 0.0f;
-    int det = m_cmbDetector.GetCurSel();
-    if (det >= 0 && det < static_cast<int>(dsp::DetectorType::Count)) s.dsp.detector.type = static_cast<dsp::DetectorType>(det);
-    s.dsp.detector.thresholdDb = static_cast<float>(GetDouble(m_edtThresh, 12.0));
-    static const float kPfa[] = { 1e-2f, 1e-3f, 1e-4f, 1e-5f, 1e-6f };
-    int psel = m_cmbPfa.GetCurSel();
-    s.dsp.detector.pfa = (psel >= 0 && psel < 5) ? kPfa[psel] : 1e-4f;
-    s.dsp.detector.guardCells = (std::max)(0, GetInt(m_edtCfarGuard, 2));
-    s.dsp.detector.trainCells = (std::max)(2, GetInt(m_edtCfarTrain, 16));
-    int ip = m_cmbInterp.GetCurSel();
-    if (ip >= 0 && ip < static_cast<int>(dsp::PeakInterp::Count)) s.dsp.interp = static_cast<dsp::PeakInterp>(ip);
-    s.dsp.maxPeaks = (std::max)(1, (std::min)(64, GetInt(m_edtMaxPeaks, 10)));
-    s.dsp.mti          = m_chkMti.GetCheck() == BST_CHECKED;
-    s.dsp.trackTargets = m_chkTrack.GetCheck() == BST_CHECKED;
-    s.dsp.firmwareGeometry = m_chkFwGeom.GetCheck() == BST_CHECKED;
-    s.dsp.toneEstimate     = m_chkTone.GetCheck() == BST_CHECKED;
 }
 
 void SettingsTab::SetObserved(double fsHz, size_t samplesPerFrame, size_t mcuFftSize)
@@ -399,7 +276,7 @@ void SettingsTab::SetObserved(double fsHz, size_t samplesPerFrame, size_t mcuFft
 void SettingsTab::RefreshDerived()
 {
     if (!m_lblDerived.GetSafeHwnd()) return;
-    AppSettings s;
+    AppSettings s = m_last;
     ReadInto(s);
     const double fs = (m_obsFs > 0.0) ? m_obsFs : static_cast<double>(s.sampleRateCalHz);
     size_t samples = m_obsSamples;
@@ -464,7 +341,7 @@ void SettingsTab::UpdatePreview()
 {
     if (!m_preview.GetSafeHwnd()) return;
     {
-        AppSettings s; ReadInto(s);
+        AppSettings s = m_last; ReadInto(s);
         m_preview.SetVco(s.vco.vtuneAtDac0V, s.vco.vtuneAtDacFullV, s.vco.useCurve ? s.vco.Curve() : core::VcoCurve());
     }
     core::ChirpParams p;
@@ -673,7 +550,6 @@ void SettingsTab::OnSendAll()
     NotifyChanged();
 }
 
-void SettingsTab::OnApplyProc()  { NotifyChanged(); }
 void SettingsTab::OnAutoApply()
 {
     const bool vco = m_chkVco.GetCheck() == BST_CHECKED;
@@ -682,18 +558,6 @@ void SettingsTab::OnAutoApply()
     NotifyChanged();
 }
 void SettingsTab::OnEditKillFocus(UINT) { NotifyChanged(); }
-
-void SettingsTab::OnDefaults()
-{
-    AppSettings d;
-    AppSettings cur; ReadInto(cur);
-    d.acq = cur.acq;                       // keep MCU values; reset radar/processing/display
-    d.sampleRateCalHz = cur.sampleRateCalHz;
-    d.fsPpm = cur.fsPpm;
-    d.autoConnect = cur.autoConnect;
-    ApplySettings(d);
-    NotifyChanged();
-}
 
 // ---------------------------------------------------------------------------
 void SettingsTab::OnSize(UINT, int, int) { Relayout(); }
@@ -708,11 +572,11 @@ void SettingsTab::Relayout()
     const int lblW = sc(150), ctlW = sc(92), btnW = sc(60), pad = sc(6), h = sc(23), rowH = sc(28);
     const int colW = lblW + ctlW + btnW + 3 * pad;
     int colX[4] = { sc(12), sc(12) + colW + sc(16), sc(12) + 2 * (colW + sc(16)), sc(12) + 3 * (colW + sc(16)) };
-    // Wide: MCU | Radar + derived | Processing | Display, chirp preview under
-    // the first two columns. Medium: Display under MCU, preview under Radar.
+    // Wide: MCU | Radar + derived | Application, chirp preview under the
+    // first two columns. Medium: Application under MCU, preview under Radar.
     // Narrow: everything stacked in one column, preview at the bottom.
     const bool narrow = rc.Width() < colX[2] + colW;
-    const bool wide   = rc.Width() >= colX[3] + colW;
+    const bool wide   = rc.Width() >= colX[2] + colW;
 
     auto header = [&](CStatic& hdr, int col, int& y) {
         hdr.MoveWindow(colX[col], y, colW, sc(20)); y += sc(26);
@@ -753,27 +617,13 @@ void SettingsTab::Relayout()
         m_btnSendAll.MoveWindow(x + sc(172), y0, sc(90), h);
         y0 += rowH + sc(6);
     }
-    header(m_hdrSource, 0, y0);
-    {
-        const int x = colX[0];
-        m_lblSource.MoveWindow(x, y0, lblW, h);
-        m_rdoSrcRaw.MoveWindow(x + lblW + pad, y0, sc(84), h);
-        m_rdoSrcMcu.MoveWindow(x + lblW + pad + sc(88), y0, sc(76), h);
-        y0 += rowH + sc(6);
-    }
     const int yMcuEnd = y0;
 
-    // Display: its own column when wide, else under the MCU column.
-    const int colD = wide ? 3 : 0;
+    // Application: its own column when wide, else under the MCU column.
+    const int colD = wide ? 2 : 0;
     int yD = wide ? sc(10) : y0;
     header(m_hdrDisplay, colD, yD);
-    row(colD, yD, m_lblDbTop, m_edtDbTop);
-    row(colD, yD, m_lblDbBottom, m_edtDbBottom);
-    row(colD, yD, m_lblPalette, m_cmbPalette, nullptr, sc(200));
-    row(colD, yD, m_lblWfRows, m_edtWfRows);
     row(colD, yD, m_lblDark, m_chkDark, nullptr, 0, sc(150));
-    row(colD, yD, m_lblAdcBits, m_edtAdcBits);
-    row(colD, yD, m_lblVref, m_edtVref);
     row(colD, yD, m_lblFsCal, m_edtFsCal);
     row(colD, yD, m_lblPpm, m_edtPpm, &m_btnApplyPpm);
     row(colD, yD, m_lblVerbose, m_chkVerbose, nullptr, 0, sc(150));
@@ -812,32 +662,8 @@ void SettingsTab::Relayout()
     m_lblDerived.MoveWindow(colX[col1], y1, derivedW, sc(150));
     y1 += sc(156);
 
-    // Column 2: Processing.
-    int y2 = narrow ? (std::max)(y0, y1 + sc(130)) : sc(10);
-    const int col2 = narrow ? 0 : 2;
-    header(m_hdrProc, col2, y2);
-    row(col2, y2, m_lblGuard, m_edtGuard);
-    row(col2, y2, m_lblDetrend, m_chkDetrend, nullptr, 0, sc(150));
-    row(col2, y2, m_lblDecim, m_cmbDecim, nullptr, sc(240));
-    row(col2, y2, m_lblMaxRange, m_edtMaxRange);
-    row(col2, y2, m_lblWindow, m_cmbWindow, nullptr, sc(200), ctlW + btnW + pad);
-    row(col2, y2, m_lblKaiser, m_edtKaiser);
-    row(col2, y2, m_lblZeroPad, m_cmbZeroPad, nullptr, sc(120));
-    row(col2, y2, m_lblRangeGain, m_cmbRangeGain, nullptr, sc(120), ctlW + btnW + pad);
-    row(col2, y2, m_lblDetector, m_cmbDetector, nullptr, sc(120), ctlW + btnW + pad);
-    row(col2, y2, m_lblThresh, m_edtThresh);
-    row(col2, y2, m_lblPfa, m_cmbPfa, nullptr, sc(150));
-    row(col2, y2, m_lblCfarGuard, m_edtCfarGuard);
-    row(col2, y2, m_lblCfarTrain, m_edtCfarTrain);
-    row(col2, y2, m_lblInterp, m_cmbInterp, nullptr, sc(150), ctlW + btnW + pad);
-    row(col2, y2, m_lblMaxPeaks, m_edtMaxPeaks);
-    row(col2, y2, m_lblMti, m_chkMti, nullptr, 0, sc(150));
-    row(col2, y2, m_lblTrack, m_chkTrack, nullptr, 0, sc(150));
-    row(col2, y2, m_lblFwGeom, m_chkFwGeom, nullptr, 0, sc(200));
-    row(col2, y2, m_lblTone, m_chkTone, nullptr, 0, sc(200));
-    m_btnApplyProc.MoveWindow(colX[col2] + lblW + pad, y2, sc(80), h);
-    m_btnDefaults.MoveWindow(colX[col2] + lblW + pad + sc(86), y2, sc(80), h);
-    y2 += rowH;
+    const int y2 = narrow ? (std::max)(y0, yD) : sc(10);
+    (void)y2;
 
     if (m_preview.GetSafeHwnd()) {
         CRect pr;

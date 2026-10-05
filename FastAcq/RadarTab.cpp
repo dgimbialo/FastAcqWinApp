@@ -48,6 +48,7 @@ int RadarTab::OnCreate(LPCREATESTRUCT lpcs)
                      CRect(0, 0, 10, 10), this, IDC_TARGET_LIST);
     m_targets.SetFont(&m_font);
     m_targets.Init();
+    m_proc.CreatePanel(this, IDC_PROC_PANEL);
 
     const DWORD ss  = WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE;
     const DWORD cs  = WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL;
@@ -86,6 +87,7 @@ int RadarTab::OnCreate(LPCREATESTRUCT lpcs)
 
 void RadarTab::ApplyTheme()
 {
+    m_proc.ApplyTheme();
     if (m_bgBrush.GetSafeHandle()) m_bgBrush.DeleteObject();
     m_bgBrush.CreateSolidBrush(Theme::Get().bg);
     m_targets.ApplyTheme();
@@ -103,6 +105,7 @@ void RadarTab::ApplySettings(const AppSettings& s)
     m_profile.SetDisplay(s.display);
     m_maxRangeM = s.dsp.maxRangeM;
     m_profile.SetMaxRangeM(s.dsp.maxRangeM);
+    m_proc.ApplySettings(s);
     m_waterfall.SetDisplay(s.display);
     m_waterfall.SetMaxRangeM(s.dsp.maxRangeM);
     m_rd.SetDisplay(s.display);
@@ -232,7 +235,11 @@ void RadarTab::Relayout()
     const int S = static_cast<int>(Dpi::Of(m_hWnd));
     auto sc = [&](int px) { return ::MulDiv(px, S, 96); };
     const int splitH = sc(kSplitH96), footerH = sc(kFooterH96), minPane = sc(kMinPane96);
-    const int cx = rc.Width(), cy = rc.Height();
+    const int cxAll = rc.Width(), cy = rc.Height();
+    // Settings column on the right; the plots take the rest.
+    const int panelW = sc(ProcPanel::kWidth96);
+    const int cx = (std::max)(50, cxAll - panelW - sc(4));
+    if (m_proc.GetSafeHwnd()) m_proc.MoveWindow(cx + sc(4), 0, cxAll - cx - sc(4), cy);
     if (cx < 50 || cy < footerH + 3 * minPane) return;
 
     const int avail = cy - footerH - 2 * splitH;
