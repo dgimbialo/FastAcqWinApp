@@ -18,6 +18,8 @@ public:
     // data[0] corresponds to frame sample index `offset` (for segment shading).
     void SetSamples(const uint16_t* data, size_t n, size_t offset = 0);
     void SetSegments(const std::vector<dsp::Segment>& segs);
+    // One caption per segment (same order as SetSegments), drawn inside the band.
+    void SetSegmentLabels(const std::vector<CString>& labels);
     void SetSampleRate(double fsHz)          { m_fs = fsHz; Invalidate(FALSE); }
     void SetAdcConfig(int bits, float vRef, bool showVolts);
     void SetDotsMode(bool dots)              { m_dots = dots; Invalidate(FALSE); }
@@ -74,6 +76,7 @@ private:
     std::vector<uint16_t>     m_samples;
     size_t                    m_offset{0};       // frame index of m_samples[0]
     std::vector<dsp::Segment> m_segments;
+    std::vector<CString>      m_segLabels;
     CString                   m_info;
 
     double m_zoomX{1.0};

@@ -115,6 +115,13 @@ void WaveformView::SetSamples(const uint16_t* data, size_t n, size_t offset)
 void WaveformView::SetSegments(const std::vector<dsp::Segment>& segs)
 {
     m_segments = segs;
+    if (m_segLabels.size() != m_segments.size()) m_segLabels.clear();
+    if (::IsWindow(m_hWnd)) Invalidate(FALSE);
+}
+
+void WaveformView::SetSegmentLabels(const std::vector<CString>& labels)
+{
+    m_segLabels = labels;
     if (::IsWindow(m_hWnd)) Invalidate(FALSE);
 }
 
@@ -499,18 +506,43 @@ void WaveformView::Render(CDC& dc, const CRect& full)
     const size_t i0  = m_offsetX;
     const size_t i1  = (std::min)(n, i0 + vis);
 
-    // Segment shading.
+    // Segment shading: UP / DOWN / guard bands, a boundary line at every
+    // segment start and a caption inside the band (what the DSP took as
+    // this ramp: samples, duration, beat cycles). Samples after the last
+    // segment belong to no chirp and stay on the plain background.
     if (n > 0) {
-        for (const auto& sg : m_segments) {
+        CPen boundary(PS_SOLID, 1, th.axis);
+        CFont* pOldF = dc.SelectObject(&m_fontAxis);
+        dc.SetBkMode(TRANSPARENT);
+        for (size_t k = 0; k < m_segments.size(); ++k) {
+            const auto& sg = m_segments[k];
             const double a = static_cast<double>(sg.start) - static_cast<double>(m_offset);
             const double b = a + static_cast<double>(sg.length);
             if (b <= static_cast<double>(i0) || a >= static_cast<double>(i1)) continue;
+            const bool startVisible = a >= static_cast<double>(i0);
             int xa = XOfSample((std::max)(a, static_cast<double>(i0)), plot);
             int xb = XOfSample((std::min)(b, static_cast<double>(i1)), plot);
             if (xb <= xa) xb = xa + 1;
             COLORREF c = (sg.kind == dsp::Segment::Up) ? th.segUp : (sg.kind == dsp::Segment::Down) ? th.segDn : th.segGuard;
             dc.FillSolidRect(xa, plot.top, xb - xa, plot.Height(), c);
+            if (startVisible) {
+                CPen* op = dc.SelectObject(&boundary);
+                dc.MoveTo(xa, plot.top); dc.LineTo(xa, plot.bottom);
+                dc.SelectObject(op);
+            }
+            if (k < m_segLabels.size() && !m_segLabels[k].IsEmpty()) {
+                const CString& lbl = m_segLabels[k];
+                const int tw = dc.GetTextExtent(lbl).cx;
+                if (xb - xa >= tw + S(8)) {
+                    dc.SetTextColor(sg.kind == dsp::Segment::Up ? th.traceUp : sg.kind == dsp::Segment::Down ? th.traceDn : th.textDim);
+                    dc.TextOut(xa + S(4), plot.top + S(2), lbl);
+                } else if (xb - xa >= S(14) && sg.kind != dsp::Segment::Guard) {
+                    dc.SetTextColor(sg.kind == dsp::Segment::Up ? th.traceUp : th.traceDn);
+                    dc.TextOut(xa + S(3), plot.top + S(2), sg.kind == dsp::Segment::Up ? _T("UP") : _T("DN"));
+                }
+            }
         }
+        dc.SelectObject(pOldF);
     }
 
     // Y axis + grid.

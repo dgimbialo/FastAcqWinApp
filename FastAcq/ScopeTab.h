@@ -42,6 +42,7 @@ private:
     bool HitSplitter(CPoint pt) const;
     void RebuildRampCombo();
     void UpdateRampView();
+    std::vector<CString> SegmentLabels() const;   // captions for the shaded bands
 
     static constexpr int kSplitH96  = 6;
     static constexpr int kFooterH96 = 30;

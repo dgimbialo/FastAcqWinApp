@@ -112,6 +112,40 @@ void ScopeTab::RebuildRampCombo()
         m_cmbRamp.SetCurSel((oldSel >= 0 && oldSel < m_cmbRamp.GetCount()) ? oldSel : 0);
 }
 
+// Caption for every segment of the current result: which ramp the samples
+// belong to, how many samples / how long, and how many beat cycles that is
+// at the ramp's measured tone (precise estimate if available, else the
+// strongest spectral peak).
+std::vector<CString> ScopeTab::SegmentLabels() const
+{
+    std::vector<CString> out;
+    if (!m_res) return out;
+    const double fs = m_res->fsHz;
+    auto toneOf = [&](dsp::Segment::Kind k) -> double {
+        const dsp::RampSpectrum& sp = (k == dsp::Segment::Down) ? m_res->down : m_res->up;
+        if (sp.tone.valid && sp.tone.freqHz > 0.0) return sp.tone.freqHz;
+        if (sp.valid && !sp.peaks.empty()) return sp.peaks[0].freqHz;
+        return 0.0;
+    };
+    for (const auto& sg : m_res->segments) {
+        CString s;
+        const double dur = fs > 0.0 ? sg.length / fs : 0.0;
+        if (sg.kind == dsp::Segment::Guard) {
+            s.Format(_T("guard %zu smp"), sg.length);
+        } else {
+            const double f = toneOf(sg.kind);
+            s.Format(_T("%s #%d: %zu smp, %s"), sg.kind == dsp::Segment::Up ? _T("UP") : _T("DOWN"), sg.chirp,
+                     sg.length, WaveformView::FormatTime(dur).GetString());
+            if (f > 0.0 && dur > 0.0) {
+                CString c; c.Format(_T(", %.1f cycles of %s"), f * dur, WaveformView::FormatFreq(f).GetString());
+                s += c;
+            }
+        }
+        out.push_back(s);
+    }
+    return out;
+}
+
 void ScopeTab::UpdateRampView()
 {
     if (!m_f || !m_res) { m_ramp.SetSamples(nullptr, 0, 0); return; }
@@ -120,6 +154,7 @@ void ScopeTab::UpdateRampView()
         // No segmentation: show the whole frame.
         m_ramp.SetSamples(m_f->raw.data(), m_f->raw.size(), 0);
         m_ramp.SetSegments(m_res->segments);
+        m_ramp.SetSegmentLabels(SegmentLabels());
         return;
     }
     const dsp::Segment& sg = m_res->segments[m_rampSegIdx[static_cast<size_t>(sel)]];
@@ -134,8 +169,20 @@ void ScopeTab::UpdateRampView()
     if (start >= end) { m_ramp.SetSamples(nullptr, 0, 0); return; }
     m_ramp.SetSamples(m_f->raw.data() + start, end - start, start);
     m_ramp.SetSegments(m_res->segments);
+    m_ramp.SetSegmentLabels(SegmentLabels());
     CString t;
-    t.Format(_T("Ramp detail: %s #%d  (%zu samples)"), sg.kind == dsp::Segment::Up ? _T("UP") : _T("DOWN"), sg.chirp, end - start);
+    t.Format(_T("Ramp detail: %s #%d  (%zu samples in the ramp"), sg.kind == dsp::Segment::Up ? _T("UP") : _T("DOWN"), sg.chirp, sg.length);
+    {
+        const dsp::RampSpectrum& sp = (sg.kind == dsp::Segment::Down) ? m_res->down : m_res->up;
+        const double f = (sp.tone.valid && sp.tone.freqHz > 0.0) ? sp.tone.freqHz : (sp.valid && !sp.peaks.empty() ? sp.peaks[0].freqHz : 0.0);
+        if (m_res->fsHz > 0.0) {
+            const double dur = sg.length / m_res->fsHz;
+            CString c; c.Format(_T(", %s"), WaveformView::FormatTime(dur).GetString()); t += c;
+            if (f > 0.0) { c.Format(_T(", %.1f beat cycles of %s"), f * dur, WaveformView::FormatFreq(f).GetString()); t += c; }
+        }
+        if (end - start > sg.length) { CString c; c.Format(_T(", +%zu guard"), end - start - sg.length); t += c; }
+        t += _T(")");
+    }
     m_ramp.SetTitle(t);
 }
 
@@ -150,9 +197,23 @@ void ScopeTab::ShowFrame(ChirpFramePtr f, std::shared_ptr<const dsp::FrameResult
                     : (m_f->header.sample_rate_hz > 0 ? m_f->header.sample_rate_hz : 0.0);
     if (fs > 0.0) { m_frame.SetSampleRate(fs); m_ramp.SetSampleRate(fs); }
     m_frame.SetSamples(m_f->raw.data(), m_f->raw.size(), 0);
-    if (m_res) m_frame.SetSegments(m_res->segments); else m_frame.SetSegments({});
+    if (m_res) { m_frame.SetSegments(m_res->segments); m_frame.SetSegmentLabels(SegmentLabels()); }
+    else m_frame.SetSegments({});
     CString title;
     title.Format(_T("Frame %u  (%zu samples, %d chirps)"), m_f->header.frame_id, m_f->raw.size(), m_res ? m_res->chirps : 1);
+    if (m_res && !m_res->segments.empty()) {
+        // How much of the frame the chirps cover; the rest is captured after
+        // the last chirp and takes part in no spectrum.
+        size_t used = 0, up = 0, dn = 0;
+        for (const auto& sg : m_res->segments) {
+            used += sg.length;
+            if (sg.kind == dsp::Segment::Up) up += sg.length; else if (sg.kind == dsp::Segment::Down) dn += sg.length;
+        }
+        CString c;
+        c.Format(_T("  UP %zu + DOWN %zu smp"), up, dn);
+        title += c;
+        if (used < m_f->raw.size()) { c.Format(_T(", %zu after the last chirp (unused)"), m_f->raw.size() - used); title += c; }
+    }
     m_frame.SetTitle(title);
 
     CString info;
