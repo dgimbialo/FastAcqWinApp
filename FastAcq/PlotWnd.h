@@ -21,6 +21,9 @@ struct LinearAxis {
     }
 };
 
+// Frequency span drawn while no frame has been received (axis placeholder).
+constexpr double kEmptySpanHz = 100e3;
+
 class PlotWnd : public CWnd {
 public:
     PlotWnd() = default;

@@ -97,7 +97,7 @@ int SettingsTab::OnCreate(LPCREATESTRUCT lpcs)
     m_hdrSource.Create(_T("Spectrum source"), ss, rc, this);
     m_lblSource.Create(_T("Process"), ss, rc, this);
     m_rdoSrcRaw.Create(_T("RAW on PC"), WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON | WS_GROUP, rc, this, IDC_RDO_SRC_RAW);
-    m_rdoSrcMcu.Create(_T("FFT from MCU"), WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON, rc, this, IDC_RDO_SRC_MCU);
+    m_rdoSrcMcu.Create(_T("MCU FFT"), WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON, rc, this, IDC_RDO_SRC_MCU);
     m_rdoSrcRaw.SetCheck(BST_CHECKED);
 
     // --- Radar
@@ -380,22 +380,24 @@ void SettingsTab::RefreshDerived()
     dsp::DerivedValues d = dsp::ComputeDerived(s.radar, s.dsp, fs, s.acq.chirpFreqHz, samples,
                                                s.acq.intervalMs, s.acq.sendRaw, s.acq.sendFft, m_obsMcuFft);
     CString t, line;
-    line.Format(_T("Ramp %.4f ms, period %.4f ms, %zu samples/ramp (%zu used)\r\n"), d.rampSec * 1e3, d.periodSec * 1e3, d.samplesPerRamp, d.samplesUsed); t += line;
-    line.Format(_T("Decimation x%d -> Fs_eff %.1f kHz, FFT %zu, bin %.1f Hz"), d.decimation, d.fsEffHz / 1e3, d.fftSize, d.binHz); t += line;
+    line.Format(_T("Ramp %.4f ms, period %.4f ms\r\n"), d.rampSec * 1e3, d.periodSec * 1e3); t += line;
+    line.Format(_T("%zu samples/ramp, %zu used\r\n"), d.samplesPerRamp, d.samplesUsed); t += line;
+    line.Format(_T("Decimation x%d: Fs_eff %.1f kHz, FFT %zu\r\n"), d.decimation, d.fsEffHz / 1e3, d.fftSize); t += line;
+    line.Format(_T("Bin %.1f Hz"), d.binHz); t += line;
     if (d.rangeBinM > 0.0) { line.Format(_T(" = %.3f m"), d.rangeBinM); t += line; }
     t += _T("\r\n");
     if (d.rangeResM > 0.0) {
-        line.Format(_T("Range resolution c/2B = %.3f m (effective %.3f m), R_max %.1f m\r\n"), d.rangeResM, d.rangeResEffM, d.rangeMaxM); t += line;
-        line.Format(_T("Beat frequency %.1f Hz per metre\r\n"), d.beatPerMeterHz); t += line;
+        line.Format(_T("Range res. c/2B %.3f m (eff. %.3f m), R_max %.1f m\r\n"), d.rangeResM, d.rangeResEffM, d.rangeMaxM); t += line;
+        line.Format(_T("Beat %.1f Hz per metre\r\n"), d.beatPerMeterHz); t += line;
     } else {
         t += _T("Range axis: set bandwidth B > 0\r\n");
     }
     if (d.velResMps > 0.0) {
-        line.Format(_T("Velocity: resolution %.3f m/s (burst %d), unambiguous +/- %.2f m/s\r\n"), d.velResMps, (std::max)(1, s.dsp.chirpsInFrame), d.velMaxMps); t += line;
+        line.Format(_T("Velocity res. %.3f m/s (burst %d), max +/- %.2f m/s\r\n"), d.velResMps, (std::max)(1, s.dsp.chirpsInFrame), d.velMaxMps); t += line;
     }
-    line.Format(_T("USB load at %d ms interval: %.2f MB/s (FS CDC limit ~0.8 MB/s)"), s.acq.intervalMs, d.usbMBps); t += line;
+    line.Format(_T("USB %.2f MB/s at %d ms (FS CDC limit ~0.8 MB/s)"), d.usbMBps, s.acq.intervalMs); t += line;
     if (s.fsPpm != 0.0) {
-        line.Format(_T("\r\nADC clock correction %+.3f ppm: nominal %.6f -> %.6f MS/s"), s.fsPpm,
+        line.Format(_T("\r\nADC clock %+.3f ppm: %.6f -> %.6f MS/s"), s.fsPpm,
                     fs / 1e6, fs * (1.0 + s.fsPpm * 1e-6) / 1e6);
         t += line;
     }
@@ -628,9 +630,12 @@ void SettingsTab::Relayout()
 
     const int lblW = sc(150), ctlW = sc(92), btnW = sc(60), pad = sc(6), h = sc(23), rowH = sc(28);
     const int colW = lblW + ctlW + btnW + 3 * pad;
-    int colX[3] = { sc(12), sc(12) + colW + sc(16), sc(12) + 2 * (colW + sc(16)) };
-    // Fall back to two columns stacked if the tab is narrow.
+    int colX[4] = { sc(12), sc(12) + colW + sc(16), sc(12) + 2 * (colW + sc(16)), sc(12) + 3 * (colW + sc(16)) };
+    // Wide: MCU | Radar + derived | Processing | Display, chirp preview under
+    // the first two columns. Medium: Display under MCU, preview under Radar.
+    // Narrow: everything stacked in one column, preview at the bottom.
     const bool narrow = rc.Width() < colX[2] + colW;
+    const bool wide   = rc.Width() >= colX[3] + colW;
 
     auto header = [&](CStatic& hdr, int col, int& y) {
         hdr.MoveWindow(colX[col], y, colW, sc(20)); y += sc(26);
@@ -674,22 +679,28 @@ void SettingsTab::Relayout()
     {
         const int x = colX[0];
         m_lblSource.MoveWindow(x, y0, lblW, h);
-        m_rdoSrcRaw.MoveWindow(x + lblW + pad, y0, sc(100), h);
-        m_rdoSrcMcu.MoveWindow(x + lblW + pad + sc(104), y0, sc(110), h);
+        m_rdoSrcRaw.MoveWindow(x + lblW + pad, y0, sc(84), h);
+        m_rdoSrcMcu.MoveWindow(x + lblW + pad + sc(88), y0, sc(76), h);
         y0 += rowH + sc(6);
     }
-    header(m_hdrDisplay, 0, y0);
-    row(0, y0, m_lblDbTop, m_edtDbTop);
-    row(0, y0, m_lblDbBottom, m_edtDbBottom);
-    row(0, y0, m_lblPalette, m_cmbPalette, nullptr, sc(200));
-    row(0, y0, m_lblWfRows, m_edtWfRows);
-    row(0, y0, m_lblDark, m_chkDark, nullptr, 0, sc(150));
-    row(0, y0, m_lblAdcBits, m_edtAdcBits);
-    row(0, y0, m_lblVref, m_edtVref);
-    row(0, y0, m_lblFsCal, m_edtFsCal);
-    row(0, y0, m_lblPpm, m_edtPpm, &m_btnApplyPpm);
-    row(0, y0, m_lblVerbose, m_chkVerbose, nullptr, 0, sc(150));
-    row(0, y0, m_lblAutoConn, m_chkAutoConnect, nullptr, 0, sc(150));
+    const int yMcuEnd = y0;
+
+    // Display: its own column when wide, else under the MCU column.
+    const int colD = wide ? 3 : 0;
+    int yD = wide ? sc(10) : y0;
+    header(m_hdrDisplay, colD, yD);
+    row(colD, yD, m_lblDbTop, m_edtDbTop);
+    row(colD, yD, m_lblDbBottom, m_edtDbBottom);
+    row(colD, yD, m_lblPalette, m_cmbPalette, nullptr, sc(200));
+    row(colD, yD, m_lblWfRows, m_edtWfRows);
+    row(colD, yD, m_lblDark, m_chkDark, nullptr, 0, sc(150));
+    row(colD, yD, m_lblAdcBits, m_edtAdcBits);
+    row(colD, yD, m_lblVref, m_edtVref);
+    row(colD, yD, m_lblFsCal, m_edtFsCal);
+    row(colD, yD, m_lblPpm, m_edtPpm, &m_btnApplyPpm);
+    row(colD, yD, m_lblVerbose, m_chkVerbose, nullptr, 0, sc(150));
+    row(colD, yD, m_lblAutoConn, m_chkAutoConnect, nullptr, 0, sc(150));
+    if (!wide) y0 = yD;
 
     // Column 1: Radar + Derived.
     int y1 = narrow ? y0 + sc(10) : sc(10);
@@ -711,10 +722,8 @@ void SettingsTab::Relayout()
     y1 += sc(6);
     header(m_hdrDerived, col1, y1);
     const int derivedW = narrow ? rc.Width() - colX[col1] - sc(10) : colW + sc(10);
-    m_lblDerived.MoveWindow(colX[col1], y1, derivedW, sc(136));
-    y1 += sc(142);
-    // Chirp preview fills the remaining height of the column (in the narrow
-    // layout it goes below the processing column, full width).
+    m_lblDerived.MoveWindow(colX[col1], y1, derivedW, sc(150));
+    y1 += sc(156);
 
     // Column 2: Processing.
     int y2 = narrow ? (std::max)(y0, y1 + sc(130)) : sc(10);
@@ -748,6 +757,9 @@ void SettingsTab::Relayout()
         if (narrow) {
             const int top = (std::max)(y0, y2) + sc(6);
             pr.SetRect(colX[0], top, rc.Width() - sc(10), (std::max)(top + sc(260), rc.Height() - sc(10)));
+        } else if (wide) {
+            const int top = (std::max)(yMcuEnd, y1) + sc(4);
+            pr.SetRect(colX[0], top, colX[1] + colW + sc(10), (std::max)(top + sc(300), rc.Height() - sc(10)));
         } else {
             pr.SetRect(colX[col1], y1, colX[col1] + derivedW, (std::max)(y1 + sc(260), rc.Height() - sc(10)));
         }

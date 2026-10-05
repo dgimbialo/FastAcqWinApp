@@ -19,9 +19,9 @@ void RangeProfileView::SetDisplay(const DisplaySettings& d)
 
 double RangeProfileView::FullSpanHz() const
 {
-    if (!m_res || !m_res->up.valid) return 1.0;
+    if (!m_res || !m_res->up.valid) return kEmptySpanHz;
     const double span = m_res->up.fsEffHz / 2.0;
-    return span > 0.0 ? span : 1.0;
+    return span > 0.0 ? span : kEmptySpanHz;
 }
 
 void RangeProfileView::EffectiveX(double& f0, double& f1) const

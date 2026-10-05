@@ -94,7 +94,7 @@ void WaterfallView::SetDisplay(const DisplaySettings& d)
 
 double WaterfallView::FullSpanHz() const
 {
-    return m_fsEffHz > 0.0 ? m_fsEffHz / 2.0 : 1.0;
+    return m_fsEffHz > 0.0 ? m_fsEffHz / 2.0 : kEmptySpanHz;
 }
 
 void WaterfallView::EffectiveX(double& f0, double& f1) const
