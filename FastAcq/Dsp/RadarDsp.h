@@ -58,7 +58,7 @@ struct RadarParams {
 struct DspSettings {
     int         chirpsInFrame{1};          // burst count (>= 1)
     RampShape   shape{RampShape::Triangle};
-    float       guardPct{0.0f};            // % of each ramp dropped at both ends (0 = use the whole ramp)
+    float       guardPct{5.0f};            // % of each ramp dropped at both ends
     bool        detrend{true};             // remove linear trend (mean is always removed)
     int         decimation{0};             // 0 = auto (from maxRangeM), 1 = none, else factor
     double      maxRangeM{100.0};          // range of interest (auto decimation, map limits)

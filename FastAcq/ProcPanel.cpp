@@ -178,7 +178,7 @@ void ProcPanel::ApplySettings(const AppSettings& s)
 void ProcPanel::ReadInto(AppSettings& s) const
 {
     s.dsp.useMcuFft  = m_rdoSrcMcu.GetCheck() == BST_CHECKED;
-    s.dsp.guardPct   = static_cast<float>((std::max)(0.0, (std::min)(45.0, GetDouble(m_edtGuard, 0.0))));
+    s.dsp.guardPct   = static_cast<float>((std::max)(0.0, (std::min)(45.0, GetDouble(m_edtGuard, 5.0))));
     s.dsp.detrend    = m_chkDetrend.GetCheck() == BST_CHECKED;
     int dsel = m_cmbDecim.GetCurSel();
     s.dsp.decimation = (dsel <= 0) ? 0 : (1 << (dsel - 1));
