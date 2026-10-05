@@ -269,12 +269,14 @@ void WaterfallView::Render(CDC& dc, const CRect& rc)
     {
         CFont* pOld = dc.SelectObject(&m_fontTitle);
         dc.SetTextColor(th.textHdr);
-        dc.TextOut(L.title.left + S(6), L.title.top + S(3), m_title.IsEmpty() ? CString(TR("Waterfall (range - time)")) : m_title);
+        const CString t = m_title.IsEmpty() ? CString(TR("Waterfall (range - time)")) : m_title;
+        dc.TextOut(L.title.left + S(6), L.title.top + S(3), t);
+        const int titleEnd = L.title.left + S(6) + dc.GetTextExtent(t).cx + S(16);
         dc.SelectObject(&m_fontAxis);
         dc.SetTextColor(th.textDim);
         CString info;
         info.Format(TR("%zu rows   palette %s"), m_rows.size(), ColorMap::Name(static_cast<Palette>(m_disp.palette)));
-        CRect ir(L.title.left + S(180), L.title.top, L.title.right - S(4), L.title.bottom);
+        CRect ir((std::max)(static_cast<int>(L.title.left) + S(180), titleEnd), L.title.top, L.title.right - S(4), L.title.bottom);
         dc.DrawText(info, ir, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
         dc.SelectObject(pOld);
     }

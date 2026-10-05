@@ -384,7 +384,7 @@ int ProcPanel::LabelWidth() const
         if (c == &m_hdrProc || c == &m_hdrDetect || c == &m_hdrReject || c == &m_hdrDisplay) continue;
         w = (std::max)(w, Dpi::FitWidth(*c, 0));
     }
-    return (std::min)(w, Dpi::Scale(m_hWnd, 240));
+    return (std::min)(w, Dpi::Scale(m_hWnd, 280));
 }
 
 int ProcPanel::DesiredWidth() const
@@ -397,7 +397,7 @@ int ProcPanel::DesiredWidth() const
         const LONG st = ::GetWindowLong(c->GetSafeHwnd(), GWL_STYLE) & BS_TYPEMASK;
         if (st == BS_AUTOCHECKBOX || st == BS_AUTORADIOBUTTON) ctl = (std::max)(ctl, Dpi::FitWidth(*c, 0));
     }
-    ctl = (std::min)(ctl, Dpi::Scale(m_hWnd, 260));
+    ctl = (std::min)(ctl, Dpi::Scale(m_hWnd, 300));
     return Dpi::Scale(m_hWnd, 8) + LabelWidth() + Dpi::Scale(m_hWnd, 6) + ctl + Dpi::Scale(m_hWnd, 8) + ::GetSystemMetrics(SM_CXVSCROLL);
 }
 

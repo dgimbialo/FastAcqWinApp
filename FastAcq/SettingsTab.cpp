@@ -359,7 +359,12 @@ void SettingsTab::RefreshDerived()
         line.Format(TR("\r\n%sADC clock %+.3f ppm: %.6f -> %.6f MS/s"), ind.GetString(), s.fsPpm, fs / 1e6, fs * (1.0 + s.fsPpm * 1e-6) / 1e6);
         t += line;
     }
+    CString prev; m_lblDerived.GetWindowText(prev);
+    int nPrev = 0, nNew = 0;
+    for (int i = 0; i < prev.GetLength(); ++i) if (prev[i] == _T('\n')) ++nPrev;
+    for (int i = 0; i < t.GetLength(); ++i) if (t[i] == _T('\n')) ++nNew;
     m_lblDerived.SetWindowText(t);
+    if (nPrev != nNew) Relayout();   // the read-out height follows its line count
 }
 
 void SettingsTab::UpdateVcoDerived(AppSettings& s)
@@ -658,9 +663,12 @@ void SettingsTab::Relayout()
         m_btnSetRamp.MoveWindow(x + lblW + pad + ctlW + pad, y0, btnW, h);
         y0 += rowH;
         m_lblData.MoveWindow(x, y0, lblW, h);
-        m_chkRaw.MoveWindow(x + lblW + pad, y0, sc(44), h);
-        m_chkFft.MoveWindow(x + lblW + pad + sc(46), y0, sc(44), h);
-        m_btnApplyData.MoveWindow(x + lblW + pad + ctlW + pad, y0, btnW, h);
+        // Check boxes take the width their captions need; the button moves
+        // right when the two of them are wider than a normal edit field.
+        const int wRaw = Dpi::FitWidth(m_chkRaw, sc(44)), wFft = Dpi::FitWidth(m_chkFft, sc(44));
+        m_chkRaw.MoveWindow(x + lblW + pad, y0, wRaw, h);
+        m_chkFft.MoveWindow(x + lblW + pad + wRaw + pad, y0, wFft, h);
+        m_btnApplyData.MoveWindow(x + lblW + pad + (std::max)(ctlW, wRaw + pad + wFft) + pad, y0, btnW, h);
         y0 += rowH;
         const int wPing = Dpi::FitWidth(m_btnPing, sc(70)), wStat = Dpi::FitWidth(m_btnGetStatus, sc(90)),
                   wAll = Dpi::FitWidth(m_btnSendAll, sc(90));
@@ -713,8 +721,16 @@ void SettingsTab::Relayout()
     y1 += sc(6);
     header(m_hdrDerived, col1, y1);
     const int derivedW = narrow ? rc.Width() - colX[col1] - sc(10) : colW + sc(10);
-    m_lblDerived.MoveWindow(colX[col1], y1, derivedW, sc(262));
-    y1 += sc(268);
+    // The read-out grows with its text so the chirp preview below never
+    // covers the last block.
+    int derivedLines = 1;
+    {
+        CString t; m_lblDerived.GetWindowText(t);
+        for (int i = 0; i < t.GetLength(); ++i) if (t[i] == _T('\n')) ++derivedLines;
+    }
+    const int derivedH = derivedLines * Dpi::LineHeight(m_lblDerived) + sc(8);
+    m_lblDerived.MoveWindow(colX[col1], y1, derivedW, derivedH);
+    y1 += derivedH + sc(6);
 
     const int y2 = narrow ? (std::max)(y0, yD) : sc(10);
     (void)y2;

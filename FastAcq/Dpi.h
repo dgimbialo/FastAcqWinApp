@@ -54,6 +54,18 @@ inline int TextWidth(CWnd& w)
     return cx;
 }
 
+// Height of one text line in the control's font (for multi-line read-outs).
+inline int LineHeight(CWnd& w)
+{
+    if (!w.GetSafeHwnd()) return 16;
+    CClientDC dc(&w);
+    CFont* f = w.GetFont();
+    CFont* old = f ? dc.SelectObject(f) : nullptr;
+    const int cy = dc.GetTextExtent(_T("Xg")).cy;
+    if (old) dc.SelectObject(old);
+    return cy > 0 ? cy : 16;
+}
+
 // Width a control needs for its caption (buttons, check boxes, radios and
 // static labels), never less than `fallbackPx`. Other controls (combos,
 // edits, sliders) keep the fallback. Used so translated captions always fit.

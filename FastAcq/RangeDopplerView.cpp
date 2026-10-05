@@ -90,7 +90,9 @@ void RangeDopplerView::Render(CDC& dc, const CRect& rc)
     {
         CFont* pOld = dc.SelectObject(&m_fontTitle);
         dc.SetTextColor(th.textHdr);
-        dc.TextOut(L.title.left + S(6), L.title.top + S(3), TR("Range - Doppler"));
+        const CString t = TR("Range - Doppler");
+        dc.TextOut(L.title.left + S(6), L.title.top + S(3), t);
+        const int titleEnd = L.title.left + S(6) + dc.GetTextExtent(t).cx + S(16);
         dc.SelectObject(&m_fontAxis);
         dc.SetTextColor(th.textDim);
         CString info;
@@ -101,7 +103,7 @@ void RangeDopplerView::Render(CDC& dc, const CRect& rc)
         } else {
             info = TR("needs chirps per frame > 1 (burst)");
         }
-        CRect ir(L.title.left + S(130), L.title.top, L.title.right - S(4), L.title.bottom);
+        CRect ir((std::max)(static_cast<int>(L.title.left) + S(130), titleEnd), L.title.top, L.title.right - S(4), L.title.bottom);
         dc.DrawText(info, ir, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
         dc.SelectObject(pOld);
     }

@@ -341,6 +341,7 @@ void RangeProfileView::Render(CDC& dc, const CRect& rc)
         dc.SetTextColor(th.textHdr);
         CString t = m_title.IsEmpty() ? CString(TR("Range profile")) : m_title;
         dc.TextOut(L.title.left + S(6), L.title.top + S(3), t);
+        const int titleEnd = L.title.left + S(6) + dc.GetTextExtent(t).cx + S(16);
         dc.SelectObject(&m_fontAxis);
         dc.SetTextColor(th.textDim);
         CString info;
@@ -366,7 +367,7 @@ void RangeProfileView::Render(CDC& dc, const CRect& rc)
         } else {
             info = TR("no data");
         }
-        CRect ir(L.title.left + S(130), L.title.top, L.title.right - S(4), L.title.bottom);
+        CRect ir((std::max)(static_cast<int>(L.title.left) + S(130), titleEnd), L.title.top, L.title.right - S(4), L.title.bottom);
         dc.DrawText(info, ir, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
         dc.SelectObject(pOld);
     }
