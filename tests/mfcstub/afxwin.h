@@ -432,6 +432,7 @@ public:
 class CEdit : public CWnd {
 public:
     BOOL Create(DWORD dwStyle, const RECT& rect, CWnd* pParentWnd, UINT nID);
+    BOOL SetReadOnly(BOOL bReadOnly = TRUE);
     void SetSel(int nStartChar, int nEndChar, BOOL bNoScroll = FALSE);
     void ReplaceSel(LPCTSTR lpszNewText, BOOL bCanUndo = FALSE);
     int  GetLineCount() const;

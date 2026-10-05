@@ -11,11 +11,14 @@
 
 #include "pch.h"
 #include "Core/ChirpGeometry.h"
+#include "Core/VcoCurve.h"
 
 class ChirpPreviewCtrl : public CWnd {
 public:
     BOOL CreateCtrl(CWnd* parent, UINT id);
     void SetParams(const core::ChirpParams& p);
+    // DAC 0 / 4095 -> tuning voltage, and the VCO curve (invalid = volts only).
+    void SetVco(double vtuneAtDac0V, double vtuneAtDacFullV, const core::VcoCurve& curve);
     const core::ChirpGeometry& Geometry() const { return m_g; }
     void ApplyTheme();
 
@@ -33,5 +36,7 @@ private:
 
     core::ChirpParams   m_p;
     core::ChirpGeometry m_g;
+    double              m_vLow{0.0}, m_vHigh{10.0};
+    core::VcoCurve      m_vco;
     CFont m_font, m_boldFont, m_smallFont;
 };

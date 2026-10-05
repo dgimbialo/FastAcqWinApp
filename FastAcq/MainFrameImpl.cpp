@@ -103,6 +103,7 @@ std::filesystem::path ToPath(const CString& s)
 CMainFrame::CMainFrame()
 {
     m_settings.Load(AppSettings::DefaultPath());
+    m_settings.ApplyVcoToRadar();
     if (m_settings.chirpsFromBurst) m_settings.dsp.chirpsInFrame = (std::max)(1, m_settings.acq.burst);
     Theme::SetDark(m_settings.display.darkTheme);
 }
@@ -636,7 +637,7 @@ LRESULT CMainFrame::OnServiceFrame(WPARAM wp, LPARAM lp)
             m_settings.dsp.chirpsInFrame = m_device.burst;
             changed = true;
         }
-        if (changed) { m_settingsTab.ApplySettings(m_settings); ApplySettingsToAll(false); }
+        if (changed) { m_settings.ApplyVcoToRadar(); m_settingsTab.ApplySettings(m_settings); ApplySettingsToAll(false); }
         break;
     }
 
@@ -677,6 +678,7 @@ LRESULT CMainFrame::OnSettingsChanged(WPARAM wp, LPARAM)
     default: break;
     }
     if (s.chirpsFromBurst) s.dsp.chirpsInFrame = (std::max)(1, m_haveDevice ? static_cast<int>(m_device.burst) : s.acq.burst);
+    s.ApplyVcoToRadar();
     const bool themeChanged = (s.display.darkTheme != m_settings.display.darkTheme);
     m_settings = s;
     ApplySettingsToAll(wp != SETTINGS_FROM_TAB);

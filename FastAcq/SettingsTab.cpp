@@ -26,6 +26,8 @@ BEGIN_MESSAGE_MAP(SettingsTab, CWnd)
     ON_CBN_SELCHANGE(IDC_CMB_MODE,     &SettingsTab::OnModeSelChanged)
     ON_BN_CLICKED(IDC_CHK_FW_GEOM,     &SettingsTab::OnAutoApply)
     ON_BN_CLICKED(IDC_CHK_TONE,        &SettingsTab::OnAutoApply)
+    ON_BN_CLICKED(IDC_CHK_VCO,         &SettingsTab::OnAutoApply)
+    ON_CONTROL_RANGE(EN_KILLFOCUS, IDC_EDT_VTUNE_LO, IDC_EDT_VCO_CURVE, &SettingsTab::OnEditKillFocus)
     ON_CONTROL_RANGE(EN_CHANGE, IDC_EDT_SAMPLES, IDC_EDT_BURST, &SettingsTab::OnPreviewInput)
     ON_BN_CLICKED(IDC_BTN_PING,        &SettingsTab::OnPing)
     ON_BN_CLICKED(IDC_BTN_GET_STATUS,  &SettingsTab::OnGetStatus)
@@ -102,6 +104,13 @@ int SettingsTab::OnCreate(LPCREATESTRUCT lpcs)
 
     // --- Radar
     m_hdrRadar.Create(_T("Radar geometry"), ss, rc, this);
+    m_lblVco.Create(_T("VCO (HMC431)"), ss, rc, this);
+    m_chkVco.Create(_T("f0 / B from tuning curve"), chk, rc, this, IDC_CHK_VCO);
+    m_lblVtune.Create(_T("Vtune at DAC 0 / 4095, V"), ss, rc, this);
+    m_edtVtuneLo.Create(esf, rc, this, IDC_EDT_VTUNE_LO);
+    m_edtVtuneHi.Create(esf, rc, this, IDC_EDT_VTUNE_HI);
+    m_lblCurve.Create(_T("Tuning curve V:GHz,..."), ss, rc, this);
+    m_edtCurve.Create(esf, rc, this, IDC_EDT_VCO_CURVE);
     m_lblF0.Create(_T("Carrier f0 (sweep centre), GHz"), ss, rc, this);          m_edtF0.Create(esf, rc, this, IDC_EDT_F0);
     m_lblBw.Create(_T("Sweep bandwidth B, MHz"), ss, rc, this);   m_edtBw.Create(esf, rc, this, IDC_EDT_BW);
     m_lblTramp.Create(_T("Ramp time, ms (0 = auto)"), ss, rc, this); m_edtTramp.Create(esf, rc, this, IDC_EDT_TRAMP);
@@ -241,6 +250,12 @@ void SettingsTab::ApplySettings(const AppSettings& s)
     m_rdoSrcRaw.SetCheck(s.dsp.useMcuFft ? BST_UNCHECKED : BST_CHECKED);
     m_rdoSrcMcu.SetCheck(s.dsp.useMcuFft ? BST_CHECKED : BST_UNCHECKED);
 
+    m_chkVco.SetCheck(s.vco.useCurve ? BST_CHECKED : BST_UNCHECKED);
+    SetDouble(m_edtVtuneLo, s.vco.vtuneAtDac0V, _T("%.3f"));
+    SetDouble(m_edtVtuneHi, s.vco.vtuneAtDacFullV, _T("%.3f"));
+    m_edtCurve.SetWindowText(CString(s.vco.Curve().Format().c_str()));
+    m_edtF0.SetReadOnly(s.vco.useCurve ? TRUE : FALSE);
+    m_edtBw.SetReadOnly(s.vco.useCurve ? TRUE : FALSE);
     SetDouble(m_edtF0, s.radar.f0Hz / 1e9, _T("%.4f"));
     SetDouble(m_edtBw, s.radar.bandwidthHz / 1e6, _T("%.3f"));
     SetDouble(m_edtTramp, s.radar.rampSec * 1e3, _T("%.4f"));
@@ -306,6 +321,16 @@ void SettingsTab::ReadInto(AppSettings& s) const
 
     s.radar.f0Hz        = GetDouble(m_edtF0, 5.5) * 1e9;
     s.radar.bandwidthHz = GetDouble(m_edtBw, 1000.0) * 1e6;
+    s.vco.useCurve        = m_chkVco.GetCheck() == BST_CHECKED;
+    s.vco.vtuneAtDac0V    = GetDouble(m_edtVtuneLo, 0.0);
+    s.vco.vtuneAtDacFullV = GetDouble(m_edtVtuneHi, 10.0);
+    if (!(s.vco.vtuneAtDacFullV > s.vco.vtuneAtDac0V)) s.vco.vtuneAtDacFullV = s.vco.vtuneAtDac0V + 10.0;
+    {
+        CString ct; const_cast<CEdit&>(m_edtCurve).GetWindowText(ct);
+        core::VcoCurve c;
+        s.vco.curveText = c.Parse(std::string(CStringA(ct))) ? c.Format() : std::string();
+    }
+    s.ApplyVcoToRadar();
     s.radar.rampSec     = GetDouble(m_edtTramp, 0.0) * 1e-3;
     s.radar.rangeOffsetM= GetDouble(m_edtRoff, 0.0);
     s.radar.pairMaxVelocityMps = GetDouble(m_edtPairV, 30.0);
@@ -380,6 +405,19 @@ void SettingsTab::RefreshDerived()
     dsp::DerivedValues d = dsp::ComputeDerived(s.radar, s.dsp, fs, s.acq.chirpFreqHz, samples,
                                                s.acq.intervalMs, s.acq.sendRaw, s.acq.sendFft, m_obsMcuFft);
     CString t, line;
+    UpdateVcoDerived(s);
+    {
+        const core::VcoSweep sw = s.vco.SweepFor(s.acq.amplitude);
+        if (sw.valid) {
+            line.Format(_T("VCO: Vtune %.2f..%.2f V -> %.4f..%.4f GHz, B %.1f MHz, %.0f..%.0f MHz/V, nonlin. %.1f%%%s\r\n"),
+                        sw.vLowV, sw.vHighV, sw.fStartHz / 1e9, sw.fStopHz / 1e9, sw.bandwidthHz / 1e6,
+                        sw.sensMinHzPerV / 1e6, sw.sensMaxHzPerV / 1e6, sw.nonlinearityPct,
+                        sw.outOfTable ? _T(" [Vtune outside the curve table!]") : _T(""));
+            t += line;
+        } else {
+            t += _T("VCO: tuning curve invalid (need >= 2 points V:GHz)\r\n");
+        }
+    }
     line.Format(_T("Ramp %.4f ms, period %.4f ms\r\n"), d.rampSec * 1e3, d.periodSec * 1e3); t += line;
     line.Format(_T("%zu samples/ramp, %zu used\r\n"), d.samplesPerRamp, d.samplesUsed); t += line;
     line.Format(_T("Decimation x%d: Fs_eff %.1f kHz, FFT %zu\r\n"), d.decimation, d.fsEffHz / 1e3, d.fftSize); t += line;
@@ -404,9 +442,24 @@ void SettingsTab::RefreshDerived()
     m_lblDerived.SetWindowText(t);
 }
 
+void SettingsTab::UpdateVcoDerived(AppSettings& s)
+{
+    if (!s.vco.useCurve) return;
+    const bool was = m_suppress; m_suppress = true;
+    SetDouble(m_edtF0, s.radar.f0Hz / 1e9, _T("%.4f"));
+    SetDouble(m_edtBw, s.radar.bandwidthHz / 1e6, _T("%.3f"));
+    m_edtF0.SetReadOnly(TRUE);
+    m_edtBw.SetReadOnly(TRUE);
+    m_suppress = was;
+}
+
 void SettingsTab::UpdatePreview()
 {
     if (!m_preview.GetSafeHwnd()) return;
+    {
+        AppSettings s; ReadInto(s);
+        m_preview.SetVco(s.vco.vtuneAtDac0V, s.vco.vtuneAtDacFullV, s.vco.useCurve ? s.vco.Curve() : core::VcoCurve());
+    }
     core::ChirpParams p;
     p.freqHz     = GetFreqHz();
     p.riseUs     = GetRiseUs();
@@ -452,7 +505,7 @@ void SettingsTab::OnRampChanged()
     RefreshDerived();
 }
 
-void SettingsTab::OnPreviewInput(UINT)   { if (!m_suppress) UpdatePreview(); }
+void SettingsTab::OnPreviewInput(UINT)   { if (!m_suppress) { UpdatePreview(); RefreshDerived(); } }
 void SettingsTab::OnModeSelChanged()     { if (!m_suppress) UpdatePreview(); }
 
 void SettingsTab::SetConnected(bool c)
@@ -603,7 +656,13 @@ void SettingsTab::OnSendAll()
 }
 
 void SettingsTab::OnApplyProc()  { NotifyChanged(); }
-void SettingsTab::OnAutoApply()  { NotifyChanged(); }
+void SettingsTab::OnAutoApply()
+{
+    const bool vco = m_chkVco.GetCheck() == BST_CHECKED;
+    m_edtF0.SetReadOnly(vco ? TRUE : FALSE);
+    m_edtBw.SetReadOnly(vco ? TRUE : FALSE);
+    NotifyChanged();
+}
 void SettingsTab::OnEditKillFocus(UINT) { NotifyChanged(); }
 
 void SettingsTab::OnDefaults()
@@ -706,6 +765,15 @@ void SettingsTab::Relayout()
     int y1 = narrow ? y0 + sc(10) : sc(10);
     const int col1 = narrow ? 0 : 1;
     header(m_hdrRadar, col1, y1);
+    row(col1, y1, m_lblVco, m_chkVco, nullptr, 0, ctlW + btnW + pad);
+    {
+        const int x = colX[col1];
+        m_lblVtune.MoveWindow(x, y1, lblW, h);
+        m_edtVtuneLo.MoveWindow(x + lblW + pad, y1, (ctlW - pad) / 2, h);
+        m_edtVtuneHi.MoveWindow(x + lblW + pad + (ctlW - pad) / 2 + pad, y1, ctlW - (ctlW - pad) / 2 - pad, h);
+        y1 += rowH;
+    }
+    row(col1, y1, m_lblCurve, m_edtCurve, nullptr, 0, ctlW + btnW + pad);
     row(col1, y1, m_lblF0, m_edtF0);
     row(col1, y1, m_lblBw, m_edtBw);
     row(col1, y1, m_lblTramp, m_edtTramp);

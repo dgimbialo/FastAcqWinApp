@@ -65,6 +65,7 @@ private:
     void PostToMain(UINT msg, WPARAM wp = 0, LPARAM lp = 0);
     void NotifyChanged();
     void UpdatePreview();
+    void UpdateVcoDerived(AppSettings& s);   // f0 / B from the curve into the read-only fields
     static int    GetInt(const CEdit& e, int def);
     static double GetDouble(const CEdit& e, double def);
     static void   SetInt(CEdit& e, long long v);
@@ -85,6 +86,9 @@ private:
     CStatic m_lblSource;    CButton m_rdoSrcRaw;      CButton m_rdoSrcMcu;
     // --- Radar
     CStatic m_hdrRadar;
+    CStatic m_lblVco;       CButton m_chkVco;
+    CStatic m_lblVtune;     CEdit m_edtVtuneLo;       CEdit m_edtVtuneHi;
+    CStatic m_lblCurve;     CEdit m_edtCurve;
     CStatic m_lblF0;        CEdit m_edtF0;
     CStatic m_lblBw;        CEdit m_edtBw;
     CStatic m_lblTramp;     CEdit m_edtTramp;

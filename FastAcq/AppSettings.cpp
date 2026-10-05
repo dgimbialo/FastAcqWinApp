@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "AppSettings.h"
+#include "ProtocolDefs.h"
 
 namespace {
 
@@ -39,6 +40,31 @@ E ClampEnum(int v, E count) {
 
 } // namespace
 
+core::VcoCurve VcoSettings::Curve() const
+{
+    core::VcoCurve c;
+    if (!curveText.empty() && c.Parse(curveText)) return c;
+    return core::VcoCurve::Hmc431Typical();
+}
+
+core::VcoSweep VcoSettings::SweepFor(int amplitude) const
+{
+    if (amplitude < 1) amplitude = 1;
+    if (amplitude > static_cast<int>(AMPLITUDE_MAX)) amplitude = AMPLITUDE_MAX;
+    const double vHigh = vtuneAtDac0V + (vtuneAtDacFullV - vtuneAtDac0V) * amplitude / static_cast<double>(AMPLITUDE_MAX);
+    return core::ComputeVcoSweep(Curve(), vtuneAtDac0V, vHigh);
+}
+
+core::VcoSweep AppSettings::ApplyVcoToRadar()
+{
+    core::VcoSweep s = vco.SweepFor(acq.amplitude);
+    if (vco.useCurve && s.valid && s.bandwidthHz > 0.0) {
+        radar.f0Hz        = s.f0Hz;
+        radar.bandwidthHz = s.bandwidthHz;
+    }
+    return s;
+}
+
 CString AppSettings::DefaultPath()
 {
     TCHAR exe[MAX_PATH]{};
@@ -72,6 +98,11 @@ bool AppSettings::Load(const CString& path)
     radar.rampSec           = ini.GetDouble(_T("Radar"), _T("RampSec"),     radar.rampSec);
     radar.rangeOffsetM      = ini.GetDouble(_T("Radar"), _T("RangeOffsetM"),radar.rangeOffsetM);
     radar.pairMaxVelocityMps= ini.GetDouble(_T("Radar"), _T("PairMaxVel"),  radar.pairMaxVelocityMps);
+    vco.useCurve        = ini.GetBool(_T("Vco"), _T("UseCurve"), vco.useCurve);
+    vco.vtuneAtDac0V    = ini.GetDouble(_T("Vco"), _T("VtuneAtDac0V"), vco.vtuneAtDac0V);
+    vco.vtuneAtDacFullV = ini.GetDouble(_T("Vco"), _T("VtuneAtDacFullV"), vco.vtuneAtDacFullV);
+    vco.curveText       = std::string(CStringA(ini.GetStr(_T("Vco"), _T("Curve"), _T(""))));
+    if (!(vco.vtuneAtDacFullV > vco.vtuneAtDac0V)) { vco.vtuneAtDac0V = 0.0; vco.vtuneAtDacFullV = 10.0; }
 
     dsp.chirpsInFrame   = ini.GetInt(_T("Dsp"), _T("ChirpsInFrame"), dsp.chirpsInFrame);
     dsp.shape           = ClampEnum(ini.GetInt(_T("Dsp"), _T("Shape"), static_cast<int>(dsp.shape)), dsp::RampShape::Count);
@@ -166,6 +197,10 @@ bool AppSettings::Save(const CString& path) const
     ini.SetDouble(_T("Radar"), _T("BandwidthHz"),  radar.bandwidthHz);
     ini.SetDouble(_T("Radar"), _T("RampSec"),      radar.rampSec);
     ini.SetDouble(_T("Radar"), _T("RangeOffsetM"), radar.rangeOffsetM);
+    ini.SetBool(_T("Vco"), _T("UseCurve"),        vco.useCurve);
+    ini.SetDouble(_T("Vco"), _T("VtuneAtDac0V"),  vco.vtuneAtDac0V);
+    ini.SetDouble(_T("Vco"), _T("VtuneAtDacFullV"), vco.vtuneAtDacFullV);
+    ini.Set(_T("Vco"), _T("Curve"),               CString(vco.Curve().Format().c_str()));
     ini.SetDouble(_T("Radar"), _T("PairMaxVel"),   radar.pairMaxVelocityMps);
 
     ini.SetInt(_T("Dsp"), _T("ChirpsInFrame"), dsp.chirpsInFrame);

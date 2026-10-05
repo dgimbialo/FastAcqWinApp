@@ -54,6 +54,12 @@ void ChirpPreviewCtrl::SetParams(const ChirpParams& p)
     if (GetSafeHwnd()) Invalidate(FALSE);
 }
 
+void ChirpPreviewCtrl::SetVco(double vtuneAtDac0V, double vtuneAtDacFullV, const core::VcoCurve& curve)
+{
+    m_vLow = vtuneAtDac0V; m_vHigh = vtuneAtDacFullV; m_vco = curve;
+    if (GetSafeHwnd()) Invalidate(FALSE);
+}
+
 void ChirpPreviewCtrl::OnSize(UINT t, int cx, int cy)
 {
     CWnd::OnSize(t, cx, cy);
@@ -125,7 +131,9 @@ void ChirpPreviewCtrl::Render(CDC& dc, const CRect& full)
 
     // Layout: title row | axis captions | plot | dim row 1 (rise/fall, interval) |
     //         dim row 2 (period) | info line 1 | info line 2
-    const int mL = sc(66), mR = sc(82), mT = sc(46);
+    const bool haveVco = m_vco.Valid();
+    auto vtuneOf = [&](double counts) { return m_vLow + (m_vHigh - m_vLow) * counts / 4095.0; };
+    const int mL = sc(66), mR = haveVco ? sc(128) : sc(82), mT = sc(46);
     const int dimRow = sc(26);
     const int infoLine = sc(18);
     const int mB = sc(8) + 2 * dimRow + 2 * infoLine + sc(6);
@@ -176,12 +184,14 @@ void ChirpPreviewCtrl::Render(CDC& dc, const CRect& full)
         CString l; l.Format(_T("%.0f"), c);
         dc.SetTextColor(th.axisText);
         dc.DrawText(l, CRect(full.left + sc(4), y - sc(7), plot.left - sc(5), y + sc(7)), DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
-        l.Format(_T("%.2f V"), c * 3.3 / 4095.0);
+        if (haveVco) l.Format(_T("%.2f V  %.3f GHz"), vtuneOf(c), m_vco.FreqHz(vtuneOf(c)) / 1e9);
+        else         l.Format(_T("%.2f V"), vtuneOf(c));
         dc.DrawText(l, CRect(plot.right + sc(5), y - sc(7), full.right - sc(4), y + sc(7)), DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
     dc.DrawText(_T("DAC code"), CRect(full.left + sc(4), plot.top - sc(18), plot.left - sc(5), plot.top - sc(4)),
                 DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
-    dc.DrawText(_T("V (3.3 V ref)"), CRect(plot.right + sc(5), plot.top - sc(18), full.right - sc(4), plot.top - sc(4)),
+    dc.DrawText(haveVco ? _T("Vtune  /  VCO out") : _T("Vtune"),
+                CRect(plot.right + sc(5), plot.top - sc(18), full.right - sc(4), plot.top - sc(4)),
                 DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
     // Chirp triangles (burst)
@@ -211,10 +221,17 @@ void ChirpPreviewCtrl::Render(CDC& dc, const CRect& full)
         CPen dash(PS_DOT, 1, cDim); CPen* op = dc.SelectObject(&dash);
         dc.MoveTo(plot.left, py); dc.LineTo(px, py);
         dc.SelectObject(op);
-        CString a; a.Format(_T("A = %u DAC (%.2f V)"), m_p.amplitude, m_p.amplitude * 3.3 / 4095.0);
+        CString a;
+        if (haveVco)
+            a.Format(_T("A = %u DAC: Vtune %.2f..%.2f V = %.3f..%.3f GHz (B %.0f MHz)"), m_p.amplitude,
+                     vtuneOf(0), vtuneOf(m_p.amplitude), m_vco.FreqHz(vtuneOf(0)) / 1e9,
+                     m_vco.FreqHz(vtuneOf(m_p.amplitude)) / 1e9,
+                     std::fabs(m_vco.FreqHz(vtuneOf(m_p.amplitude)) - m_vco.FreqHz(vtuneOf(0))) / 1e6);
+        else
+            a.Format(_T("A = %u DAC: Vtune %.2f..%.2f V"), m_p.amplitude, vtuneOf(0), vtuneOf(m_p.amplitude));
         dc.SetTextColor(cDim);
         dc.SelectObject(&m_font);
-        CRect ar(px - sc(110), py - sc(19), px + sc(110), py - sc(3));
+        CRect ar(px - sc(200), py - sc(19), px + sc(200), py - sc(3));
         if (ar.left < plot.left) ar.OffsetRect(plot.left - ar.left, 0);
         dc.DrawText(a, ar, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP);
     }

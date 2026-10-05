@@ -121,6 +121,7 @@
     <ClInclude Include="Core\ChirpGeometry.h" />
     <ClInclude Include="Core\Export.h" />
     <ClInclude Include="Core\SessionFile.h" />
+    <ClInclude Include="Core\VcoCurve.h" />
     <ClInclude Include="Dsp\Cfar.h" />
     <ClInclude Include="Dsp\Decimator.h" />
     <ClInclude Include="Dsp\FftPlan.h" />
@@ -169,6 +170,9 @@
     <ClCompile Include="Core\Export.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <FloatingPointModel Condition="'$(Configuration)'=='Release'">Fast</FloatingPointModel>
+    </ClCompile>
+    <ClCompile Include="Core\VcoCurve.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Core\SessionFile.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>

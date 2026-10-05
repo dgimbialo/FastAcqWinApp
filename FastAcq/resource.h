@@ -147,6 +147,10 @@
 #define IDC_CHIRP_PREVIEW    1275
 #define IDC_CHK_FW_GEOM      1276
 #define IDC_CHK_TONE         1277
+#define IDC_CHK_VCO          1278
+#define IDC_EDT_VTUNE_LO     1279
+#define IDC_EDT_VTUNE_HI     1280
+#define IDC_EDT_VCO_CURVE    1281
 
 // Radar tab (1300..1399)
 #define IDC_RP_VIEW          1300

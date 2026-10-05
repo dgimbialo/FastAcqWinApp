@@ -14,6 +14,7 @@
 #include "Core/ChirpGeometry.h"
 #include "Core/Export.h"
 #include "Core/SessionFile.h"
+#include "Core/VcoCurve.h"
 #include "TraceDefs.h"
 
 #include <chrono>
@@ -721,6 +722,49 @@ static void TestChirpGeometry()
 }
 
 // ---------------------------------------------------------------------------
+static void TestVcoCurve()
+{
+    std::puts("VcoCurve");
+    core::VcoCurve c = core::VcoCurve::Hmc431Typical();
+    CHECK(c.Valid() && c.Size() == 11);
+    CHECK_NEAR(c.FreqHz(0.0), 5.50e9, 1.0);
+    CHECK_NEAR(c.FreqHz(10.0), 6.10e9, 1.0);
+    CHECK_NEAR(c.FreqHz(0.5), 5.545e9, 1.0);                 // interpolation
+    CHECK_NEAR(c.FreqHz(11.0), 6.14e9, 1.0);                 // extrapolation with the last segment
+    CHECK_NEAR(c.SensitivityHzPerV(0.5), 90e6, 1.0);
+    CHECK_NEAR(c.SensitivityHzPerV(9.5), 40e6, 1.0);
+
+    // Round trip through the text form, unsorted input, separators.
+    core::VcoCurve p;
+    CHECK(p.Parse("5=5.86; 0:5.5, 10:6.10 2:5.67"));
+    CHECK(p.Size() == 4 && p.VminV() == 0.0 && p.VmaxV() == 10.0);
+    CHECK(p.Format() == "0:5.5000,2:5.6700,5:5.8600,10:6.1000");
+    core::VcoCurve q;
+    CHECK(q.Parse(c.Format()) && q.Size() == 11);
+    CHECK_NEAR(q.FreqHz(3.3), c.FreqHz(3.3), 1e3);
+    CHECK(!q.Parse("abc"));
+    CHECK(!q.Parse("1:5.5"));                                // one point is not a curve
+    CHECK(!q.Parse("1:5.5,1:5.6"));                          // duplicate voltage collapses to one point
+
+    // Sweep: DAC 0..4095 -> 0..10 V -> full band; half amplitude -> 0..5 V.
+    core::VcoSweep s = core::ComputeVcoSweep(c, 0.0, 10.0);
+    CHECK(s.valid && !s.outOfTable);
+    CHECK_NEAR(s.fStartHz, 5.50e9, 1.0);
+    CHECK_NEAR(s.fStopHz, 6.10e9, 1.0);
+    CHECK_NEAR(s.f0Hz, 5.80e9, 1.0);
+    CHECK_NEAR(s.bandwidthHz, 600e6, 1.0);
+    CHECK_NEAR(s.sensMinHzPerV, 40e6, 1.0);
+    CHECK_NEAR(s.sensMaxHzPerV, 90e6, 1.0);
+    CHECK(s.nonlinearityPct > 5.0 && s.nonlinearityPct < 20.0);
+    s = core::ComputeVcoSweep(c, 0.0, 5.0);
+    CHECK_NEAR(s.bandwidthHz, 360e6, 1.0);
+    s = core::ComputeVcoSweep(c, 2.0, 12.0);                 // bias 2 V, beyond the table
+    CHECK(s.valid && s.outOfTable);
+    CHECK(!core::ComputeVcoSweep(c, 5.0, 5.0).valid);
+    CHECK(!core::ComputeVcoSweep(core::VcoCurve(), 0.0, 10.0).valid);
+}
+
+// ---------------------------------------------------------------------------
 static void TestToneEstimator()
 {
     std::puts("ToneEstimator");
@@ -960,6 +1004,7 @@ int main()
     TestRadarDsp();
     TestParserV2();
     TestChirpGeometry();
+    TestVcoCurve();
     TestToneEstimator();
     TestFirmwareGeometry();
     TestSessionFile();

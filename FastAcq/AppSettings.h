@@ -6,7 +6,10 @@
 
 #include "pch.h"
 #include "ColorMap.h"
+#include "Core/VcoCurve.h"
 #include "Dsp/RadarDsp.h"
+
+#include <string>
 
 struct AcqSettings {
     int  mode{1};            // MODE_IDLE / MODE_CONTINUOUS / MODE_SINGLE
@@ -19,6 +22,20 @@ struct AcqSettings {
     int  fallUs{0};
     bool sendRaw{true};
     bool sendFft{true};
+};
+
+// Radar VCO: the chirp DAC (0..4095) drives the tuning voltage linearly
+// between vtuneAtDac0V and vtuneAtDacFullV; the tuning curve turns that into
+// the swept band (f_start, f_stop), i.e. f0 and B of the radar geometry.
+struct VcoSettings {
+    bool        useCurve{true};        // f0 / B follow the curve (else typed by hand)
+    double      vtuneAtDac0V{0.0};     // tuning-voltage offset (bias) at DAC code 0
+    double      vtuneAtDacFullV{10.0}; // tuning voltage at DAC code 4095
+    std::string curveText;             // "V:GHz,V:GHz,..." (empty = HMC431 typical)
+
+    core::VcoCurve Curve() const;
+    // Sweep for a chirp of `amplitude` DAC counts starting at code 0.
+    core::VcoSweep SweepFor(int amplitude) const;
 };
 
 struct DisplaySettings {
@@ -45,6 +62,7 @@ struct AppSettings {
     dsp::DspSettings dsp;
     dsp::RadarParams radar;
     DisplaySettings  display;
+    VcoSettings      vco;
 
     uint32_t sampleRateCalHz{60058600};   // calibrated ADC rate (fallback when header has none)
     double   fsPpm{0.0};                  // ADC clock correction applied to the header's nominal rate
@@ -63,6 +81,11 @@ struct AppSettings {
 
     // Multiplier for the header's nominal sample rate: 1 + ppm * 1e-6.
     double FsFactor() const { return 1.0 + fsPpm * 1e-6; }
+
+    // When vco.useCurve: radar.f0Hz / bandwidthHz := band swept by the chirp
+    // amplitude through the VCO curve. Returns the sweep (valid=false if the
+    // curve is unusable; the typed f0 / B are then left as they are).
+    core::VcoSweep ApplyVcoToRadar();
 
     static CString DefaultPath();
     bool Load(const CString& path);
