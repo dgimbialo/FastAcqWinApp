@@ -40,6 +40,14 @@ struct ChirpGeometry {
     uint32_t samplesPerChirp{0}, riseSamples{0}, samplesPerBurst{0};
     uint32_t captureTarget{0}, chunks{0};
     double   riseUs{0}, fallUs{0}, periodUs{0}, freqHz{0};
+    // Capture-window check at the fixed ADC rate: does the whole burst
+    // (every rise and fall) fit into ONE capture of the MCU memory?
+    uint64_t burstSamplesNeeded{0};   // samplesPerChirp * burst, not clipped
+    double   burstUs{0};              // time of the whole burst
+    double   captureUs{0};            // time covered by captureTarget samples
+    double   chirpsCaptured{0};       // captureTarget / samplesPerChirp
+    bool     fitsInCapture{false};    // burstSamplesNeeded <= captureTarget
+    bool     clippedByOverride{false};// a samples override cuts the burst
 };
 
 ChirpGeometry ComputeChirpGeometry(const ChirpParams& p);

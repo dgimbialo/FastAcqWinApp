@@ -684,6 +684,22 @@ static void TestChirpGeometry()
     CHECK(g.samplesPerChirp == 131008 && g.riseSamples == 65504);
     CHECK_NEAR(g.freqHz, 240e6 / 524032.0, 1e-6);
     CHECK(g.samplesPerBurst == 131008 && g.captureTarget == 131072 && g.chunks == 8);
+    CHECK(g.fitsInCapture && !g.clippedByOverride);
+    CHECK(g.burstSamplesNeeded == 131008);
+    CHECK_NEAR(g.captureUs, 131072.0 / 60.0, 1e-6);
+    CHECK_NEAR(g.chirpsCaptured, 131072.0 / 131008.0, 1e-9);
+    p.burst = 4;                                     // 524032 samples: still one window
+    g = core::ComputeChirpGeometry(p);
+    CHECK(g.fitsInCapture && g.captureTarget == 524288 && g.chunks == 32);
+    p.burst = 5;                                     // 655040 > 638976: does not fit
+    g = core::ComputeChirpGeometry(p);
+    CHECK(!g.fitsInCapture && !g.clippedByOverride);
+    CHECK(g.burstSamplesNeeded == 655040 && g.captureTarget == 638976);
+    CHECK_NEAR(g.chirpsCaptured, 638976.0 / 131008.0, 1e-9);
+    p.burst = 2; p.samplesOvr = 100000;              // override shorter than the burst
+    g = core::ComputeChirpGeometry(p);
+    CHECK(!g.fitsInCapture && g.clippedByOverride && g.captureTarget == 114688);
+    p.samplesOvr = 0; p.burst = 1;
 
     p.riseUs = 1200; p.fallUs = 800; p.burst = 4;
     g = core::ComputeChirpGeometry(p);

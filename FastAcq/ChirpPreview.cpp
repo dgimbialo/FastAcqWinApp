@@ -99,7 +99,7 @@ void ChirpPreviewCtrl::Render(CDC& dc, const CRect& full)
 
     const COLORREF cBg = th.plot, cText = th.text, cChirp = th.traceUp, cGrid = th.grid;
     const COLORREF cCapture = th.segUp, cDim = th.traceDn, cMuted = th.textDim;
-    const COLORREF cNext = Theme::Blend(th.traceUp, th.plot, 0.6), cCap = th.textHdr, cBorder = th.border;
+    const COLORREF cNext = Theme::Blend(th.traceUp, th.plot, 0.6), cBorder = th.border;
 
     dc.FillSolidRect(full, cBg);
     {
@@ -147,9 +147,16 @@ void ChirpPreviewCtrl::Render(CDC& dc, const CRect& full)
     const int nextX0    = chirpsEnd + breakPx;
 
     // ADC capture window (never drawn past the burst region)
-    const double captureUs = static_cast<double>(m_g.captureTarget) / core::kChirpAdcHz * 1e6;
+    const double captureUs = m_g.captureUs;
     int capR = (std::min)(static_cast<int>(X(captureUs)), chirpsEnd);
     dc.FillSolidRect(plot.left, plot.top, capR - plot.left, plot.Height(), cCapture);
+    if (!m_g.fitsInCapture && capR < chirpsEnd) {
+        // Part of the burst that the capture window does not cover.
+        dc.FillSolidRect(capR, plot.top, chirpsEnd - capR, plot.Height(), Theme::Blend(th.danger, th.plot, 0.85));
+        CPen cut(PS_SOLID, sc(2), th.danger); CPen* op = dc.SelectObject(&cut);
+        dc.MoveTo(capR, plot.top); dc.LineTo(capR, plot.bottom);
+        dc.SelectObject(op);
+    }
 
     // Grid + axes
     {
@@ -248,21 +255,42 @@ void ChirpPreviewCtrl::Render(CDC& dc, const CRect& full)
         dc.SetTextColor(cChirp);
         dc.DrawText(s, CRect(xr0, y + sc(3), (std::max)(xf1, xr0 + sc(320)), y + sc(17)), DT_CENTER | DT_SINGLELINE | DT_NOCLIP);
     }
-    // Info lines
+    // Info lines: what one capture at the fixed ADC rate has to hold, and
+    // whether the whole burst (every rise and fall) fits into it.
     dc.SelectObject(&m_font);
     {
+        const uint32_t burst = (std::max)(1u, m_p.burst);
         CString s;
-        s.Format(_T("ADC capture window (shaded): %u samples = %.1f us, %u DMA chunks x %u @ 60 MS/s"),
-                 m_g.captureTarget, captureUs, m_g.chunks, core::kChirpDmaChunk);
-        if (m_p.samplesOvr) s += _T("  (samples override)");
-        dc.SetTextColor(cCap);
+        s.Format(_T("ADC @ %.0f MS/s: chirp = rise %u + fall %u = %u samples (%s)"),
+                 core::kChirpAdcHz / 1e6, m_g.riseSamples, m_g.samplesPerChirp - m_g.riseSamples,
+                 m_g.samplesPerChirp, FmtUs(m_g.periodUs).GetString());
+        if (burst > 1) {
+            CString b; b.Format(_T(";  burst x%u = %llu samples (%s)"), burst,
+                                static_cast<unsigned long long>(m_g.burstSamplesNeeded), FmtUs(m_g.burstUs).GetString());
+            s += b;
+        }
+        dc.SetTextColor(cText);
         dc.DrawText(s, CRect(full.left + sc(10), full.bottom - 2 * infoLine - sc(4), full.right - sc(6), full.bottom - infoLine - sc(4)),
                     DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-        s.Format(_T("%u samples per chirp (rise %u + fall %u)  |  DAC table %u pts, %u ticks/pt = %.3f MS/s  |  mode %s"),
-                 m_g.samplesPerChirp, m_g.riseSamples, m_g.samplesPerChirp - m_g.riseSamples,
-                 m_g.tableLen, m_g.ticksPerSample, 240.0 / m_g.ticksPerSample,
-                 m_p.mode == 1 ? _T("CONTINUOUS") : m_p.mode == 2 ? _T("SINGLE") : _T("IDLE"));
-        dc.SetTextColor(cText);
+
+        const uint32_t maxCapture = (core::kChirpCaptureMax / core::kChirpDmaChunk) * core::kChirpDmaChunk;
+        if (m_g.fitsInCapture) {
+            s.Format(_T("OK: fits in ONE capture window of %u samples (%s, %u DMA chunks x %u) = %.1f chirps; MCU buffer %u samples (%s), %.0f%% used"),
+                     m_g.captureTarget, FmtUs(m_g.captureUs).GetString(), m_g.chunks, core::kChirpDmaChunk,
+                     m_g.chirpsCaptured, maxCapture, FmtUs(maxCapture * 1e6 / core::kChirpAdcHz).GetString(),
+                     100.0 * static_cast<double>(m_g.burstSamplesNeeded) / maxCapture);
+            dc.SetTextColor(th.ok);
+        } else if (m_g.clippedByOverride) {
+            s.Format(_T("DOES NOT FIT: samples override %u cuts the burst to %u samples (%s) = %.2f chirps of %u; set samples to 0 (auto) or >= %llu"),
+                     m_p.samplesOvr, m_g.captureTarget, FmtUs(m_g.captureUs).GetString(), m_g.chirpsCaptured, burst,
+                     static_cast<unsigned long long>(m_g.burstSamplesNeeded));
+            dc.SetTextColor(th.danger);
+        } else {
+            s.Format(_T("DOES NOT FIT: burst needs %llu samples (%s), MCU capture holds %u (%s) = %.2f chirps of %u; reduce burst or shorten the chirp"),
+                     static_cast<unsigned long long>(m_g.burstSamplesNeeded), FmtUs(m_g.burstUs).GetString(),
+                     m_g.captureTarget, FmtUs(m_g.captureUs).GetString(), m_g.chirpsCaptured, burst);
+            dc.SetTextColor(th.danger);
+        }
         dc.DrawText(s, CRect(full.left + sc(10), full.bottom - infoLine - sc(4), full.right - sc(6), full.bottom - sc(4)),
                     DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     }

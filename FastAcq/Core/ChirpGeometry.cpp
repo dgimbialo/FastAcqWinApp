@@ -44,6 +44,7 @@ ChirpGeometry ComputeChirpGeometry(const ChirpParams& p)
     g.freqHz          = 1e6 / g.periodUs;
 
     const uint64_t burst = static_cast<uint64_t>(g.samplesPerChirp) * (std::max)(1u, p.burst);
+    g.burstSamplesNeeded = burst;
     g.samplesPerBurst = static_cast<uint32_t>((std::min<uint64_t>)(burst, kChirpCaptureMax));
     uint32_t tgt = ((g.samplesPerBurst + kChirpDmaChunk - 1u) / kChirpDmaChunk) * kChirpDmaChunk;
     if (p.samplesOvr)
@@ -51,6 +52,14 @@ ChirpGeometry ComputeChirpGeometry(const ChirpParams& p)
     tgt = (std::min)(tgt, (kChirpCaptureMax / kChirpDmaChunk) * kChirpDmaChunk);
     g.captureTarget = tgt;
     g.chunks        = tgt / kChirpDmaChunk;
+
+    const double usPerSample = 1e6 / static_cast<double>(kChirpAdcHz);
+    g.burstUs           = static_cast<double>(burst) * usPerSample;
+    g.captureUs         = static_cast<double>(tgt) * usPerSample;
+    g.chirpsCaptured    = static_cast<double>(tgt) / static_cast<double>(g.samplesPerChirp);
+    g.fitsInCapture     = (burst <= tgt);
+    g.clippedByOverride = (p.samplesOvr != 0) && (burst > tgt) &&
+                          (burst <= (kChirpCaptureMax / kChirpDmaChunk) * kChirpDmaChunk);
     return g;
 }
 
