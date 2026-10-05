@@ -2,13 +2,17 @@
 //
 // SerialWorker.h -- background reader thread for COM port.
 //
-// Owns the HANDLE, runs a ReadFile loop, feeds bytes to ProtocolParser.
-// Posts WM_APP_FRAME_READY / WM_APP_PORT_STATUS to the supplied target HWND.
+// Owns the HANDLE, runs a ReadFile loop, feeds bytes to ProtocolParser,
+// pushes frames into the ChirpStore and posts WM_APP_FRAME_READY /
+// WM_APP_PORT_STATUS / WM_APP_LINK_STATS / WM_APP_COMM_LOG to the target HWND.
 //
 
 #include "pch.h"
-#include "ProtocolParser.h"
+#include "AppMessages.h"
 #include "ChirpStore.h"
+#include "ProtocolParser.h"
+
+#include <atomic>
 
 class SerialWorker {
 public:
@@ -28,26 +32,31 @@ public:
     bool IsOpen() const { return m_hPort != INVALID_HANDLE_VALUE; }
 
     // Thread-safe: send an 8-byte host command.
-    bool SendCommand(uint8_t cmd, uint16_t arg1 = 0,
-                     uint16_t arg2 = 0, uint16_t arg3 = 0);
+    bool SendCommand(uint8_t cmd, uint16_t arg1 = 0, uint16_t arg2 = 0, uint16_t arg3 = 0);
 
-    // Diagnostics
-    uint64_t FramesOk()     const { return m_parser.FramesOk(); }
-    uint64_t FramesBadCrc() const { return m_parser.FramesBadCrc(); }
+    // Per-frame "[RX] ..." lines in the communication log.
+    void SetVerbose(bool v) { m_verbose.store(v); }
 
-    // Enumerate available COM ports ("COM1", "COM14", ...).
+    // Connection generation: WM_APP_PORT_STATUS carries it in lParam so the
+    // frame can ignore status messages left over from a previous session.
+    uint32_t Generation() const { return m_gen.load(); }
+
+    // Enumerate COM ports of FastAcq devices ("COM1", "COM14", ...).
     static std::vector<CString> EnumPorts();
 
 private:
     static UINT __stdcall ThreadProc(LPVOID p);
     void ThreadLoop();
-    void PostCommLog(const CString& line);
+    void PostCommLog(LogKind kind, const CString& line);
+    void CloseHandleQuiet();   // failure path of Open(): no status / log traffic
 
-    ChirpStore&     m_store;
-    HWND            m_hwnd;
-    HANDLE          m_hPort{INVALID_HANDLE_VALUE};
-    HANDLE          m_hThread{nullptr};
-    volatile LONG   m_quit{0};
-    CRITICAL_SECTION m_writeCs;
-    ProtocolParser  m_parser;
+    ChirpStore&       m_store;
+    HWND              m_hwnd;
+    HANDLE            m_hPort{INVALID_HANDLE_VALUE};
+    HANDLE            m_hThread{nullptr};
+    volatile LONG     m_quit{0};
+    CRITICAL_SECTION  m_writeCs;
+    ProtocolParser    m_parser;
+    std::atomic<bool> m_verbose{false};
+    std::atomic<uint32_t> m_gen{0};
 };
