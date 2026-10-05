@@ -53,6 +53,7 @@ BEGIN
         MENUITEM "&Scope\tCtrl+2",                   ID_VIEW_SCOPE
         MENUITEM "&Communication\tCtrl+3",           ID_VIEW_COMM
         MENUITEM "S&ettings\tCtrl+4",                ID_VIEW_SETTINGS
+        MENUITEM "&Trace\tCtrl+5",                   ID_VIEW_TRACE
         MENUITEM SEPARATOR
         MENUITEM "&Dark theme",                      ID_VIEW_DARK
     END

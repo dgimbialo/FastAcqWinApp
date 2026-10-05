@@ -9,9 +9,12 @@
 #include "Dsp/FftPlan.h"
 #include "Dsp/PeakFinder.h"
 #include "Dsp/RadarDsp.h"
+#include "Dsp/ToneEstimator.h"
 #include "Dsp/Window.h"
+#include "Core/ChirpGeometry.h"
 #include "Core/Export.h"
 #include "Core/SessionFile.h"
+#include "TraceDefs.h"
 
 #include <chrono>
 #include <cmath>
@@ -532,6 +535,340 @@ static void TestRadarDsp()
     if (!rm.targets.empty()) CHECK_NEAR(rm.targets[0].fUpHz, 300.0 * fs / 4096.0, fs / 4096.0);
 }
 
+
+// ---------------------------------------------------------------------------
+// Protocol v2: header_size bytes (>= 64) with FrameHeaderExt after the 56-byte
+// v1 header; CRC covers the header exactly as sent.
+static std::vector<uint8_t> BuildFrameBytesV2(uint32_t id, const std::vector<uint16_t>& raw,
+                                              uint16_t headerSize, const FrameHeaderExt& extIn,
+                                              uint8_t flags = FRAME_FLAG_HAS_RAW, bool corruptCrc = false)
+{
+    FrameHeader h{};
+    h.magic          = FRAME_MAGIC_V2;
+    h.frame_id       = id;
+    h.timestamp_ms   = 2000 + id;
+    h.actual_samples = static_cast<uint32_t>(raw.size());
+    h.sample_rate_hz = 60000000;
+    h.chirp_freq_hz  = 458;
+    h.data_flags     = flags;
+    h.raw_data_bytes = static_cast<uint32_t>(raw.size() * 2);
+    h.fft_data_bytes = 0;
+    h.fft_freq_res_hz = 10.0f;
+    h.reserved1[4] = 0x44; h.reserved1[5] = 0x04;   // rise 1092 us
+    h.reserved1[6] = 0x44; h.reserved1[7] = 0x04;   // fall 1092 us
+    FrameHeaderExt ext = extIn;
+    ext.header_size   = headerSize;
+    ext.proto_version = 2;
+    std::vector<uint8_t> b(reinterpret_cast<uint8_t*>(&h), reinterpret_cast<uint8_t*>(&h) + sizeof(h));
+    const size_t extBytes = (std::min<size_t>)(headerSize - sizeof(h), sizeof(ext));
+    const uint8_t* ep = reinterpret_cast<const uint8_t*>(&ext);
+    b.insert(b.end(), ep, ep + extBytes);
+    while (b.size() < headerSize) b.push_back(static_cast<uint8_t>(0xA5 + b.size()));   // unknown tail
+    const uint8_t* rp = reinterpret_cast<const uint8_t*>(raw.data());
+    b.insert(b.end(), rp, rp + raw.size() * 2);
+    uint32_t crc = Crc32(b.data(), b.size());
+    if (corruptCrc) crc ^= 0x80;
+    for (int i = 0; i < 4; ++i) b.push_back(static_cast<uint8_t>(crc >> (8 * i)));
+    return b;
+}
+
+static void TestParserV2()
+{
+    std::puts("ProtocolParser v2");
+    std::vector<ChirpFrame> got;
+    ProtocolParser p([&](ChirpFrame&& f) { got.push_back(std::move(f)); });
+
+    std::vector<uint16_t> raw(500);
+    for (size_t i = 0; i < raw.size(); ++i) raw[i] = static_cast<uint16_t>((i * 7) & 0xFFF);
+
+    FrameHeaderExt e{};
+    e.peak_freq_hz     = 12345.678f;
+    e.samples_per_chirp = 131008;
+    e.rise_samples     = 65504;
+
+    auto f64  = BuildFrameBytesV2(1, raw, 64, e);               // minimum v2: peak only
+    auto f72  = BuildFrameBytesV2(2, raw, 72, e);               // full extension
+    auto f80  = BuildFrameBytesV2(3, raw, 80, e);               // newer firmware: 8 unknown bytes
+    auto fv1  = BuildFrameBytes(4, raw, {});                    // v1 still accepted
+    auto fbad = BuildFrameBytesV2(5, raw, 72, e, FRAME_FLAG_HAS_RAW, true);
+    auto ftr  = BuildFrameBytesV2(FRAME_ID_TRACE, raw, 64, e, FRAME_FLAG_IS_TRACE);
+
+    std::vector<uint8_t> stream = { 0x7A, 0xDA, 0xCE };
+    for (auto* v : { &f64, &f72, &f80, &fv1, &fbad, &ftr }) stream.insert(stream.end(), v->begin(), v->end());
+
+    std::mt19937 rng(11);
+    size_t i = 0;
+    while (i < stream.size()) {
+        size_t n = 1 + rng() % 97;
+        if (i + n > stream.size()) n = stream.size() - i;
+        p.Feed(stream.data() + i, n);
+        i += n;
+    }
+    CHECK(got.size() == 5);
+    CHECK(p.FramesOk() == 5);
+    CHECK(p.FramesBadCrc() == 1);
+    CHECK(p.FramesLost() == 0);      // ids 1,2,3,4 contiguous; the trace frame is a service frame
+    if (got.size() == 5) {
+        CHECK(got[0].hasExt && got[0].header.magic == FRAME_MAGIC_V2);
+        CHECK_NEAR(got[0].ext.peak_freq_hz, 12345.678, 0.01);
+        CHECK(got[0].ext.header_size == 64 && got[0].ext.proto_version == 2);
+        CHECK(got[0].ext.samples_per_chirp == 0 && got[0].ext.rise_samples == 0);   // absent -> 0
+        CHECK(got[0].raw == raw);
+        CHECK_NEAR(got[0].McuPeakHz(), 12345.678, 0.01);
+        CHECK(got[1].hasExt && got[1].ext.samples_per_chirp == 131008 && got[1].ext.rise_samples == 65504);
+        CHECK(got[2].hasExt && got[2].ext.header_size == 80 && got[2].ext.samples_per_chirp == 131008);
+        CHECK(got[2].raw == raw);
+        CHECK(!got[3].hasExt && got[3].header.magic == FRAME_MAGIC_V1 && got[3].header.frame_id == 4);
+        CHECK(got[4].header.frame_id == FRAME_ID_TRACE && (got[4].header.data_flags & FRAME_FLAG_IS_TRACE));
+        // Geometry helpers: v2 exact samples win over rise/fall microseconds.
+        const ChirpFrame& g = got[1];
+        CHECK(ChirpPeriodSamples(g.header, &g.ext, 200000) == 131008);
+        CHECK(ChirpRiseSamples(g.header, &g.ext, 200000) == 65504);
+        CHECK(ChirpPeriodSamples(g.header, nullptr, 200000) == 131040);   // 2184 us * 60 MHz
+        CHECK(ChirpRiseSamples(g.header, nullptr, 200000) == 65520);
+        CHECK(ChirpPeriodSamples(g.header, &g.ext, 1000) == 0);           // frame shorter than a chirp
+        CHECK(ChirpPeriodSamples(g.header, &g.ext, 131008) == 131008);
+        FrameHeader plain{};
+        plain.sample_rate_hz = 60000000;
+        CHECK(ChirpPeriodSamples(plain, nullptr, 1000) == 0);             // no rise/fall -> unknown
+    }
+
+    // v1 fractional peak (reserved0 = int8 1/256 bin).
+    {
+        ChirpFrame f;
+        f.header.fft_peak_bin = 100;
+        f.header.fft_freq_res_hz = 10.0f;
+        f.header.data_flags = FRAME_FLAG_HAS_FFT | FRAME_FLAG_PEAK_FRAC;
+        f.header.reserved0 = static_cast<uint8_t>(static_cast<int8_t>(-64));
+        CHECK_NEAR(f.McuPeakHz(), (100.0 - 0.25) * 10.0, 1e-9);
+        f.header.data_flags = FRAME_FLAG_HAS_FFT;
+        CHECK_NEAR(f.McuPeakHz(), 1000.0, 1e-9);
+    }
+
+    // Bad header_size (too small / too large) counts as a bad header and resyncs.
+    {
+        FrameHeaderExt tooBig{};
+        auto fb = BuildFrameBytesV2(9, raw, 72, tooBig);
+        fb[60] = 0x00; fb[61] = 0x10;            // header_size = 4096 (> kHeaderMaxSize)
+        p.Feed(fb.data(), fb.size());
+        CHECK(p.FramesBadHeader() == 1);
+        auto fok = BuildFrameBytesV2(10, raw, 72, e);
+        p.Feed(fok.data(), fok.size());
+        CHECK(p.FramesOk() == 6);
+        CHECK(got.back().header.frame_id == 10);
+    }
+
+    // Decoded STATUS: rise/fall and trace flags.
+    {
+        FrameHeader st{};
+        st.fft_freq_res_hz = 900.0f;             // fall_us
+        st.reserved1[6] = 0xB0; st.reserved1[7] = 0x04;   // rise 1200 us
+        st.reserved0 = 0x03;
+        DeviceStatus d = DecodeStatusFrame(st);
+        CHECK(d.riseUs == 1200 && d.fallUs == 900 && d.traceOn && d.traceAvail);
+    }
+    static_assert(sizeof(TraceRecord) == 24, "trace record");
+}
+
+// ---------------------------------------------------------------------------
+static void TestChirpGeometry()
+{
+    std::puts("ChirpGeometry");
+    core::ChirpParams p;
+    p.freqHz = 458; p.burst = 1;
+    core::ChirpGeometry g = core::ComputeChirpGeometry(p);
+    CHECK(g.valid && !g.rampMode);
+    CHECK(g.ticksPerSample == 64);
+    CHECK(g.tableLen == 8188 && g.riseLen == 4094);
+    CHECK(g.periodTicks == 524032);
+    CHECK(g.samplesPerChirp == 131008 && g.riseSamples == 65504);
+    CHECK_NEAR(g.freqHz, 240e6 / 524032.0, 1e-6);
+    CHECK(g.samplesPerBurst == 131008 && g.captureTarget == 131072 && g.chunks == 8);
+
+    p.riseUs = 1200; p.fallUs = 800; p.burst = 4;
+    g = core::ComputeChirpGeometry(p);
+    CHECK(g.valid && g.rampMode);
+    CHECK_NEAR(g.periodUs, 2000.0, 0.5);
+    CHECK_NEAR(g.riseUs, 1200.0, 0.5);
+    CHECK(g.samplesPerChirp == 120000 && g.samplesPerBurst == 4 * g.samplesPerChirp);
+    CHECK(g.captureTarget % core::kChirpDmaChunk == 0 && g.captureTarget >= g.samplesPerBurst);
+
+    p.riseUs = 0; p.fallUs = 0; p.freqHz = 50;      // out of range
+    g = core::ComputeChirpGeometry(p);
+    CHECK(!g.valid);
+    p.freqHz = 24000;
+    g = core::ComputeChirpGeometry(p);
+    CHECK(g.valid && g.ticksPerSample == 64 && g.tableLen >= 2);
+    p.freqHz = 458; p.burst = 1024;                  // burst clipped to the capture limit
+    g = core::ComputeChirpGeometry(p);
+    CHECK(g.samplesPerBurst == core::kChirpCaptureMax && g.captureTarget <= core::kChirpCaptureMax);
+}
+
+// ---------------------------------------------------------------------------
+static void TestToneEstimator()
+{
+    std::puts("ToneEstimator");
+    const double fs = 1.0e6;
+    const double f0 = 12345.678;
+    std::vector<uint16_t> s(70000);
+    std::mt19937 rng(3);
+    std::normal_distribution<double> nd(0.0, 3.0);
+    for (size_t i = 0; i < s.size(); ++i) {
+        double v = 2048.0 + 600.0 * std::cos(2.0 * kPi * f0 * static_cast<double>(i) / fs + 0.7) + nd(rng);
+        s[i] = static_cast<uint16_t>(std::lround(v)) | 0xF000;    // upper bits must be ignored
+    }
+    dsp::ToneEstimate e = dsp::EstimateTone(s.data(), s.size(), fs);
+    CHECK(e.valid && e.nUsed == 65536);
+    CHECK_NEAR(e.freqHz, f0, 0.5);
+    CHECK_NEAR(e.ampFs, 600.0 / 2048.0, 0.02);
+
+    // Tone exactly between two bins (worst case for the ratio estimator) and a short block.
+    const double f1 = 7.5 * fs / 4096.0;
+    std::vector<float> t(4096);
+    for (size_t i = 0; i < t.size(); ++i) t[i] = static_cast<float>(std::sin(2.0 * kPi * f1 * static_cast<double>(i) / fs));
+    e = dsp::EstimateTone(t.data(), t.size(), fs);
+    CHECK(e.valid && e.nUsed == 4096);
+    CHECK_NEAR(e.freqHz, f1, 0.02 * fs / 4096.0);
+    CHECK(!dsp::EstimateTone(t.data(), 10, fs).valid);
+    CHECK(!dsp::EstimateTone(static_cast<const float*>(nullptr), 4096, fs).valid);
+}
+
+// ---------------------------------------------------------------------------
+// Asymmetric triangle (rise != fall) described by the frame header, as sent by
+// firmware after CMD_SET_RAMP; v1 (rise/fall in us) and v2 (exact samples).
+static ChirpFrame MakeAsymFrame(const dsp::RadarParams& rp, double fs, size_t riseLen, size_t fallLen,
+                                int chirps, const std::vector<SimTarget>& targets, bool v2, uint32_t id)
+{
+    const double tRise = riseLen / fs, tFall = fallLen / fs;
+    const size_t periodLen = riseLen + fallLen;
+    const size_t n = periodLen * static_cast<size_t>(chirps);
+    const double lambda = rp.LambdaM();
+    std::mt19937 rng(id);
+    std::normal_distribution<double> nd(0.0, 2.0);
+
+    ChirpFrame f;
+    f.header.magic = v2 ? FRAME_MAGIC_V2 : FRAME_MAGIC_V1;
+    f.header.frame_id = id;
+    f.header.sample_rate_hz = static_cast<uint32_t>(fs);
+    f.header.chirp_freq_hz = static_cast<uint16_t>(1.0 / (tRise + tFall) + 0.5);
+    f.header.actual_samples = static_cast<uint32_t>(n);
+    f.header.data_flags = FRAME_FLAG_HAS_RAW;
+    const uint16_t riseUs = static_cast<uint16_t>(tRise * 1e6 + 0.5), fallUs = static_cast<uint16_t>(tFall * 1e6 + 0.5);
+    f.header.reserved1[4] = static_cast<uint8_t>(riseUs); f.header.reserved1[5] = static_cast<uint8_t>(riseUs >> 8);
+    f.header.reserved1[6] = static_cast<uint8_t>(fallUs); f.header.reserved1[7] = static_cast<uint8_t>(fallUs >> 8);
+    if (v2) {
+        f.hasExt = true;
+        f.ext.header_size = 72; f.ext.proto_version = 2;
+        f.ext.samples_per_chirp = static_cast<uint32_t>(periodLen);
+        f.ext.rise_samples = static_cast<uint32_t>(riseLen);
+    }
+    f.raw.resize(n);
+    for (size_t i = 0; i < n; ++i) {
+        const size_t inPeriod = i % periodLen;
+        const bool up = inPeriod < riseLen;
+        const double t = static_cast<double>(up ? inPeriod : inPeriod - riseLen) / fs;
+        const int m = static_cast<int>(i / periodLen);
+        double v = 2048.0 + nd(rng);
+        for (const auto& tg : targets) {
+            const double R = tg.rangeM - tg.velocityMps * m * (tRise + tFall);
+            const double fD = 2.0 * tg.velocityMps / lambda;
+            const double fRu = 2.0 * rp.bandwidthHz * R / (dsp::kSpeedOfLight * tRise);
+            const double fRd = 2.0 * rp.bandwidthHz * R / (dsp::kSpeedOfLight * tFall);
+            const double fb = up ? (fRu - fD) : (fRd + fD);
+            v += tg.ampCodes * std::cos(2.0 * kPi * fb * t + 4.0 * kPi * R / lambda);
+        }
+        if (v < 0) v = 0;
+        if (v > 4095) v = 4095;
+        f.raw[i] = static_cast<uint16_t>(std::lround(v));
+    }
+    return f;
+}
+
+static void TestFirmwareGeometry()
+{
+    std::puts("RadarDsp firmware geometry");
+    using namespace dsp;
+    RadarParams rp; rp.f0Hz = 24.0e9; rp.bandwidthHz = 200e6;
+    DspSettings ds;
+    ds.shape = RampShape::Triangle;
+    ds.chirpsInFrame = 1;                      // wrong on purpose: the header says 2
+    ds.maxRangeM = 60.0;
+    ds.zeroPad = 4;
+    ds.detector.type = DetectorType::FixedAboveNoise;
+    ds.detector.thresholdDb = 15.0f;
+
+    const double fs = 60000000.0;
+    const size_t riseLen = 72000, fallLen = 48000;    // 1200 / 800 us
+    std::vector<SimTarget> tg = { { 12.0, 2.0, 700.0 } };
+    for (int v2 = 0; v2 < 2; ++v2) {
+        ChirpFrame f = MakeAsymFrame(rp, fs, riseLen, fallLen, 2, tg, v2 != 0, 100 + v2);
+        RadarDsp d; d.SetParams(rp); d.SetSettings(ds);
+        FrameResult r = d.Process(f);
+        CHECK(r.valid && r.geometryFromHeader);
+        CHECK(r.chirps == 2);
+        CHECK(r.samplesPerChirp == riseLen + fallLen);
+        CHECK(r.riseSamples == riseLen);
+        CHECK_NEAR(r.rampSec, riseLen / fs, 1e-9);
+        CHECK_NEAR(r.fallSec, fallLen / fs, 1e-9);
+        CHECK(r.up.valid && r.down.valid);
+        bool found = false;
+        for (const auto& t : r.targets) {
+            std::printf("  %s target R=%.2f m v=%.2f m/s paired=%d fUp=%.0f fDn=%.0f\n", v2 ? "v2" : "v1",
+                        t.rangeM, t.velocityMps, t.paired ? 1 : 0, t.fUpHz, t.fDnHz);
+            if (t.paired && std::fabs(t.rangeM - 12.0) < 0.3) { found = true; CHECK_NEAR(t.velocityMps, 2.0, 0.4); }
+        }
+        CHECK(found);
+        CHECK(r.up.tone.valid && r.down.tone.valid);
+        // Precise tone estimate of the UP ramp (first chirp, static part of the beat).
+        const double fRu = 2.0 * rp.bandwidthHz * 12.0 / (kSpeedOfLight * (riseLen / fs));
+        CHECK_NEAR(r.up.tone.freqHz, fRu - 2.0 * 2.0 / rp.LambdaM(), 60.0);
+        // Scope segments follow the header split.
+        size_t ups = 0, downs = 0;
+        for (const auto& sg : r.segments) { if (sg.kind == Segment::Up) ++ups; else if (sg.kind == Segment::Down) ++downs; }
+        CHECK(ups == 2 && downs == 2);
+    }
+
+    // v1 microsecond geometry that does not divide the frame exactly (quantized
+    // DAC table): the split must still follow the real chirps of the burst.
+    {
+        ChirpFrame f = MakeAsymFrame(rp, fs, 65504, 65504, 4, tg, false, 104);   // 1091.7 us ramps
+        f.header.reserved1[4] = 0x44; f.header.reserved1[5] = 0x04;              // reported as 1092 us
+        f.header.reserved1[6] = 0x44; f.header.reserved1[7] = 0x04;
+        RadarDsp d; d.SetParams(rp); d.SetSettings(ds);
+        FrameResult r = d.Process(f);
+        CHECK(r.valid && r.geometryFromHeader);
+        CHECK(r.chirps == 4);
+        CHECK(r.samplesPerChirp == 131008 && r.riseSamples == 65504);
+        bool found = false;
+        for (const auto& t : r.targets)
+            if (t.paired && std::fabs(t.rangeM - 12.0) < 0.3) { found = true; CHECK_NEAR(t.velocityMps, 2.0, 0.4); }
+        CHECK(found);
+        CHECK(r.rd.nDoppler >= 4 && r.rd.nRange > 0);
+    }
+
+    // Switching the header split off restores the settings-driven segmentation.
+    {
+        ChirpFrame f = MakeAsymFrame(rp, fs, riseLen, fallLen, 2, tg, true, 102);
+        DspSettings off = ds; off.firmwareGeometry = false; off.chirpsInFrame = 2; off.toneEstimate = false;
+        RadarDsp d; d.SetParams(rp); d.SetSettings(off);
+        FrameResult r = d.Process(f);
+        CHECK(r.valid && !r.geometryFromHeader);
+        CHECK(!r.up.tone.valid);
+    }
+
+    // ADC clock correction scales every frequency-derived quantity.
+    {
+        ChirpFrame f = MakeAsymFrame(rp, fs, riseLen, fallLen, 1, tg, true, 103);
+        f.header.data_flags |= FRAME_FLAG_HAS_FFT;
+        f.ext.peak_freq_hz = 10000.0f;
+        RadarDsp d; d.SetParams(rp); d.SetSettings(ds);
+        d.SetSampleRateScale(1.0 + 100e-6);
+        FrameResult r = d.Process(f);
+        CHECK_NEAR(r.fsHz, fs * (1.0 + 100e-6), 1e-3);
+        CHECK_NEAR(r.mcuPeakHz, 10000.0 * (1.0 + 100e-6), 1e-6);
+    }
+}
+
 // ---------------------------------------------------------------------------
 static void TestSessionFile()
 {
@@ -547,6 +884,7 @@ static void TestSessionFile()
             f.header.timestamp_ms = 500 * i;
             f.raw.assign(100 + i, static_cast<uint16_t>(i));
             if (i == 1) f.fft.assign(16, 2.5f);
+            if (i == 2) { f.hasExt = true; f.ext.peak_freq_hz = 4321.5f; f.ext.samples_per_chirp = 131008; f.ext.proto_version = 2; }
             f.rx_tick_ms = 77 + i;
             CHECK(w.Write(f));
         }
@@ -562,7 +900,11 @@ static void TestSessionFile()
         CHECK(r.Read(1, f));
         CHECK(f.header.frame_id == 11 && f.raw.size() == 101 && f.fft.size() == 16 && f.fft[3] == 2.5f && f.rx_tick_ms == 78);
         CHECK(r.TimestampMs(2) == 1000);
+        CHECK(!f.hasExt);
         CHECK(r.Read(2, f) && f.raw.size() == 102);
+        CHECK(f.hasExt && f.ext.samples_per_chirp == 131008 && f.ext.proto_version == 2);
+        CHECK_NEAR(f.ext.peak_freq_hz, 4321.5, 1e-3);
+        CHECK(r.Header().version == core::kFileVersion);
         CHECK(!r.Read(3, f));
     }
     // Truncated file: last record partially written -> index stops before it.
@@ -600,6 +942,10 @@ int main()
     TestCfar();
     TestPeaks();
     TestRadarDsp();
+    TestParserV2();
+    TestChirpGeometry();
+    TestToneEstimator();
+    TestFirmwareGeometry();
     TestSessionFile();
     std::printf("\n%d passed, %d failed\n", g_pass, g_fail);
     return g_fail == 0 ? 0 : 1;

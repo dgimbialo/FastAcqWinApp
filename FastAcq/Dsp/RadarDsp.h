@@ -15,6 +15,7 @@
 #include "Decimator.h"
 #include "FftPlan.h"
 #include "PeakFinder.h"
+#include "ToneEstimator.h"
 #include "Window.h"
 
 #include <complex>
@@ -76,6 +77,8 @@ struct DspSettings {
     int         phaseTrackBin{-1};         // -1 = strongest target
     bool        useMcuFft{false};          // use magnitudes computed on the MCU
     bool        trackTargets{true};
+    bool        firmwareGeometry{true};    // segment chirps from the header's rise/fall (v2 exact samples)
+    bool        toneEstimate{true};        // precise single-tone estimate per ramp (double FFT)
 };
 
 struct Segment {
@@ -99,6 +102,7 @@ struct RampSpectrum {
     size_t                            firstBin{0};   // first evaluated bin (after DC skip)
     float                             noiseFloorDb{0.0f};
     std::vector<Peak>                 peaks;         // sorted by amplitude, descending
+    ToneEstimate                      tone;          // precise estimate of the strongest tone (first chirp)
 };
 
 struct Target {
@@ -142,10 +146,14 @@ struct FrameResult {
     uint32_t  timestampMs{0};
     uint32_t  rxTickMs{0};
     double    fsHz{0.0};
-    double    rampSec{0.0};
+    double    rampSec{0.0};      // UP ramp duration
+    double    fallSec{0.0};      // DOWN ramp duration (Triangle; equals rampSec when symmetric)
     double    periodSec{0.0};
     double    chirpFreqHz{0.0};
     int       chirps{1};
+    bool      geometryFromHeader{false}; // segmentation taken from the frame header (firmware)
+    size_t    samplesPerChirp{0};
+    size_t    riseSamples{0};
     RampShape shape{RampShape::Triangle};
     int       decimation{1};
     size_t    samplesPerFrame{0};
@@ -160,6 +168,7 @@ struct FrameResult {
     double    lambdaM{0.0};
     double    processingMs{0.0};
     bool      fromMcuFft{false};
+    double    mcuPeakHz{0.0};    // peak reported by the MCU (ppm-corrected), 0 if none
 };
 
 struct DerivedValues {
@@ -192,6 +201,9 @@ public:
     void SetSettings(const DspSettings& s);
     void SetParams(const RadarParams& p);
     void SetFallbackSampleRate(double fsHz) { m_fallbackFs = fsHz; }
+    // ADC clock correction applied to the header's nominal sample rate
+    // (1 + ppm * 1e-6). The fallback rate is taken as already calibrated.
+    void SetSampleRateScale(double scale) { m_fsScale = (scale > 0.5 && scale < 2.0) ? scale : 1.0; }
 
     const DspSettings& Settings() const { return m_s; }
     const RadarParams& Params()   const { return m_p; }
@@ -247,6 +259,7 @@ private:
     DspSettings m_s;
     RadarParams m_p;
     double      m_fallbackFs{60058600.0};
+    double      m_fsScale{1.0};
 
     std::map<size_t, std::vector<float>>           m_windows;
     std::map<int, std::unique_ptr<FirDecimator>>   m_decimators;

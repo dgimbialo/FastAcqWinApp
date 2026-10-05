@@ -17,6 +17,8 @@
 
 struct ChirpFrame {
     FrameHeader           header{};
+    FrameHeaderExt        ext{};        // protocol v2 extension (zeros when !hasExt)
+    bool                  hasExt{false};
     std::vector<uint16_t> raw;          // raw ADC samples (all chirps of the capture)
     std::vector<float>    fft;          // magnitudes computed by the MCU, may be empty
     uint32_t              rx_tick_ms{0}; // host-side monotonic ms at reception
@@ -24,6 +26,17 @@ struct ChirpFrame {
 
     size_t Bytes() const {
         return sizeof(FrameHeader) + raw.size() * sizeof(uint16_t) + fft.size() * sizeof(float);
+    }
+
+    // Peak frequency reported by the MCU, Hz (0 if the frame carries no FFT peak).
+    // v2 frames carry a full-precision float; v1 frames with FRAME_FLAG_PEAK_FRAC
+    // carry a 1/256-bin fractional offset in reserved0.
+    double McuPeakHz() const {
+        if (hasExt && ext.peak_freq_hz > 0.0f) return ext.peak_freq_hz;
+        double bin = header.fft_peak_bin;
+        if (header.data_flags & FRAME_FLAG_PEAK_FRAC)
+            bin += static_cast<int8_t>(header.reserved0) / 256.0;
+        return bin * header.fft_freq_res_hz;
     }
 };
 

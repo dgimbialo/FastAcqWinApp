@@ -43,10 +43,17 @@ constexpr UINT WM_APP_SETTINGS_CHANGED  = WM_APP + 45; // wParam = SettingsSourc
 constexpr UINT WM_APP_XRANGE_CHANGED    = WM_APP + 46; // from a plot: x-range zoom changed (sync peers)
 constexpr UINT WM_APP_RESET_AVERAGES    = WM_APP + 47;
 
+// MCU test mode / chirp geometry (from TraceTab / SettingsTab).
+constexpr UINT WM_APP_CMD_SET_TRACE     = WM_APP + 48; // wParam = 1 enable / 0 disable
+constexpr UINT WM_APP_CMD_SET_RAMP      = WM_APP + 49; // wParam = rise_us | (fall_us << 16)
+constexpr UINT WM_APP_CMD_GET_TRACE     = WM_APP + 50;
+constexpr UINT WM_APP_CMD_SINGLE_SHOT   = WM_APP + 51; // SET_MODE(SINGLE) + TRIGGER
+
 enum ServiceFrameType : WPARAM {
     SVC_FRAME_PONG   = 0,
     SVC_FRAME_STATUS = 1,
     SVC_FRAME_ACK    = 2,
+    SVC_FRAME_TRACE  = 3,
 };
 
 enum LogKind : WPARAM {

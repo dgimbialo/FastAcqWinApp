@@ -7,8 +7,11 @@
 //   SessionFileHeader (96 bytes)
 //   repeat:
 //     SessionRecordHeader (72 bytes) = {magic, rawBytes, fftBytes, rxTickMs, FrameHeader}
+//     [file version >= 2] SessionRecordExt (20 bytes) = {FrameHeaderExt, hasExt}
 //     raw   [rawBytes]  (uint16 LE samples)
 //     fft   [fftBytes]  (float32 LE magnitudes)
+//
+// Version 1 files (72-byte record headers, no extension) are still read.
 //
 
 #include "../ChirpStore.h"
@@ -24,7 +27,7 @@ namespace core {
 #pragma pack(push, 1)
 struct SessionFileHeader {
     char     magic[8];        // "FACQSES1"
-    uint32_t version;         // 1
+    uint32_t version;         // kFileVersion (1 = no record extension)
     uint32_t headerSize;      // sizeof(SessionFileHeader)
     uint64_t createdUnixMs;   // wall-clock at creation
     uint32_t sampleRateHz;    // calibrated ADC rate at recording time
@@ -41,9 +44,17 @@ struct SessionRecordHeader {
     FrameHeader hdr;
 };
 static_assert(sizeof(SessionRecordHeader) == 72, "SessionRecordHeader must be 72 bytes");
+
+// Follows SessionRecordHeader in version >= 2 files.
+struct SessionRecordExt {
+    FrameHeaderExt ext;       // protocol v2 extension as received (zeros for v1 frames)
+    uint32_t       hasExt;    // 1 = ext is valid
+};
+static_assert(sizeof(SessionRecordExt) == 20, "SessionRecordExt must be 20 bytes");
 #pragma pack(pop)
 
 constexpr uint32_t kRecordMagic = 0x52434146u;   // 'FACR'
+constexpr uint32_t kFileVersion = 2;
 constexpr char     kFileMagic[8] = { 'F','A','C','Q','S','E','S','1' };
 
 class SessionWriter {
@@ -85,6 +96,10 @@ public:
     uint32_t FrameId(size_t index) const { return index < m_ids.size() ? m_ids[index] : 0; }
 
 private:
+    size_t RecordHeaderSize() const {
+        return sizeof(SessionRecordHeader) + (m_hdr.version >= 2 ? sizeof(SessionRecordExt) : 0);
+    }
+
     std::ifstream          m_f;
     SessionFileHeader      m_hdr{};
     std::vector<uint64_t>  m_offsets;

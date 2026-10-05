@@ -16,7 +16,7 @@ bool SessionWriter::Open(const std::filesystem::path& path, uint32_t sampleRateH
 
     SessionFileHeader h{};
     std::memcpy(h.magic, kFileMagic, sizeof(h.magic));
-    h.version       = 1;
+    h.version       = kFileVersion;
     h.headerSize    = sizeof(SessionFileHeader);
     h.createdUnixMs = createdUnixMs;
     h.sampleRateHz  = sampleRateHz;
@@ -38,11 +38,15 @@ bool SessionWriter::Write(const ChirpFrame& f)
     rh.fftBytes = static_cast<uint32_t>(f.fft.size() * sizeof(float));
     rh.rxTickMs = f.rx_tick_ms;
     rh.hdr      = f.header;
+    SessionRecordExt re{};
+    re.ext    = f.ext;
+    re.hasExt = f.hasExt ? 1u : 0u;
     m_f.write(reinterpret_cast<const char*>(&rh), sizeof(rh));
+    m_f.write(reinterpret_cast<const char*>(&re), sizeof(re));
     if (rh.rawBytes) m_f.write(reinterpret_cast<const char*>(f.raw.data()), rh.rawBytes);
     if (rh.fftBytes) m_f.write(reinterpret_cast<const char*>(f.fft.data()), rh.fftBytes);
     if (!m_f) { m_err = "write failed"; return false; }
-    m_bytes += sizeof(rh) + rh.rawBytes + rh.fftBytes;
+    m_bytes += sizeof(rh) + sizeof(re) + rh.rawBytes + rh.fftBytes;
     m_frames++;
     return true;
 }
@@ -76,16 +80,17 @@ bool SessionReader::Open(const std::filesystem::path& path)
     }
 
     // Build the index by scanning record headers (robust to truncated tails).
+    const size_t recHdr = RecordHeaderSize();
     uint64_t pos = m_hdr.headerSize;
     m_f.seekg(0, std::ios::end);
     const uint64_t end = static_cast<uint64_t>(m_f.tellg());
-    while (pos + sizeof(SessionRecordHeader) <= end) {
+    while (pos + recHdr <= end) {
         m_f.seekg(static_cast<std::streamoff>(pos));
         SessionRecordHeader rh{};
         m_f.read(reinterpret_cast<char*>(&rh), sizeof(rh));
         if (!m_f || rh.magic != kRecordMagic) break;
         if (rh.rawBytes > kMaxSectionBytes || rh.fftBytes > kMaxSectionBytes) break;
-        const uint64_t next = pos + sizeof(rh) + rh.rawBytes + rh.fftBytes;
+        const uint64_t next = pos + recHdr + rh.rawBytes + rh.fftBytes;
         if (next > end) break;                      // truncated record
         m_offsets.push_back(pos);
         m_ts.push_back(rh.hdr.timestamp_ms);
@@ -115,6 +120,13 @@ bool SessionReader::Read(size_t index, ChirpFrame& out)
     out = ChirpFrame{};
     out.header     = rh.hdr;
     out.rx_tick_ms = rh.rxTickMs;
+    if (m_hdr.version >= 2) {
+        SessionRecordExt re{};
+        m_f.read(reinterpret_cast<char*>(&re), sizeof(re));
+        if (!m_f) return false;
+        out.hasExt = (re.hasExt != 0);
+        if (out.hasExt) out.ext = re.ext;
+    }
     out.raw.resize(rh.rawBytes / sizeof(uint16_t));
     out.fft.resize(rh.fftBytes / sizeof(float));
     if (rh.rawBytes) m_f.read(reinterpret_cast<char*>(out.raw.data()), rh.rawBytes);

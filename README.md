@@ -38,12 +38,16 @@ Built entirely on **C++17 and MFC with GDI rendering, with no third-party librar
 - **Range-Doppler map** for burst captures (several chirps per frame), with MTI (mean subtraction).
 - **Phase tracking** of the strongest (or chosen) range bin -> sub-millimetre displacement.
 - Derived values shown live: range resolution (c/2B and effective), R_max, velocity resolution and ambiguity, bin size, FFT size, USB load.
+- **Chirp split from the frame header**: firmware that reports the ramp geometry (rise / fall in us, or the exact samples per chirp and rise samples of protocol v2) drives the segmentation, so burst count and **asymmetric ramps** (CMD_SET_RAMP) are handled exactly; UP/DOWN pairing uses `k = T_fall / T_rise`.
+- **Precise tone estimate** per ramp (double-precision FFT, periodic Hann, ratio interpolation) next to the display spectrum, and the MCU's own interpolated peak when the device sends it.
+- **ADC clock correction** in ppm applied to the sample rate reported by the device (all frequencies, ranges and the WAV export follow).
 
 ### Views
 - **Radar tab**: range profile (dBFS over frequency + range axis, UP/DOWN traces, threshold, noise, numbered peaks with R/v labels, cursor readout, A/B markers), waterfall (dB, Viridis/Inferno/Turbo/Plasma/Gray/Jet palettes, time axis, colour bar), range-Doppler heat map, target table, trace/palette/visibility footer. Zoom with the wheel at the cursor, Shift+wheel to pan, drag to pan, double-click to reset; the x-range is shared between the profile and the waterfall.
 - **Scope tab**: whole frame with UP / DOWN / guard shading and a ramp-detail view, time axis, volts or ADC codes, A/B cursors (dt, 1/dt, dV), dots mode.
 - **Communication tab**: virtual-list log with TX / RX / service / error filters, copy, save, optional per-frame lines.
-- **Settings tab**: MCU acquisition (mode, chirp frequency, samples, interval, amplitude, burst, data mask), radar geometry (f0, B, ramp time, range offset, modulation shape), processing chain, display, application options.
+- **Settings tab**: MCU acquisition (mode, chirp frequency or explicit ramp rise / fall, samples, interval, amplitude, burst, data mask), radar geometry (f0, B, ramp time, range offset, modulation shape), processing chain, display, ADC clock correction, application options, and a **chirp preview** that draws the triangle burst, capture window and DMA chunking exactly as the firmware will quantize them.
+- **Trace tab** (MCU test mode): enables the firmware acquisition trace, fires single captures and shows the step timeline (chirp armed, VSYNC, DAC, DMA chunks, capture done, FFT, USB TX) decoded from TRACE frames; export to CSV.
 
 ### Acquisition, recording and replay
 - Background serial reader with CRC-checked binary protocol, lost-frame / bad-CRC / bad-header counters and byte-rate statistics.
@@ -55,7 +59,7 @@ Built entirely on **C++17 and MFC with GDI rendering, with no third-party librar
 - Settings persist in `FastAcq.ini` next to the executable; auto-connect to the FastAcq device at start-up; light and dark theme; per-monitor DPI aware.
 
 ### Keyboard
-`Space` start/stop, `T` trigger, `H` hold/live, `R` record, `F5` connect, `Ctrl+O` open replay, `Ctrl+S` save frame, `F12` screenshot, `Ctrl+1..4` tabs, `PgUp/PgDn` previous/next frame. In plots: `Esc` clear markers, `Home` reset zoom, `A` autoscale dB.
+`Space` start/stop, `T` trigger, `H` hold/live, `R` record, `F5` connect, `Ctrl+O` open replay, `Ctrl+S` save frame, `F12` screenshot, `Ctrl+1..5` tabs, `PgUp/PgDn` previous/next frame. In plots: `Esc` clear markers, `Home` reset zoom, `A` autoscale dB.
 
 ---
 
@@ -69,14 +73,15 @@ COM (USB CDC) -> SerialWorker (thread) -> ProtocolParser -> ChirpStore (shared f
                         DspWorker (thread) -> dsp::RadarDsp
                            |
    RadarTab (RangeProfileView, WaterfallView, RangeDopplerView, TargetListCtrl)
-   ScopeTab (WaveformView x2)   CommLogWnd   SettingsTab   CommandPanel
+   ScopeTab (WaveformView x2)   CommLogWnd   SettingsTab (ChirpPreviewCtrl)   TraceTab   CommandPanel
 ```
 
 | Directory / file | Content |
 |---|---|
-| `FastAcq/Dsp/` | Portable DSP: `FftPlan`, `Window`, `Decimator`, `Cfar`, `PeakFinder`, `RadarDsp` (pipeline, pairing, range-Doppler, phase, tracking, derived values) |
-| `FastAcq/Core/` | Portable `SessionFile` (.facq writer/reader) and `Export` (WAV, CSV) |
-| `FastAcq/ProtocolDefs.h`, `ProtocolParser.*`, `ChirpStore.*` | Portable protocol mirror, frame parser, frame store |
+| `FastAcq/Dsp/` | Portable DSP: `FftPlan`, `Window`, `Decimator`, `Cfar`, `PeakFinder`, `ToneEstimator`, `RadarDsp` (pipeline, pairing, range-Doppler, phase, tracking, derived values) |
+| `FastAcq/Core/` | Portable `SessionFile` (.facq writer/reader), `Export` (WAV, CSV) and `ChirpGeometry` (firmware chirp quantization rules) |
+| `FastAcq/ProtocolDefs.h`, `TraceDefs.h`, `ProtocolParser.*`, `ChirpStore.*` | Portable protocol mirror (v1 and v2 headers, trace records), frame parser, frame store |
+| `tools/device_emu.py` | Device emulator on a com0com port pair (ACK / STATUS / PONG, synthetic chirp frames, TRACE frames; `--v2` for protocol v2 headers) |
 | `FastAcq/*View.*`, `PlotWnd.*` | GDI plots (double-buffered, DPI-scaled, themed) |
 | `FastAcq/*Tab.*`, `CommandPanel.*`, `MainFrame*` | UI composition and message routing |
 | `tests/` | Unit tests for the portable core (`make test` on Linux/macOS, `FastAcqTests.vcxproj` on Windows) |
@@ -92,15 +97,22 @@ The portable parts have no Windows dependency and are compiled and tested on Lin
 - Unit tests: build and run `FastAcqTests` (Windows) or `make -C tests test` (g++ / clang).
 - Syntax check of the MFC sources without Visual Studio: `tests/syntax-check.sh` (needs `mingw-w64`; uses the MFC declaration stubs in `tests/mfcstub`).
 
+## Protocol
+
+Frames start with the magic `0xFACEDA7A` (v1, 56-byte header) or `0xFACEDA7B` (v2: the same 56 bytes followed by `FrameHeaderExt` with `header_size` at offset 60, the interpolated peak frequency and, from 72 bytes on, the exact samples per chirp and rise samples). Unknown bytes beyond the known extension are skipped, and the CRC-32 covers the header exactly as sent. Data frames carry the actual rise / fall in `reserved1[4..7]`, STATUS frames report the configured ramp and the trace flags, and `FRAME_ID_TRACE` frames carry `TraceRecord[]` (24 bytes each) in the raw section. Commands `CMD_SET_TRACE` (0x0D), `CMD_SET_RAMP` (0x0E) and `CMD_GET_TRACE` (0x0F) drive the test mode and the asymmetric chirp. See `FastAcq/ProtocolDefs.h` and `FastAcq/TraceDefs.h`.
+
 ## Session file format (`.facq`)
 
 ```
-SessionFileHeader (96 B): magic "FACQSES1", version, headerSize, createdUnixMs, sampleRateHz, note[64]
+SessionFileHeader (96 B): magic "FACQSES1", version (2), headerSize, createdUnixMs, sampleRateHz, note[64]
 repeated records:
   SessionRecordHeader (72 B): magic 'FACR', rawBytes, fftBytes, rxTickMs, FrameHeader (56 B, as sent by the MCU)
+  SessionRecordExt (20 B, version >= 2): FrameHeaderExt (16 B), hasExt
   raw[rawBytes]  uint16 LE samples
   fft[fftBytes]  float32 LE magnitudes (optional)
 ```
+
+Version 1 files (no record extension) are still read.
 
 Files can be read with a few lines of Python/NumPy; truncated files are handled (the index stops at the last complete record).
 

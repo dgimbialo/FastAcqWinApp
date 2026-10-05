@@ -15,6 +15,8 @@ struct AcqSettings {
     int  intervalMs{30};
     int  amplitude{4095};
     int  burst{1};
+    int  riseUs{0};          // CMD_SET_RAMP rise, us (0/0 = symmetric from chirpFreqHz)
+    int  fallUs{0};
     bool sendRaw{true};
     bool sendFft{true};
 };
@@ -45,6 +47,7 @@ struct AppSettings {
     DisplaySettings  display;
 
     uint32_t sampleRateCalHz{60058600};   // calibrated ADC rate (fallback when header has none)
+    double   fsPpm{0.0};                  // ADC clock correction applied to the header's nominal rate
     bool     chirpsFromBurst{true};       // dsp.chirpsInFrame follows the MCU burst setting
     bool     verboseLog{false};           // per-frame RX lines in the communication log
     bool     autoConnect{true};           // connect to the first FastAcq port at start-up
@@ -57,6 +60,9 @@ struct AppSettings {
     float    splitRadar1{0.42f};
     float    splitRadar2{0.78f};
     float    splitScope{0.5f};
+
+    // Multiplier for the header's nominal sample rate: 1 + ppm * 1e-6.
+    double FsFactor() const { return 1.0 + fsPpm * 1e-6; }
 
     static CString DefaultPath();
     bool Load(const CString& path);

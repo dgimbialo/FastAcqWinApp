@@ -58,6 +58,8 @@ bool AppSettings::Load(const CString& path)
     acq.chirpFreqHz = ini.GetInt(_T("Acq"), _T("ChirpFreqHz"), acq.chirpFreqHz);
     acq.samples     = ini.GetInt(_T("Acq"), _T("Samples"),     acq.samples);
     acq.intervalMs  = ini.GetInt(_T("Acq"), _T("IntervalMs"),  acq.intervalMs);
+    acq.riseUs      = ini.GetInt(_T("Acq"), _T("RiseUs"),      acq.riseUs);
+    acq.fallUs      = ini.GetInt(_T("Acq"), _T("FallUs"),      acq.fallUs);
     acq.amplitude   = ini.GetInt(_T("Acq"), _T("Amplitude"),   acq.amplitude);
     acq.burst       = ini.GetInt(_T("Acq"), _T("Burst"),       acq.burst);
     acq.sendRaw     = ini.GetBool(_T("Acq"), _T("SendRaw"),    acq.sendRaw);
@@ -89,6 +91,8 @@ bool AppSettings::Load(const CString& path)
     dsp.interp          = ClampEnum(ini.GetInt(_T("Dsp"), _T("Interp"), static_cast<int>(dsp.interp)), dsp::PeakInterp::Count);
     dsp.maxPeaks        = ini.GetInt(_T("Dsp"), _T("MaxPeaks"), dsp.maxPeaks);
     dsp.mti             = ini.GetBool(_T("Dsp"), _T("Mti"), dsp.mti);
+    dsp.firmwareGeometry= ini.GetBool(_T("Dsp"), _T("FirmwareGeometry"), dsp.firmwareGeometry);
+    dsp.toneEstimate    = ini.GetBool(_T("Dsp"), _T("ToneEstimate"), dsp.toneEstimate);
     dsp.useMcuFft       = ini.GetBool(_T("Dsp"), _T("UseMcuFft"), dsp.useMcuFft);
     dsp.trackTargets    = ini.GetBool(_T("Dsp"), _T("Track"), dsp.trackTargets);
 
@@ -110,6 +114,7 @@ bool AppSettings::Load(const CString& path)
     display.dots         = ini.GetBool(_T("Display"), _T("Dots"), display.dots);
 
     sampleRateCalHz = static_cast<uint32_t>(ini.GetInt(_T("App"), _T("SampleRateCalHz"), static_cast<int>(sampleRateCalHz)));
+    fsPpm           = ini.GetDouble(_T("Calibration"), _T("FsPpm"), fsPpm);
     chirpsFromBurst = ini.GetBool(_T("App"), _T("ChirpsFromBurst"), chirpsFromBurst);
     verboseLog      = ini.GetBool(_T("App"), _T("VerboseLog"), verboseLog);
     autoConnect     = ini.GetBool(_T("App"), _T("AutoConnect"), autoConnect);
@@ -135,6 +140,9 @@ bool AppSettings::Load(const CString& path)
     if (display.dbTop <= display.dbBottom) { display.dbTop = 0.0f; display.dbBottom = -120.0f; }
     if (display.palette < 0 || display.palette >= static_cast<int>(Palette::Count)) display.palette = 0;
     if (sampleRateCalHz == 0) sampleRateCalHz = 60058600;
+    if (!(fsPpm > -100000.0 && fsPpm < 100000.0)) fsPpm = 0.0;
+    if (acq.riseUs < 0 || acq.riseUs > 65535) acq.riseUs = 0;
+    if (acq.fallUs < 0 || acq.fallUs > 65535) acq.fallUs = 0;
     return true;
 }
 
@@ -145,6 +153,8 @@ bool AppSettings::Save(const CString& path) const
     ini.SetInt(_T("Acq"), _T("ChirpFreqHz"), acq.chirpFreqHz);
     ini.SetInt(_T("Acq"), _T("Samples"),     acq.samples);
     ini.SetInt(_T("Acq"), _T("IntervalMs"),  acq.intervalMs);
+    ini.SetInt(_T("Acq"), _T("RiseUs"),      acq.riseUs);
+    ini.SetInt(_T("Acq"), _T("FallUs"),      acq.fallUs);
     ini.SetInt(_T("Acq"), _T("Amplitude"),   acq.amplitude);
     ini.SetInt(_T("Acq"), _T("Burst"),       acq.burst);
     ini.SetBool(_T("Acq"), _T("SendRaw"),    acq.sendRaw);
@@ -176,6 +186,8 @@ bool AppSettings::Save(const CString& path) const
     ini.SetInt(_T("Dsp"), _T("Interp"),        static_cast<int>(dsp.interp));
     ini.SetInt(_T("Dsp"), _T("MaxPeaks"),      dsp.maxPeaks);
     ini.SetBool(_T("Dsp"), _T("Mti"),          dsp.mti);
+    ini.SetBool(_T("Dsp"), _T("FirmwareGeometry"), dsp.firmwareGeometry);
+    ini.SetBool(_T("Dsp"), _T("ToneEstimate"), dsp.toneEstimate);
     ini.SetBool(_T("Dsp"), _T("UseMcuFft"),    dsp.useMcuFft);
     ini.SetBool(_T("Dsp"), _T("Track"),        dsp.trackTargets);
 
@@ -197,6 +209,7 @@ bool AppSettings::Save(const CString& path) const
     ini.SetBool(_T("Display"), _T("Dots"),        display.dots);
 
     ini.SetInt(_T("App"), _T("SampleRateCalHz"), sampleRateCalHz);
+    ini.SetDouble(_T("Calibration"), _T("FsPpm"), fsPpm);
     ini.SetBool(_T("App"), _T("ChirpsFromBurst"), chirpsFromBurst);
     ini.SetBool(_T("App"), _T("VerboseLog"),      verboseLog);
     ini.SetBool(_T("App"), _T("AutoConnect"),     autoConnect);

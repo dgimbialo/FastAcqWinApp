@@ -65,7 +65,11 @@ private:
 
     State          m_state{State::WaitMagic};
     uint32_t       m_magicShift{0};
-    FrameHeader    m_hdr{};
+    FrameHeader    m_hdr{};             // v1 part (first 56 bytes)
+    FrameHeaderExt m_ext{};             // v2 extension (valid when m_hasExt)
+    bool           m_hasExt{false};
+    uint8_t        m_hdrBytes[kHeaderMaxSize]{};   // header exactly as received (for CRC)
+    size_t         m_hdrExpected{0};    // header bytes to read: 56 (v1) or header_size (v2)
     size_t         m_hdrBytesRead{0};
     std::vector<uint8_t> m_rawBuf;      // raw bytes of raw section (uint16 samples)
     std::vector<uint8_t> m_fftBuf;      // raw bytes of fft section (float32)

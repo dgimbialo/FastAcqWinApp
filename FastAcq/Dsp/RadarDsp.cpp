@@ -384,8 +384,8 @@ void RadarDsp::BuildMcuSpectrum(const ChirpFrame& f, RampSpectrum& out)
     ref2.valid = true;
     ref2.nUsed = nfft;
     ref2.nFft  = nfft;
-    ref2.fsEff = f.header.fft_freq_res_hz > 0.0f ? static_cast<double>(f.header.fft_freq_res_hz) * nfft
-                                                 : (f.header.sample_rate_hz > 0 ? f.header.sample_rate_hz : m_fallbackFs);
+    ref2.fsEff = f.header.fft_freq_res_hz > 0.0f ? static_cast<double>(f.header.fft_freq_res_hz) * nfft * m_fsScale
+                                                 : (f.header.sample_rate_hz > 0 ? f.header.sample_rate_hz * m_fsScale : m_fallbackFs);
     FinishSpectrum(power, ref2, nullptr, false, out);
 }
 
@@ -400,14 +400,18 @@ void RadarDsp::BuildTargets(FrameResult& r, bool updateState)
     };
 
     if (r.shape == RampShape::Triangle && r.up.valid && r.down.valid) {
-        const double gateHz = (lambda > 0.0) ? 2.0 * m_p.pairMaxVelocityMps / lambda
-                                             : 10.0 * r.up.freqResHz;
+        // Asymmetric ramps: the same range gives f_dn,range = f_up,range / k
+        // with k = T_fall / T_rise. With Doppler fd (> 0 approaching):
+        //   f_up = fr - fd,  f_dn = fr / k + fd   ->  fr = (f_up + f_dn) k / (k + 1).
+        const double k = (r.rampSec > 0.0 && r.fallSec > 0.0) ? r.fallSec / r.rampSec : 1.0;
+        const double fdMax  = (lambda > 0.0) ? 2.0 * m_p.pairMaxVelocityMps / lambda : 5.0 * r.up.freqResHz;
+        const double gateHz = fdMax * (k + 1.0);   // |f_dn k - f_up| = fd (k + 1)
         std::vector<bool> usedDn(r.down.peaks.size(), false);
         for (const Peak& pu : r.up.peaks) {
             int best = -1; double bestD = 1e300;
             for (size_t j = 0; j < r.down.peaks.size(); ++j) {
                 if (usedDn[j]) continue;
-                const double d = std::fabs(r.down.peaks[j].freqHz - pu.freqHz);
+                const double d = std::fabs(r.down.peaks[j].freqHz * k - pu.freqHz);
                 if (d <= gateHz && d < bestD) { bestD = d; best = static_cast<int>(j); }
             }
             Target t;
@@ -419,8 +423,10 @@ void RadarDsp::BuildTargets(FrameResult& r, bool updateState)
                 const Peak& pd = r.down.peaks[static_cast<size_t>(best)];
                 t.fDnHz  = pd.freqHz;
                 t.paired = true;
-                t.rangeM = rangeOf(0.5 * (pu.freqHz + pd.freqHz));
-                t.velocityMps = (lambda > 0.0) ? lambda * (pd.freqHz - pu.freqHz) / 4.0 : 0.0;
+                const double fr = (pu.freqHz + pd.freqHz) * k / (k + 1.0);
+                const double fd = fr - pu.freqHz;
+                t.rangeM = rangeOf(fr);
+                t.velocityMps = (lambda > 0.0) ? lambda * fd / 2.0 : 0.0;
                 t.ampDb = 0.5f * (pu.ampDb + pd.ampDb);
                 t.snrDb = (std::min)(pu.snrDb, pd.snrDb);
             } else {
@@ -433,7 +439,7 @@ void RadarDsp::BuildTargets(FrameResult& r, bool updateState)
             const Peak& pd = r.down.peaks[j];
             Target t;
             t.fDnHz  = pd.freqHz;
-            t.rangeM = rangeOf(pd.freqHz);
+            t.rangeM = rangeOf(pd.freqHz * k);
             t.ampDb  = pd.ampDb;
             t.snrDb  = pd.snrDb;
             r.targets.push_back(t);
@@ -604,17 +610,62 @@ FrameResult RadarDsp::Process(const ChirpFrame& f, bool updateState)
     r.frameId     = f.header.frame_id;
     r.timestampMs = f.header.timestamp_ms;
     r.rxTickMs    = f.rx_tick_ms;
-    r.fsHz        = f.header.sample_rate_hz > 0 ? static_cast<double>(f.header.sample_rate_hz) : m_fallbackFs;
+    r.fsHz        = f.header.sample_rate_hz > 0 ? static_cast<double>(f.header.sample_rate_hz) * m_fsScale : m_fallbackFs;
     r.chirpFreqHz = f.header.chirp_freq_hz;
     r.shape       = m_s.shape;
     r.chirps      = (m_s.shape == RampShape::Single) ? 1 : m_s.chirpsInFrame;
     r.samplesPerFrame = f.raw.size();
     r.lambdaM     = m_p.LambdaM();
     r.rangeOffsetM = m_p.rangeOffsetM;
+    if (f.header.data_flags & FRAME_FLAG_HAS_FFT) {
+        const double pk = f.McuPeakHz();
+        if (pk > 0.0) r.mcuPeakHz = pk * m_fsScale;
+    }
 
     const size_t n = f.raw.size();
     r.rampSec   = RampSeconds(m_p, m_s.shape, r.chirpFreqHz, n, r.fsHz, r.chirps);
     r.periodSec = (m_s.shape == RampShape::Triangle) ? 2.0 * r.rampSec : r.rampSec;
+    r.fallSec   = (m_s.shape == RampShape::Triangle) ? r.rampSec : 0.0;
+
+    // Chirp geometry reported by the firmware (protocol v2: exact sample
+    // counts; v1: rise/fall in whole microseconds). When present it replaces
+    // the "frame / chirps / 2" split and allows asymmetric ramps.
+    size_t periodLenHdr = 0, rampLenHdr = 0;
+    if (m_s.firmwareGeometry && m_s.shape != RampShape::Single && n >= 32) {
+        const FrameHeaderExt* ext = f.hasExt ? &f.ext : nullptr;
+        periodLenHdr = ChirpPeriodSamples(f.header, ext, n);
+        if (periodLenHdr >= 32) {
+            if (m_s.shape == RampShape::Triangle) {
+                rampLenHdr = ChirpRiseSamples(f.header, ext, n);
+                if (rampLenHdr < 16 || rampLenHdr + 16 > periodLenHdr) rampLenHdr = periodLenHdr / 2;
+            } else {
+                rampLenHdr = periodLenHdr;
+            }
+            // v1 firmware reports rise/fall in whole microseconds, which is off
+            // by a few samples from the quantized DAC table. When the frame holds
+            // a whole number of such chirps (burst), spread the error evenly so
+            // the later chirps do not drift out of their ramps.
+            const bool exact = (ext && ext->samples_per_chirp > 0);
+            if (!exact) {
+                const size_t M = (n + periodLenHdr / 2) / periodLenHdr;
+                const size_t err = (n > M * periodLenHdr) ? n - M * periodLenHdr : M * periodLenHdr - n;
+                if (M >= 1 && err <= M * periodLenHdr / 50) {
+                    const size_t per = n / M;
+                    rampLenHdr   = (rampLenHdr * per) / periodLenHdr;
+                    periodLenHdr = per;
+                }
+            }
+            r.geometryFromHeader = true;
+            r.samplesPerChirp    = periodLenHdr;
+            r.riseSamples        = rampLenHdr;
+            if (m_p.rampSec <= 0.0 && r.fsHz > 0.0) {
+                r.rampSec   = static_cast<double>(rampLenHdr) / r.fsHz;
+                r.fallSec   = (m_s.shape == RampShape::Triangle)
+                            ? static_cast<double>(periodLenHdr - rampLenHdr) / r.fsHz : 0.0;
+                r.periodSec = static_cast<double>(periodLenHdr) / r.fsHz;
+            }
+        }
+    }
     r.rangePerHz = (m_p.bandwidthHz > 0.0 && r.rampSec > 0.0)
                  ? kSpeedOfLight * r.rampSec / (2.0 * m_p.bandwidthHz) : 0.0;
 
@@ -636,10 +687,18 @@ FrameResult RadarDsp::Process(const ChirpFrame& f, bool updateState)
 
     if (n < 32) return r;
 
-    const int    M         = r.chirps < 1 ? 1 : r.chirps;
-    const size_t periodLen = n / static_cast<size_t>(M);
-    const size_t rampLen   = (m_s.shape == RampShape::Triangle) ? periodLen / 2 : periodLen;
-    if (rampLen < 16) return r;
+    int    M         = r.chirps < 1 ? 1 : r.chirps;
+    size_t periodLen = n / static_cast<size_t>(M);
+    size_t rampLen   = (m_s.shape == RampShape::Triangle) ? periodLen / 2 : periodLen;
+    if (r.geometryFromHeader) {
+        periodLen = periodLenHdr;
+        rampLen   = rampLenHdr;
+        M         = static_cast<int>(n / periodLen);
+        if (M < 1) M = 1;
+        if (m_s.shape == RampShape::Single) M = 1;
+        r.chirps  = M;
+    }
+    if (rampLen < 16 || periodLen - rampLen < ((m_s.shape == RampShape::Triangle) ? 16u : 0u)) return r;
     const size_t guard = static_cast<size_t>(rampLen * (m_s.guardPct / 100.0f));
     const int D = m_s.decimation >= 1 ? m_s.decimation
                 : AutoDecimation(m_p, r.fsHz, r.rampSec, rampLen, guard, m_s.maxRangeM);
@@ -683,10 +742,15 @@ FrameResult RadarDsp::Process(const ChirpFrame& f, bool updateState)
     if (upOk) {
         if (M > 1) for (float& v : upPower) v /= static_cast<float>(M);
         FinishSpectrum(upPower, upChirps[0], &m_traceUp, updateState, r.up);
+        if (m_s.toneEstimate && rampLen > 2 * guard + 64)
+            r.up.tone = EstimateTone(f.raw.data() + guard, rampLen - 2 * guard, r.fsHz);
     }
     if (dnOk && !dnPower.empty()) {
         if (M > 1) for (float& v : dnPower) v /= static_cast<float>(M);
         FinishSpectrum(dnPower, dnChirps[0], &m_traceDn, updateState, r.down);
+        const size_t dnLen = periodLen - rampLen;
+        if (m_s.toneEstimate && dnLen > 2 * guard + 64)
+            r.down.tone = EstimateTone(f.raw.data() + rampLen + guard, dnLen - 2 * guard, r.fsHz);
     }
     r.valid = r.up.valid;
     if (!r.valid) return r;

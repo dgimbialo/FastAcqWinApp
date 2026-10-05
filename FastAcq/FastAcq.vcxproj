@@ -90,6 +90,7 @@
     <ClInclude Include="AppMessages.h" />
     <ClInclude Include="AppSettings.h" />
     <ClInclude Include="ChirpListCtrl.h" />
+    <ClInclude Include="ChirpPreview.h" />
     <ClInclude Include="ChirpStore.h" />
     <ClInclude Include="ColorMap.h" />
     <ClInclude Include="CommLogWnd.h" />
@@ -109,10 +110,13 @@
     <ClInclude Include="SettingsTab.h" />
     <ClInclude Include="TargetListCtrl.h" />
     <ClInclude Include="Theme.h" />
+    <ClInclude Include="TraceDefs.h" />
+    <ClInclude Include="TraceTab.h" />
     <ClInclude Include="WaterfallView.h" />
     <ClInclude Include="WaveformView.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="Core\ChirpGeometry.h" />
     <ClInclude Include="Core\Export.h" />
     <ClInclude Include="Core\SessionFile.h" />
     <ClInclude Include="Dsp\Cfar.h" />
@@ -120,6 +124,7 @@
     <ClInclude Include="Dsp\FftPlan.h" />
     <ClInclude Include="Dsp\PeakFinder.h" />
     <ClInclude Include="Dsp\RadarDsp.h" />
+    <ClInclude Include="Dsp\ToneEstimator.h" />
     <ClInclude Include="Dsp\Window.h" />
   </ItemGroup>
   <ItemGroup>
@@ -128,6 +133,7 @@
     </ClCompile>
     <ClCompile Include="AppSettings.cpp" />
     <ClCompile Include="ChirpListCtrl.cpp" />
+    <ClCompile Include="ChirpPreview.cpp" />
     <ClCompile Include="ColorMap.cpp" />
     <ClCompile Include="CommLogWnd.cpp" />
     <ClCompile Include="CommandPanel.cpp" />
@@ -143,6 +149,7 @@
     <ClCompile Include="SerialWorker.cpp" />
     <ClCompile Include="SettingsTab.cpp" />
     <ClCompile Include="TargetListCtrl.cpp" />
+    <ClCompile Include="TraceTab.cpp" />
     <ClCompile Include="WaterfallView.cpp" />
     <ClCompile Include="WaveformView.cpp" />
     <ClCompile Include="ChirpStore.cpp">
@@ -150,6 +157,10 @@
       <FloatingPointModel Condition="'$(Configuration)'=='Release'">Fast</FloatingPointModel>
     </ClCompile>
     <ClCompile Include="ProtocolParser.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <FloatingPointModel Condition="'$(Configuration)'=='Release'">Fast</FloatingPointModel>
+    </ClCompile>
+    <ClCompile Include="Core\ChirpGeometry.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <FloatingPointModel Condition="'$(Configuration)'=='Release'">Fast</FloatingPointModel>
     </ClCompile>
@@ -180,6 +191,9 @@
     <ClCompile Include="Dsp\RadarDsp.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <FloatingPointModel Condition="'$(Configuration)'=='Release'">Fast</FloatingPointModel>
+    </ClCompile>
+    <ClCompile Include="Dsp\ToneEstimator.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Dsp\Window.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
