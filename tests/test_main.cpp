@@ -404,7 +404,7 @@ static void TestRadarDsp()
     std::puts("RadarDsp");
     using namespace dsp;
     RadarParams rp;
-    rp.f0Hz = 24.0e9; rp.bandwidthHz = 200e6;
+    rp.f0Hz = 5.5e9; rp.bandwidthHz = 1.0e9;      // sweep 5..6 GHz
     DspSettings ds;
     ds.shape = RampShape::Triangle;
     ds.chirpsInFrame = 1;
@@ -486,12 +486,12 @@ static void TestRadarDsp()
     std::printf("  phase displacement: %.3f mm (expected ~1.0)\n", rb.phase.displacementMm);
     CHECK_NEAR(rb.phase.displacementMm, 1.0, 0.15);
 
-    // Burst: 8 chirps with a target approaching at 0.5 m/s. MTI removes static
+    // Burst: 8 chirps with a target approaching at 2 m/s. MTI removes static
     // clutter, so the moving target must appear at its range, above the zero row.
     ds.chirpsInFrame = 8;
     dspx.SetSettings(ds);
     dspx.ResetState();
-    std::vector<SimTarget> tgMove = { { 10.0, 0.5, 800.0 } };
+    std::vector<SimTarget> tgMove = { { 10.0, 2.0, 800.0 } };
     ChirpFrame fburst = MakeFmcwFrame(rp, fs, chirp, 8, tgMove, 1.0, 21);
     t0 = std::chrono::steady_clock::now();
     FrameResult rbst = dspx.Process(fburst);
@@ -505,7 +505,7 @@ static void TestRadarDsp()
         const double rBin = rbst.rd.peakRange * rbst.rd.rangeBinM;
         CHECK_NEAR(rBin, 10.0, 0.6);
         // Expected Doppler row: nD/2 + f_D / (1 / (nD * T_PRI)), f_D = 2 v / lambda.
-        const double fD = 2.0 * 0.5 / rp.LambdaM();
+        const double fD = 2.0 * 2.0 / rp.LambdaM();
         const double rowExp = rbst.rd.nDoppler / 2.0 + fD * rbst.rd.nDoppler * rbst.periodSec;
         CHECK_NEAR(static_cast<double>(rbst.rd.peakDoppler), rowExp, 1.0);
         CHECK(rbst.rd.peakDoppler > rbst.rd.nDoppler / 2);
@@ -514,8 +514,8 @@ static void TestRadarDsp()
 
     // Derived values.
     DerivedValues dv = ComputeDerived(rp, ds, fs, chirp, f.raw.size(), 100.0, true, false, 0);
-    CHECK_NEAR(dv.rangeResM, dsp::kSpeedOfLight / (2.0 * 200e6), 1e-9);
-    CHECK_NEAR(dv.beatPerMeterHz, 2.0 * 200e6 / (kSpeedOfLight / 916.0), 1.0);
+    CHECK_NEAR(dv.rangeResM, dsp::kSpeedOfLight / (2.0 * 1.0e9), 1e-9);
+    CHECK_NEAR(dv.beatPerMeterHz, 2.0 * 1.0e9 / (kSpeedOfLight / 916.0), 1.0);
     CHECK(dv.rangeMaxM > 100.0);
     CHECK(dv.usbMBps > 2.0);
 
@@ -788,7 +788,7 @@ static void TestFirmwareGeometry()
 {
     std::puts("RadarDsp firmware geometry");
     using namespace dsp;
-    RadarParams rp; rp.f0Hz = 24.0e9; rp.bandwidthHz = 200e6;
+    RadarParams rp; rp.f0Hz = 5.5e9; rp.bandwidthHz = 1.0e9;
     DspSettings ds;
     ds.shape = RampShape::Triangle;
     ds.chirpsInFrame = 1;                      // wrong on purpose: the header says 2

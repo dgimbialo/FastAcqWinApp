@@ -102,7 +102,7 @@ int SettingsTab::OnCreate(LPCREATESTRUCT lpcs)
 
     // --- Radar
     m_hdrRadar.Create(_T("Radar geometry"), ss, rc, this);
-    m_lblF0.Create(_T("Carrier f0, GHz"), ss, rc, this);          m_edtF0.Create(esf, rc, this, IDC_EDT_F0);
+    m_lblF0.Create(_T("Carrier f0 (sweep centre), GHz"), ss, rc, this);          m_edtF0.Create(esf, rc, this, IDC_EDT_F0);
     m_lblBw.Create(_T("Sweep bandwidth B, MHz"), ss, rc, this);   m_edtBw.Create(esf, rc, this, IDC_EDT_BW);
     m_lblTramp.Create(_T("Ramp time, ms (0 = auto)"), ss, rc, this); m_edtTramp.Create(esf, rc, this, IDC_EDT_TRAMP);
     m_lblRoff.Create(_T("Range offset, m"), ss, rc, this);        m_edtRoff.Create(esf, rc, this, IDC_EDT_ROFFSET);
@@ -304,8 +304,8 @@ void SettingsTab::ReadInto(AppSettings& s) const
     s.acq.sendFft     = m_chkFft.GetCheck() == BST_CHECKED;
     s.dsp.useMcuFft   = m_rdoSrcMcu.GetCheck() == BST_CHECKED;
 
-    s.radar.f0Hz        = GetDouble(m_edtF0, 24.0) * 1e9;
-    s.radar.bandwidthHz = GetDouble(m_edtBw, 200.0) * 1e6;
+    s.radar.f0Hz        = GetDouble(m_edtF0, 5.5) * 1e9;
+    s.radar.bandwidthHz = GetDouble(m_edtBw, 1000.0) * 1e6;
     s.radar.rampSec     = GetDouble(m_edtTramp, 0.0) * 1e-3;
     s.radar.rangeOffsetM= GetDouble(m_edtRoff, 0.0);
     s.radar.pairMaxVelocityMps = GetDouble(m_edtPairV, 30.0);

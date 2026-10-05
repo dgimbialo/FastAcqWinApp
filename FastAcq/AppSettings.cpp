@@ -67,6 +67,8 @@ bool AppSettings::Load(const CString& path)
 
     radar.f0Hz              = ini.GetDouble(_T("Radar"), _T("F0Hz"),        radar.f0Hz);
     radar.bandwidthHz       = ini.GetDouble(_T("Radar"), _T("BandwidthHz"), radar.bandwidthHz);
+    // Earlier builds wrote a 24 GHz / 200 MHz placeholder; the device sweeps 5..6 GHz.
+    if (radar.f0Hz == 24.0e9 && radar.bandwidthHz == 200.0e6) { radar.f0Hz = 5.5e9; radar.bandwidthHz = 1.0e9; }
     radar.rampSec           = ini.GetDouble(_T("Radar"), _T("RampSec"),     radar.rampSec);
     radar.rangeOffsetM      = ini.GetDouble(_T("Radar"), _T("RangeOffsetM"),radar.rangeOffsetM);
     radar.pairMaxVelocityMps= ini.GetDouble(_T("Radar"), _T("PairMaxVel"),  radar.pairMaxVelocityMps);

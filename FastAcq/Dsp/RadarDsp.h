@@ -46,8 +46,8 @@ enum class TraceMode {
 const char* TraceModeName(TraceMode m);
 
 struct RadarParams {
-    double f0Hz{24.0e9};          // carrier
-    double bandwidthHz{200.0e6};  // swept bandwidth B (0 = unknown -> no range axis)
+    double f0Hz{5.5e9};           // carrier = centre of the sweep (device: 5..6 GHz)
+    double bandwidthHz{1.0e9};    // swept bandwidth B (0 = unknown -> no range axis)
     double rampSec{0.0};          // ramp duration; 0 = derive from chirp frequency and shape
     double rangeOffsetM{0.0};     // zero-range calibration (cables, antenna delay)
     double pairMaxVelocityMps{30.0}; // UP/DOWN pairing gate
