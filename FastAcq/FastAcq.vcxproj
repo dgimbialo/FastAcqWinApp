@@ -44,9 +44,10 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_WINDOWS;_DEBUG;_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;_DEBUG;_UNICODE;UNICODE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <Optimization>Disabled</Optimization>
@@ -55,16 +56,19 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <IgnoreSpecificDefaultLibraries>Qt6EntryPointd.lib;Qt6EntryPoint.lib</IgnoreSpecificDefaultLibraries>
     </Link>
+    <Manifest>
+      <AdditionalManifestFiles>FastAcq.manifest</AdditionalManifestFiles>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;_UNICODE;UNICODE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <Optimization>MaxSpeed</Optimization>
@@ -77,57 +81,117 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <IgnoreSpecificDefaultLibraries>Qt6EntryPointd.lib;Qt6EntryPoint.lib</IgnoreSpecificDefaultLibraries>
     </Link>
+    <Manifest>
+      <AdditionalManifestFiles>FastAcq.manifest</AdditionalManifestFiles>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="CommLogWnd.h" />
-    <ClInclude Include="LocalFft.h" />
-    <ClInclude Include="pch.h" />
     <ClInclude Include="AppMessages.h" />
-    <ClInclude Include="ProtocolDefs.h" />
-    <ClInclude Include="ProtocolParser.h" />
+    <ClInclude Include="AppSettings.h" />
+    <ClInclude Include="ChirpListCtrl.h" />
     <ClInclude Include="ChirpStore.h" />
     <ClInclude Include="ColorMap.h" />
-    <ClInclude Include="SerialWorker.h" />
-    <ClInclude Include="ChirpListCtrl.h" />
+    <ClInclude Include="CommLogWnd.h" />
     <ClInclude Include="CommandPanel.h" />
-    <ClInclude Include="Theme.h" />
-    <ClInclude Include="ModernButton.h" />
-    <ClInclude Include="ModernTabCtrl.h" />
-    <ClInclude Include="Tab1Wnd_new.h" />
-    <ClInclude Include="WaveformView.h" />
-    <ClInclude Include="WaterfallView.h" />
-    <ClInclude Include="SpectrumView.h" />
-    <ClInclude Include="Tab1Wnd.h" />
-    <ClInclude Include="SettingsTab.h" />
+    <ClInclude Include="Dpi.h" />
+    <ClInclude Include="DspWorker.h" />
     <ClInclude Include="MainFrame.h" />
+    <ClInclude Include="PlotWnd.h" />
+    <ClInclude Include="ProtocolDefs.h" />
+    <ClInclude Include="ProtocolParser.h" />
+    <ClInclude Include="RadarTab.h" />
+    <ClInclude Include="RangeDopplerView.h" />
+    <ClInclude Include="RangeProfileView.h" />
+    <ClInclude Include="Screenshot.h" />
+    <ClInclude Include="ScopeTab.h" />
+    <ClInclude Include="SerialWorker.h" />
+    <ClInclude Include="SettingsTab.h" />
+    <ClInclude Include="TargetListCtrl.h" />
+    <ClInclude Include="Theme.h" />
+    <ClInclude Include="WaterfallView.h" />
+    <ClInclude Include="WaveformView.h" />
+    <ClInclude Include="pch.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="Core\Export.h" />
+    <ClInclude Include="Core\SessionFile.h" />
+    <ClInclude Include="Dsp\Cfar.h" />
+    <ClInclude Include="Dsp\Decimator.h" />
+    <ClInclude Include="Dsp\FftPlan.h" />
+    <ClInclude Include="Dsp\PeakFinder.h" />
+    <ClInclude Include="Dsp\RadarDsp.h" />
+    <ClInclude Include="Dsp\Window.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="CommLogWnd.cpp" />
-    <ClCompile Include="LocalFft.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="ProtocolParser.cpp" />
-    <ClCompile Include="ChirpStore.cpp" />
-    <ClCompile Include="ColorMap.cpp" />
-    <ClCompile Include="SerialWorker.cpp" />
+    <ClCompile Include="AppSettings.cpp" />
     <ClCompile Include="ChirpListCtrl.cpp" />
+    <ClCompile Include="ColorMap.cpp" />
+    <ClCompile Include="CommLogWnd.cpp" />
     <ClCompile Include="CommandPanel.cpp" />
-    <ClCompile Include="ModernButton.cpp" />
-    <ClCompile Include="ModernTabCtrl.cpp" />
-    <ClCompile Include="WaveformView.cpp" />
-    <ClCompile Include="WaterfallView.cpp" />
-    <ClCompile Include="SpectrumView.cpp" />
-    <ClCompile Include="Tab1Wnd.cpp" />
-    <ClCompile Include="SettingsTab.cpp" />
-    <ClCompile Include="MainFrameImpl.cpp" />
+    <ClCompile Include="DspWorker.cpp" />
     <ClCompile Include="FastAcqApp.cpp" />
+    <ClCompile Include="MainFrameImpl.cpp" />
+    <ClCompile Include="PlotWnd.cpp" />
+    <ClCompile Include="RadarTab.cpp" />
+    <ClCompile Include="RangeDopplerView.cpp" />
+    <ClCompile Include="RangeProfileView.cpp" />
+    <ClCompile Include="Screenshot.cpp" />
+    <ClCompile Include="ScopeTab.cpp" />
+    <ClCompile Include="SerialWorker.cpp" />
+    <ClCompile Include="SettingsTab.cpp" />
+    <ClCompile Include="TargetListCtrl.cpp" />
+    <ClCompile Include="WaterfallView.cpp" />
+    <ClCompile Include="WaveformView.cpp" />
+    <ClCompile Include="ChirpStore.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <FloatingPointModel Condition="'$(Configuration)'=='Release'">Fast</FloatingPointModel>
+    </ClCompile>
+    <ClCompile Include="ProtocolParser.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <FloatingPointModel Condition="'$(Configuration)'=='Release'">Fast</FloatingPointModel>
+    </ClCompile>
+    <ClCompile Include="Core\Export.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <FloatingPointModel Condition="'$(Configuration)'=='Release'">Fast</FloatingPointModel>
+    </ClCompile>
+    <ClCompile Include="Core\SessionFile.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <FloatingPointModel Condition="'$(Configuration)'=='Release'">Fast</FloatingPointModel>
+    </ClCompile>
+    <ClCompile Include="Dsp\Cfar.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <FloatingPointModel Condition="'$(Configuration)'=='Release'">Fast</FloatingPointModel>
+    </ClCompile>
+    <ClCompile Include="Dsp\Decimator.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <FloatingPointModel Condition="'$(Configuration)'=='Release'">Fast</FloatingPointModel>
+    </ClCompile>
+    <ClCompile Include="Dsp\FftPlan.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <FloatingPointModel Condition="'$(Configuration)'=='Release'">Fast</FloatingPointModel>
+    </ClCompile>
+    <ClCompile Include="Dsp\PeakFinder.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <FloatingPointModel Condition="'$(Configuration)'=='Release'">Fast</FloatingPointModel>
+    </ClCompile>
+    <ClCompile Include="Dsp\RadarDsp.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <FloatingPointModel Condition="'$(Configuration)'=='Release'">Fast</FloatingPointModel>
+    </ClCompile>
+    <ClCompile Include="Dsp\Window.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <FloatingPointModel Condition="'$(Configuration)'=='Release'">Fast</FloatingPointModel>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FastAcq.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="FastAcq.manifest" />
+    <Image Include="res\FastAcq.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

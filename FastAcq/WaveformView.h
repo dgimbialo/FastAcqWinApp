@@ -1,34 +1,44 @@
 #pragma once
 //
-// WaveformView -- GDI oscilloscope with H/V zoom toolbar and voltage Y-axis.
+// WaveformView -- oscilloscope view of raw ADC samples with min/max column
+// decimation, time axis, ramp segment shading (UP / DOWN / guard), A/B
+// cursors, zoom (wheel, buttons, drag) and scrollbars.
 //
 
 #include "pch.h"
+#include "Dsp/RadarDsp.h"
+#include "PlotWnd.h"
 
-class WaveformView : public CWnd {
+class WaveformView : public PlotWnd {
 public:
     WaveformView() = default;
 
     BOOL CreateView(CWnd* parent, UINT id);
 
-    void SetSamples(const uint16_t* data, size_t n);
-    void SetTitle(const CString& t)    { m_title     = t;  Invalidate(FALSE); }
-    void SetFrequency(float hz)        { m_freqHz    = hz; Invalidate(FALSE); }
-    void SetSampleRate(uint32_t rateHz){ m_sampleRateHz = rateHz; }
-    void SetDotsMode(bool dots)        { m_dotsMode = dots; Invalidate(FALSE); }
-
-    // ADC hardware parameters (must match firmware).
-    // Default: 12-bit AD9226, Vref = 3.3 V.
-    void SetAdcConfig(int bits, float vRef) { m_adcBits = bits; m_vRef = vRef; Invalidate(FALSE); }
+    // data[0] corresponds to frame sample index `offset` (for segment shading).
+    void SetSamples(const uint16_t* data, size_t n, size_t offset = 0);
+    void SetSegments(const std::vector<dsp::Segment>& segs);
+    void SetSampleRate(double fsHz)          { m_fs = fsHz; Invalidate(FALSE); }
+    void SetAdcConfig(int bits, float vRef, bool showVolts);
+    void SetDotsMode(bool dots)              { m_dots = dots; Invalidate(FALSE); }
+    void SetInfo(const CString& s)           { m_info = s; Invalidate(FALSE); }
+    void ResetZoom();
+    void ClearCursors();
 
 protected:
-    afx_msg int  OnCreate(LPCREATESTRUCT);
-    afx_msg void OnPaint();
-    afx_msg BOOL OnEraseBkgnd(CDC*) { return TRUE; }
-    afx_msg void OnSize(UINT, int, int);
+    void Render(CDC& dc, const CRect& rc) override;
+    void OnPlotMouseMove(CPoint pt, UINT flags) override;
+    void OnPlotLButtonDown(CPoint pt, UINT flags) override;
+    void OnPlotLButtonUp(CPoint pt, UINT flags) override;
+    void OnPlotLButtonDblClk(CPoint pt, UINT flags) override;
+    void OnPlotRButtonUp(CPoint pt, UINT flags) override;
+    BOOL OnPlotMouseWheel(UINT flags, short zDelta, CPoint pt) override;
+    void OnPlotKeyDown(UINT nChar, UINT flags) override;
+    void OnPlotSize(int cx, int cy) override;
+
+    afx_msg int  OnCreate(LPCREATESTRUCT lpcs);
     afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pBar);
     afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar* pBar);
-    afx_msg BOOL OnMouseWheel(UINT fFlags, short zDelta, CPoint pt);
     afx_msg void OnBtnXMinus();
     afx_msg void OnBtnXPlus();
     afx_msg void OnBtnYMinus();
@@ -37,41 +47,51 @@ protected:
     DECLARE_MESSAGE_MAP()
 
 private:
-    void    Render(CDC& dc, const CRect& rc);
-    void    DrawYAxis(CDC& dc, const CRect& plotRc, float vTop, float vBot);
-    void    UpdateScrollBar();
-    void    UpdateVScrollBar();
-    void    ClampOffsetY();
-    void    ApplyDefaultHorizontalZoom();
-    size_t  DefaultVisibleSamples() const;
     CRect   PlotRect() const;
+    size_t  VisibleCount() const;
+    void    ClampOffsets();
+    void    UpdateScrollBars();
+    void    ZoomX(double factor, double anchorSample);
+    void    ZoomY(double factor);
+    double  SampleAtX(int x, const CRect& plot) const;
+    int     XOfSample(double s, const CRect& plot) const;
+    double  CodesAtY(int y, const CRect& plot) const;
+    double  CodeToUnit(double code) const;
+    CString FormatUnit(double code) const;
+    void    DrawCursorReadout(CDC& dc, const CRect& plot);
 
-    static constexpr float kMaxZoomX = 1024.0f;  // horizontal: up to x1024
-    static constexpr float kMaxZoomY =   32.0f;  // vertical:   up to x32
-    static constexpr int   kToolH    = 26;
-    static constexpr int   kAxisW    = 52;
-    static constexpr int   kBtnW     = 26;
-    static constexpr int   kBtnH     = 20;
-
-    enum : UINT { ID_XM = 1, ID_XP, ID_YM, ID_YP, ID_RST };
+    static constexpr double kMaxZoomX = 4096.0;
+    static constexpr double kMaxZoomY = 64.0;
+    static constexpr int    kToolH96  = 26;
+    static constexpr int    kAxisW96  = 60;
+    static constexpr int    kAxisH96  = 18;
+    static constexpr int    kBtnW96   = 28;
+    static constexpr int    kBtnH96   = 20;
 
     CButton m_btnXm, m_btnXp, m_btnYm, m_btnYp, m_btnRst;
     CFont   m_btnFont;
-    CFont   m_axisFont;
-    CFont   m_freqFont;
 
-    std::vector<uint16_t> m_samples;
-    CString               m_title;
+    std::vector<uint16_t>     m_samples;
+    size_t                    m_offset{0};       // frame index of m_samples[0]
+    std::vector<dsp::Segment> m_segments;
+    CString                   m_info;
 
-    float  m_zoomX{1.0f};
-    float  m_zoomY{1.0f};
-    size_t m_offsetX{0};
-    float  m_offsetY{0.0f};  // bottom of vertical view window, in volts
+    double m_zoomX{1.0};
+    double m_zoomY{1.0};
+    size_t m_offsetX{0};      // first visible sample (relative to m_samples)
+    double m_offsetY{0.0};    // bottom of the visible window, in ADC codes
 
-    // ADC config
-    int      m_adcBits{12};        // AD9226 = 12-bit
-    float    m_vRef{3.3f};         // 3.3 V reference
-    float    m_freqHz{0.0f};       // measured dominant frequency (0 = unknown)
-    uint32_t m_sampleRateHz{60000000}; // 60 MS/s
-    bool     m_dotsMode{false};    // true = draw dots only, false = lines
+    int    m_adcBits{12};
+    float  m_vRef{3.3f};
+    bool   m_showVolts{true};
+    double m_fs{60058600.0};
+    bool   m_dots{false};
+
+    struct Cursor { bool valid{false}; double sample{0.0}; };
+    Cursor m_cA, m_cB;
+
+    bool   m_dragging{false};
+    bool   m_dragMoved{false};
+    CPoint m_dragStart;
+    size_t m_dragOffset{0};
 };

@@ -13,7 +13,96 @@ LANGUAGE LANG_NEUTRAL, SUBLANG_DEFAULT
 // The first icon resource (lowest id) becomes the application/.exe icon.
 IDI_APPICON  ICON  "res\\FastAcq.ico"
 
+/////////////////////////////////////////////////////////////////////////////
+// Menu
+//
+IDR_MAINMENU MENU
+BEGIN
+    POPUP "&File"
+    BEGIN
+        MENUITEM "&Open replay...\tCtrl+O",          ID_FILE_OPEN_REPLAY
+        MENUITEM "&Close replay",                    ID_FILE_CLOSE_REPLAY
+        MENUITEM SEPARATOR
+        MENUITEM "Start/stop &recording\tR",         ID_FILE_RECORD
+        MENUITEM SEPARATOR
+        MENUITEM "&Save frame as CSV...\tCtrl+S",    ID_FILE_SAVE_FRAME
+        MENUITEM "Export &targets as CSV...",        ID_FILE_EXPORT_TARGETS
+        MENUITEM "Export IF signal as &WAV...",      ID_FILE_EXPORT_WAV
+        MENUITEM "Save screenshot as &PNG...\tF12",  ID_FILE_SCREENSHOT
+        MENUITEM SEPARATOR
+        MENUITEM "E&xit",                            ID_FILE_EXIT
+    END
+    POPUP "&Acquisition"
+    BEGIN
+        MENUITEM "&Connect / Disconnect\tF5",        ID_ACQ_CONNECT
+        MENUITEM SEPARATOR
+        MENUITEM "&Start\tSpace",                    ID_ACQ_START
+        MENUITEM "S&top\tSpace",                     ID_ACQ_STOP
+        MENUITEM "&Trigger\tT",                      ID_ACQ_TRIGGER
+        MENUITEM "&Abort",                           ID_ACQ_ABORT
+        MENUITEM SEPARATOR
+        MENUITEM "&Hold / Live\tH",                  ID_ACQ_HOLD
+        MENUITEM "&Reset averages\tA",               ID_ACQ_RESET_AVG
+        MENUITEM SEPARATOR
+        MENUITEM "&Ping",                            ID_ACQ_PING
+        MENUITEM "Get &status",                      ID_ACQ_STATUS
+    END
+    POPUP "&View"
+    BEGIN
+        MENUITEM "&Radar\tCtrl+1",                   ID_VIEW_RADAR
+        MENUITEM "&Scope\tCtrl+2",                   ID_VIEW_SCOPE
+        MENUITEM "&Communication\tCtrl+3",           ID_VIEW_COMM
+        MENUITEM "S&ettings\tCtrl+4",                ID_VIEW_SETTINGS
+        MENUITEM SEPARATOR
+        MENUITEM "&Dark theme",                      ID_VIEW_DARK
+    END
+    POPUP "&Help"
+    BEGIN
+        MENUITEM "&Keyboard shortcuts",              ID_HELP_KEYS
+        MENUITEM "&About FastAcq",                   ID_HELP_ABOUT
+    END
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// String table
+//
 STRINGTABLE
 BEGIN
-    IDR_MAINFRAME "FastAcq"
+    IDR_MAINFRAME  "FastAcq"
+    IDS_PANE_CONN  "Disconnected"
+    IDS_PANE_MCU   "MCU: -"
+    IDS_PANE_RATE  "0 fps  0.00 MB/s"
+    IDS_PANE_LINK  "lost 0  CRC 0"
+    IDS_PANE_DSP   "DSP 0.0 ms"
+    IDS_PANE_BUF   "buf 0/0"
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// Version
+//
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 2,0,0,0
+ PRODUCTVERSION 2,0,0,0
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "FileDescription", "FastAcq - FMCW radar IF signal analyzer"
+            VALUE "FileVersion", "2.0.0.0"
+            VALUE "InternalName", "FastAcq.exe"
+            VALUE "OriginalFilename", "FastAcq.exe"
+            VALUE "ProductName", "FastAcq"
+            VALUE "ProductVersion", "2.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
 END
