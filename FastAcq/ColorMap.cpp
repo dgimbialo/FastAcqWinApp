@@ -21,8 +21,6 @@ const Anchor kPlasma[] = {
     {0.6f,0xe16462},{0.7f,0xf2844b},{0.8f,0xfca636},{0.9f,0xfcce25},{1.0f,0xf0f921} };
 const Anchor kGray[] = { {0.0f,0x000000},{1.0f,0xffffff} };
 
-COLORREF FromRgbHex(unsigned rgb) { return RGB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF); }
-
 void FillFromAnchors(COLORREF* out, const Anchor* a, int na)
 {
     for (int i = 0; i < 256; ++i) {
@@ -77,7 +75,6 @@ struct Tables {
         FillFromAnchors(t[static_cast<int>(Palette::Turbo)],   kTurbo,   11);
         FillFromAnchors(t[static_cast<int>(Palette::Plasma)],  kPlasma,  11);
         FillFromAnchors(t[static_cast<int>(Palette::Gray)],    kGray,     2);
-        (void)FromRgbHex;
     }
 };
 
