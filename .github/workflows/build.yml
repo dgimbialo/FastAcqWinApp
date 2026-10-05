@@ -1,0 +1,32 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  core-tests-linux:
+    name: Core unit tests (g++)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run tests
+        run: make -C tests test
+
+  windows:
+    name: Windows build (MSBuild)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build solution (Release x64)
+        run: msbuild FastAcq.sln /m /p:Configuration=Release /p:Platform=x64 /verbosity:minimal
+      # A solution build puts every project's output in $(SolutionDir)$(Platform)\$(Configuration)\
+      - name: Run core tests
+        run: .\x64\Release\FastAcqTests.exe
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: FastAcq-x64
+          path: x64\Release\FastAcq.exe
+          if-no-files-found: error

@@ -3,9 +3,11 @@
 // ProtocolDefs.h
 // Host-side mirror of firmware usb_protocol.h (STM32H743 Fast Acquisition Device).
 // Keep layouts byte-compatible with the MCU side.
+// Portable: no Windows/MFC dependencies (shared with the unit tests).
 //
 
 #include <cstdint>
+#include <cstddef>
 
 // Magic at the start of every frame header.
 constexpr uint32_t FRAME_MAGIC = 0xFACEDA7AUL;
@@ -47,7 +49,16 @@ constexpr uint32_t ACK_BAD_ARG   = 1;
 constexpr uint32_t ACK_BAD_STATE = 2;
 constexpr uint32_t ACK_HW_FAIL   = 3;
 
-// STATUS frame field mapping (see firmware CONTROL_API_PLAN.md §2.4):
+// Firmware limits (mirrored here so the UI can clamp before sending).
+constexpr uint32_t CHIRP_FREQ_MIN_HZ = 100;
+constexpr uint32_t CHIRP_FREQ_MAX_HZ = 24000;
+constexpr uint32_t SAMPLES_MAX       = 650000;
+constexpr uint32_t INTERVAL_MIN_MS   = 5;
+constexpr uint32_t INTERVAL_MAX_MS   = 10000;
+constexpr uint32_t AMPLITUDE_MAX     = 4095;
+constexpr uint32_t BURST_MAX         = 1024;
+
+// STATUS frame field mapping (see firmware CONTROL_API_PLAN.md section 2.4):
 //   fft_size        <- mode
 //   fft_peak_bin    <- data_mask
 //   fft_peak_mag    <- interval_ms (as float)
@@ -92,6 +103,34 @@ static_assert(sizeof(FrameHeader) == 56, "FrameHeader must be 56 bytes");
 
 #pragma pack(pop)
 
+// Decoded STATUS frame (helper for UI / log).
+struct DeviceStatus {
+    uint32_t mode{0};
+    uint32_t dataMask{0};
+    uint32_t intervalMs{0};
+    uint32_t samples{0};       // 0 = auto
+    uint16_t chirpFreqHz{0};
+    uint16_t amplitude{0};
+    uint16_t burst{1};
+    uint8_t  fsmState{0};
+    uint8_t  lastError{0};
+};
+
+inline DeviceStatus DecodeStatusFrame(const FrameHeader& h) {
+    DeviceStatus s;
+    s.mode        = h.fft_size;
+    s.dataMask    = h.fft_peak_bin;
+    s.intervalMs  = static_cast<uint32_t>(h.fft_peak_mag);
+    s.samples     = h.actual_samples;
+    s.chirpFreqHz = h.chirp_freq_hz;
+    s.amplitude   = static_cast<uint16_t>(h.reserved1[0] | (h.reserved1[1] << 8));
+    s.burst       = static_cast<uint16_t>(h.reserved1[2] | (h.reserved1[3] << 8));
+    if (s.burst == 0) s.burst = 1;
+    s.fsmState    = h.reserved1[4];
+    s.lastError   = h.reserved1[5];
+    return s;
+}
+
 // CRC-8 (poly 0x07, init 0x00) -- matches MCU implementation.
 inline uint8_t Crc8(const uint8_t* data, size_t len) {
     uint8_t crc = 0x00;
@@ -105,16 +144,32 @@ inline uint8_t Crc8(const uint8_t* data, size_t len) {
     return crc;
 }
 
-// CRC-32 (IEEE 802.3, reflected, init 0xFFFFFFFF, xor-out 0xFFFFFFFF).
+// CRC-32 (IEEE 802.3, reflected, init 0xFFFFFFFF, xor-out 0xFFFFFFFF), table driven.
 // Matches STM32 HAL_CRC with default poly when configured in reflected mode.
-// (If firmware uses hardware CRC with non-reflected mode, we'll adjust here.)
-inline uint32_t Crc32(const uint8_t* data, size_t len, uint32_t seed = 0xFFFFFFFFu) {
-    uint32_t crc = seed;
-    for (size_t i = 0; i < len; ++i) {
-        crc ^= data[i];
-        for (int b = 0; b < 8; ++b) {
-            crc = (crc & 1u) ? (crc >> 1) ^ 0xEDB88320u : (crc >> 1);
+// Incremental form: state = Crc32Init(); state = Crc32Update(state, ...); crc = Crc32Final(state).
+struct Crc32Table {
+    uint32_t t[256];
+    constexpr Crc32Table() : t{} {
+        for (uint32_t i = 0; i < 256; ++i) {
+            uint32_t c = i;
+            for (int b = 0; b < 8; ++b)
+                c = (c & 1u) ? (c >> 1) ^ 0xEDB88320u : (c >> 1);
+            t[i] = c;
         }
     }
-    return crc ^ 0xFFFFFFFFu;
+};
+inline const Crc32Table& Crc32Tab() {
+    static constexpr Crc32Table tab{};
+    return tab;
+}
+inline uint32_t Crc32Init() { return 0xFFFFFFFFu; }
+inline uint32_t Crc32Update(uint32_t state, const uint8_t* data, size_t len) {
+    const uint32_t* t = Crc32Tab().t;
+    for (size_t i = 0; i < len; ++i)
+        state = t[(state ^ data[i]) & 0xFFu] ^ (state >> 8);
+    return state;
+}
+inline uint32_t Crc32Final(uint32_t state) { return state ^ 0xFFFFFFFFu; }
+inline uint32_t Crc32(const uint8_t* data, size_t len) {
+    return Crc32Final(Crc32Update(Crc32Init(), data, len));
 }
