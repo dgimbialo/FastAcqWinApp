@@ -253,7 +253,7 @@ void ChirpPreviewCtrl::Render(CDC& dc, const CRect& full)
         dc.DrawText(TR("fall ") + FmtUs(m_g.fallUs), CRect(xr1, y + sc(3), xf1, y + sc(17)), DT_CENTER | DT_SINGLELINE | DT_NOCLIP);
         if (shown > 1) {
             dc.SetTextColor(cChirp);
-            CString b; b.Format(TR("burst x%u%s"), m_p.burst, m_p.burst > shown ? TR(" (first 4 drawn)") : _T(""));
+            CString b; b.Format(TR("burst x%u%s"), m_p.burst, (m_p.burst > shown ? TR(" (first 4 drawn)") : CString()).GetString());
             dc.DrawText(b, CRect(xf1, y + sc(3), chirpsEnd, y + sc(17)), DT_CENTER | DT_SINGLELINE | DT_NOCLIP);
         }
         CString gap;

@@ -237,7 +237,7 @@ void ScopeTab::ShowFrame(ChirpFramePtr f, std::shared_ptr<const dsp::FrameResult
         if (m_res->mcuPeakHz > 0.0) { CString s; s.Format(TR("   MCU peak %.1f Hz"), m_res->mcuPeakHz); info += s; }
         CString d; d.Format(TR("   decim x%d, fs_eff %s, ramp %s%s"), m_res->decimation,
                             WaveformView::FormatFreq(m_res->up.fsEffHz).GetString(), WaveformView::FormatTime(m_res->rampSec).GetString(),
-                            m_res->geometryFromHeader ? TR(" (hdr)") : _T(""));
+                            (m_res->geometryFromHeader ? TR(" (hdr)") : CString()).GetString());
         info += d;
     }
     m_frame.SetInfo(info);
