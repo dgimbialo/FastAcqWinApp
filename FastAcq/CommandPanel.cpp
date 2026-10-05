@@ -61,7 +61,7 @@ int CommandPanel::OnCreate(LPCREATESTRUCT lpcs)
     m_btnTrigger.Create(TR("Trigger"),       bs, rc, this, IDC_BTN_TRIGGER);
     m_btnAbort.Create(TR("Abort"),           bs, rc, this, IDC_BTN_ABORT);
     m_btnHold.Create(TR("Hold"),             bs, rc, this, IDC_BTN_HOLD);
-    m_btnRecord.Create(_T("\u25CF Record"),  bs, rc, this, IDC_BTN_RECORD);
+    m_btnRecord.Create(TR("\u25CF Record"),  bs, rc, this, IDC_BTN_RECORD);
     m_btnOpen.Create(TR("Open..."),          bs, rc, this, IDC_BTN_OPEN_REPLAY);
     m_btnSaveFrame.Create(TR("Save frame"),  bs, rc, this, IDC_BTN_SAVE_FRAME);
     m_btnClear.Create(TR("Clear"),           bs, rc, this, IDC_BTN_CLEAR);
@@ -196,14 +196,14 @@ void CommandPanel::SetRunning(bool running)
 void CommandPanel::SetHold(bool hold)
 {
     m_hold = hold;
-    if (m_btnHold.GetSafeHwnd()) m_btnHold.SetWindowText(hold ? _T("\u25B6 Live") : _T("\u23F8 Hold"));
+    if (m_btnHold.GetSafeHwnd()) m_btnHold.SetWindowText(hold ? TR("\u25B6 Live") : TR("\u23F8 Hold"));
     Relayout();
 }
 
 void CommandPanel::SetRecording(bool rec, const CString& info)
 {
     m_recording = rec;
-    if (m_btnRecord.GetSafeHwnd()) m_btnRecord.SetWindowText(rec ? _T("\u25A0 Stop rec") : _T("\u25CF Record"));
+    if (m_btnRecord.GetSafeHwnd()) m_btnRecord.SetWindowText(rec ? TR("\u25A0 Stop rec") : TR("\u25CF Record"));
     if (m_lblRec.GetSafeHwnd()) { m_lblRec.SetWindowText(info); m_lblRec.Invalidate(); }
     Relayout();
 }
