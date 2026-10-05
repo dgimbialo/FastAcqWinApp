@@ -9,7 +9,8 @@
 // header.timestamp_ms = HAL tick at capture start.
 //
 
-#include "pch.h"
+// Portable: no Windows/MFC dependencies (shared with the unit tests).
+
 #include <cstdint>
 
 constexpr uint32_t TRACE_RECORD_SIZE = 24;
@@ -57,6 +58,4 @@ enum TraceEvent : uint16_t {
     TR_FSM_CAPTURING   = 26,
 };
 
-// Human-readable decoding (implemented in TraceTab.cpp).
-LPCTSTR TraceEventName(uint16_t ev);
-CString TraceEventDetails(const TraceRecord& r);
+// Human-readable decoding lives in TraceTab.h/.cpp (MFC strings).

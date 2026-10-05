@@ -3,10 +3,11 @@
 // ProtocolDefs.h
 // Host-side mirror of firmware usb_protocol.h (STM32H743 Fast Acquisition Device).
 // Keep layouts byte-compatible with the MCU side.
+// Portable: no Windows/MFC dependencies (shared with the unit tests).
 //
 
 #include <cstdint>
-#include <cstddef>   // offsetof, size_t
+#include <cstddef>
 
 // Magic at the start of every frame header.
 //   v1 (0xFACEDA7A): 56-byte header = FrameHeader
@@ -64,12 +65,21 @@ constexpr uint32_t ACK_BAD_ARG   = 1;
 constexpr uint32_t ACK_BAD_STATE = 2;
 constexpr uint32_t ACK_HW_FAIL   = 3;
 
+// Firmware limits (mirrored here so the UI can clamp before sending).
+constexpr uint32_t CHIRP_FREQ_MIN_HZ = 100;
+constexpr uint32_t CHIRP_FREQ_MAX_HZ = 24000;
+constexpr uint32_t SAMPLES_MAX       = 650000;
+constexpr uint32_t INTERVAL_MIN_MS   = 5;
+constexpr uint32_t INTERVAL_MAX_MS   = 10000;
+constexpr uint32_t AMPLITUDE_MAX     = 4095;
+constexpr uint32_t BURST_MAX         = 1024;
+
 // DATA / TRACE frame header extension (reserved1, little-endian):
 //   [0..1] amplitude DAC counts   [2..3] burst count
 //   [4..5] rise_us                [6..7] fall_us   (ACTUAL chirp geometry)
 // chirp_freq_hz carries the ACTUAL chirp frequency, timestamp_ms = capture start tick.
 //
-// STATUS frame field mapping (see firmware CONTROL_API_PLAN.md §2.4):
+// STATUS frame field mapping (see firmware CONTROL_API_PLAN.md section 2.4):
 //   fft_size        <- mode
 //   fft_peak_bin    <- data_mask
 //   fft_peak_mag    <- interval_ms (as float)
@@ -142,40 +152,76 @@ inline uint16_t HeaderFallUs(const FrameHeader& h)    { return HeaderU16(h, 6); 
 // Sample geometry of the FIRST chirp inside a RAW frame.
 // Protocol v2 (ext with samples_per_chirp) gives exact sample counts; older
 // firmware only has rise/fall in whole microseconds (off by a few samples),
-// and firmware that does not fill rise/fall (0/0) is treated as one
-// symmetric chirp over the frame.
-inline size_t ChirpPeriodSamples(const FrameHeader& h, size_t nRaw);
-inline size_t ChirpRiseSamples(const FrameHeader& h, size_t nRaw);
-
+// and firmware that does not fill rise/fall (0/0) is treated as unknown
+// (returns 0 so the caller falls back to its own segmentation).
+inline size_t ChirpPeriodSamples(const FrameHeader& h, size_t nRaw) {
+    const uint32_t rise = HeaderRiseUs(h), fall = HeaderFallUs(h);
+    if (rise && fall && h.sample_rate_hz) {
+        const size_t per = static_cast<size_t>(
+            (static_cast<uint64_t>(rise) + fall) * h.sample_rate_hz / 1000000ull);
+        return (per > 0 && per <= nRaw) ? per : 0;
+    }
+    return 0;
+}
+inline size_t ChirpRiseSamples(const FrameHeader& h, size_t nRaw) {
+    const uint32_t rise = HeaderRiseUs(h), fall = HeaderFallUs(h);
+    if (rise && fall && h.sample_rate_hz) {
+        const size_t per = ChirpPeriodSamples(h, nRaw);
+        const size_t r = static_cast<size_t>(
+            static_cast<uint64_t>(rise) * h.sample_rate_hz / 1000000ull);
+        if (per == 0) return 0;
+        return (r > 0 && r < per) ? r : per / 2;
+    }
+    return 0;
+}
 inline size_t ChirpPeriodSamples(const FrameHeader& h, const FrameHeaderExt* ext, size_t nRaw) {
-    if (ext && ext->samples_per_chirp > 0)
-        return (ext->samples_per_chirp <= nRaw) ? ext->samples_per_chirp : nRaw;
+    if (ext && ext->samples_per_chirp > 0 && ext->samples_per_chirp <= nRaw)
+        return ext->samples_per_chirp;
     return ChirpPeriodSamples(h, nRaw);
 }
 inline size_t ChirpRiseSamples(const FrameHeader& h, const FrameHeaderExt* ext, size_t nRaw) {
     if (ext && ext->samples_per_chirp > 0 && ext->rise_samples > 0) {
         const size_t per = ChirpPeriodSamples(h, ext, nRaw);
+        if (per == 0) return 0;
         return (ext->rise_samples < per) ? ext->rise_samples : per / 2;
     }
     return ChirpRiseSamples(h, nRaw);
 }
 
-inline size_t ChirpPeriodSamples(const FrameHeader& h, size_t nRaw) {
-    uint32_t rise = HeaderRiseUs(h), fall = HeaderFallUs(h);
-    if (rise && fall && h.sample_rate_hz) {
-        size_t per = static_cast<size_t>((static_cast<uint64_t>(rise) + fall) * h.sample_rate_hz / 1000000ull);
-        return (per > 0 && per <= nRaw) ? per : nRaw;
-    }
-    return nRaw;
-}
-inline size_t ChirpRiseSamples(const FrameHeader& h, size_t nRaw) {
-    uint32_t rise = HeaderRiseUs(h), fall = HeaderFallUs(h);
-    if (rise && fall && h.sample_rate_hz) {
-        size_t r = static_cast<size_t>(static_cast<uint64_t>(rise) * h.sample_rate_hz / 1000000ull);
-        size_t per = ChirpPeriodSamples(h, nRaw);
-        return (r > 0 && r < per) ? r : per / 2;
-    }
-    return nRaw / 2;
+// Decoded STATUS frame (helper for UI / log).
+struct DeviceStatus {
+    uint32_t mode{0};
+    uint32_t dataMask{0};
+    uint32_t intervalMs{0};
+    uint32_t samples{0};       // 0 = auto
+    uint16_t chirpFreqHz{0};
+    uint16_t amplitude{0};
+    uint16_t burst{1};
+    uint8_t  fsmState{0};
+    uint8_t  lastError{0};
+    uint16_t riseUs{0};        // configured rise, us (0 = symmetric from freq)
+    uint16_t fallUs{0};        // configured fall, us
+    bool     traceOn{false};   // MCU acquisition trace enabled
+    bool     traceAvail{false};// trace support compiled into firmware
+};
+
+inline DeviceStatus DecodeStatusFrame(const FrameHeader& h) {
+    DeviceStatus s;
+    s.mode        = h.fft_size;
+    s.dataMask    = h.fft_peak_bin;
+    s.intervalMs  = static_cast<uint32_t>(h.fft_peak_mag);
+    s.samples     = h.actual_samples;
+    s.chirpFreqHz = h.chirp_freq_hz;
+    s.amplitude   = static_cast<uint16_t>(h.reserved1[0] | (h.reserved1[1] << 8));
+    s.burst       = static_cast<uint16_t>(h.reserved1[2] | (h.reserved1[3] << 8));
+    if (s.burst == 0) s.burst = 1;
+    s.fsmState    = h.reserved1[4];
+    s.lastError   = h.reserved1[5];
+    s.riseUs      = HeaderU16(h, 6);
+    s.fallUs      = static_cast<uint16_t>(h.fft_freq_res_hz);
+    s.traceOn     = (h.reserved0 & 0x01) != 0;
+    s.traceAvail  = (h.reserved0 & 0x02) != 0;
+    return s;
 }
 
 // CRC-8 (poly 0x07, init 0x00) -- matches MCU implementation.
@@ -191,16 +237,32 @@ inline uint8_t Crc8(const uint8_t* data, size_t len) {
     return crc;
 }
 
-// CRC-32 (IEEE 802.3, reflected, init 0xFFFFFFFF, xor-out 0xFFFFFFFF).
+// CRC-32 (IEEE 802.3, reflected, init 0xFFFFFFFF, xor-out 0xFFFFFFFF), table driven.
 // Matches STM32 HAL_CRC with default poly when configured in reflected mode.
-// (If firmware uses hardware CRC with non-reflected mode, we'll adjust here.)
-inline uint32_t Crc32(const uint8_t* data, size_t len, uint32_t seed = 0xFFFFFFFFu) {
-    uint32_t crc = seed;
-    for (size_t i = 0; i < len; ++i) {
-        crc ^= data[i];
-        for (int b = 0; b < 8; ++b) {
-            crc = (crc & 1u) ? (crc >> 1) ^ 0xEDB88320u : (crc >> 1);
+// Incremental form: state = Crc32Init(); state = Crc32Update(state, ...); crc = Crc32Final(state).
+struct Crc32Table {
+    uint32_t t[256];
+    constexpr Crc32Table() : t{} {
+        for (uint32_t i = 0; i < 256; ++i) {
+            uint32_t c = i;
+            for (int b = 0; b < 8; ++b)
+                c = (c & 1u) ? (c >> 1) ^ 0xEDB88320u : (c >> 1);
+            t[i] = c;
         }
     }
-    return crc ^ 0xFFFFFFFFu;
+};
+inline const Crc32Table& Crc32Tab() {
+    static constexpr Crc32Table tab{};
+    return tab;
+}
+inline uint32_t Crc32Init() { return 0xFFFFFFFFu; }
+inline uint32_t Crc32Update(uint32_t state, const uint8_t* data, size_t len) {
+    const uint32_t* t = Crc32Tab().t;
+    for (size_t i = 0; i < len; ++i)
+        state = t[(state ^ data[i]) & 0xFFu] ^ (state >> 8);
+    return state;
+}
+inline uint32_t Crc32Final(uint32_t state) { return state ^ 0xFFFFFFFFu; }
+inline uint32_t Crc32(const uint8_t* data, size_t len) {
+    return Crc32Final(Crc32Update(Crc32Init(), data, len));
 }
