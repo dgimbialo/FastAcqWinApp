@@ -262,7 +262,7 @@ void TraceTab::Relayout()
     auto sc = [&](int px) { return ::MulDiv(px, S, 96); };
     const int pad = sc(6), h = sc(24);
     int x = pad, y = pad;
-    auto place = [&](CWnd& w, int ww) { w.MoveWindow(x, y, ww, h); x += ww + pad; };
+    auto place = [&](CWnd& w, int ww) { ww = Dpi::FitWidth(w, ww); w.MoveWindow(x, y, ww, h); x += ww + pad; };
     place(m_chkTrace, sc(220));
     place(m_btnShot,  sc(90));
     place(m_btnGet,   sc(90));

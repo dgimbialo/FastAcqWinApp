@@ -270,8 +270,9 @@ void ScopeTab::Relayout()
     const int h = sc(22);
     int x = sc(6);
     auto place = [&](CWnd& w, int wpx, int extraH = 0) {
-        if (w.GetSafeHwnd()) w.MoveWindow(x, fy, sc(wpx), extraH ? extraH : h);
-        x += sc(wpx) + sc(4);
+        const int ww = Dpi::FitWidth(w, sc(wpx));
+        if (w.GetSafeHwnd()) w.MoveWindow(x, fy, ww, extraH ? extraH : h);
+        x += ww + sc(4);
     };
     place(m_chkDots, 50);
     x += sc(6);

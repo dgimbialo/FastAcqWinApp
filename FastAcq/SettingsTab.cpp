@@ -592,7 +592,21 @@ void SettingsTab::Relayout()
     auto sc = [&](int px) { return ::MulDiv(px, S, 96); };
     CRect rc; GetClientRect(&rc);
 
-    const int lblW = sc(150), ctlW = sc(92), btnW = sc(60), pad = sc(6), h = sc(23), rowH = sc(28);
+    // Label column and button width follow the longest caption (translations
+    // are longer than the English source strings).
+    int lblW = sc(150), btnW = sc(60);
+    for (CWnd* c = GetWindow(GW_CHILD); c; c = c->GetWindow(GW_HWNDNEXT)) {
+        TCHAR cls[32]{}; ::GetClassName(c->GetSafeHwnd(), cls, 31);
+        if (_tcsicmp(cls, _T("Static")) == 0) {
+            if (c == &m_lblDerived || c == &m_hdrMcu || c == &m_hdrRadar || c == &m_hdrDisplay || c == &m_hdrDerived) continue;
+            lblW = (std::max)(lblW, Dpi::FitWidth(*c, 0));
+        } else if (_tcsicmp(cls, _T("Button")) == 0 && (::GetWindowLong(c->GetSafeHwnd(), GWL_STYLE) & BS_TYPEMASK) == BS_PUSHBUTTON) {
+            if (c == &m_btnPing || c == &m_btnGetStatus || c == &m_btnSendAll) continue;
+            btnW = (std::max)(btnW, Dpi::FitWidth(*c, 0));
+        }
+    }
+    lblW = (std::min)(lblW, sc(230));
+    const int ctlW = sc(92), pad = sc(6), h = sc(23), rowH = sc(28);
     const int colW = lblW + ctlW + btnW + 3 * pad;
     int colX[4] = { sc(12), sc(12) + colW + sc(16), sc(12) + 2 * (colW + sc(16)), sc(12) + 3 * (colW + sc(16)) };
     // Wide: MCU | Radar + derived | Application, chirp preview under the
@@ -635,9 +649,11 @@ void SettingsTab::Relayout()
         m_chkFft.MoveWindow(x + lblW + pad + sc(46), y0, sc(44), h);
         m_btnApplyData.MoveWindow(x + lblW + pad + ctlW + pad, y0, btnW, h);
         y0 += rowH;
-        m_btnPing.MoveWindow(x, y0, sc(70), h);
-        m_btnGetStatus.MoveWindow(x + sc(76), y0, sc(90), h);
-        m_btnSendAll.MoveWindow(x + sc(172), y0, sc(90), h);
+        const int wPing = Dpi::FitWidth(m_btnPing, sc(70)), wStat = Dpi::FitWidth(m_btnGetStatus, sc(90)),
+                  wAll = Dpi::FitWidth(m_btnSendAll, sc(90));
+        m_btnPing.MoveWindow(x, y0, wPing, h);
+        m_btnGetStatus.MoveWindow(x + wPing + pad, y0, wStat, h);
+        m_btnSendAll.MoveWindow(x + wPing + pad + wStat + pad, y0, wAll, h);
         y0 += rowH + sc(6);
     }
     const int yMcuEnd = y0;
@@ -646,19 +662,19 @@ void SettingsTab::Relayout()
     const int colD = wide ? 2 : 0;
     int yD = wide ? sc(10) : y0;
     header(m_hdrDisplay, colD, yD);
-    row(colD, yD, m_lblDark, m_chkDark, nullptr, 0, sc(150));
+    row(colD, yD, m_lblDark, m_chkDark, nullptr, 0, Dpi::FitWidth(m_chkDark, sc(150)));
     row(colD, yD, m_lblLang, m_cmbLang, nullptr, sc(120), ctlW + btnW + pad);
     row(colD, yD, m_lblFsCal, m_edtFsCal);
     row(colD, yD, m_lblPpm, m_edtPpm, &m_btnApplyPpm);
-    row(colD, yD, m_lblVerbose, m_chkVerbose, nullptr, 0, sc(150));
-    row(colD, yD, m_lblAutoConn, m_chkAutoConnect, nullptr, 0, sc(150));
+    row(colD, yD, m_lblVerbose, m_chkVerbose, nullptr, 0, Dpi::FitWidth(m_chkVerbose, sc(150)));
+    row(colD, yD, m_lblAutoConn, m_chkAutoConnect, nullptr, 0, Dpi::FitWidth(m_chkAutoConnect, sc(150)));
     if (!wide) y0 = yD;
 
     // Column 1: Radar + Derived.
     int y1 = narrow ? y0 + sc(10) : sc(10);
     const int col1 = narrow ? 0 : 1;
     header(m_hdrRadar, col1, y1);
-    row(col1, y1, m_lblVco, m_chkVco, nullptr, 0, ctlW + btnW + pad);
+    row(col1, y1, m_lblVco, m_chkVco, nullptr, 0, Dpi::FitWidth(m_chkVco, ctlW + btnW + pad));
     {
         const int x = colX[col1];
         m_lblVtune.MoveWindow(x, y1, lblW, h);
@@ -675,8 +691,9 @@ void SettingsTab::Relayout()
     {
         const int x = colX[col1];
         m_lblChirps.MoveWindow(x, y1, lblW, h);
-        m_chkChirpsAuto.MoveWindow(x + lblW + pad, y1, sc(70), h);
-        m_edtChirps.MoveWindow(x + lblW + pad + sc(74), y1, sc(60), h);
+        const int wAuto = Dpi::FitWidth(m_chkChirpsAuto, sc(70));
+        m_chkChirpsAuto.MoveWindow(x + lblW + pad, y1, wAuto, h);
+        m_edtChirps.MoveWindow(x + lblW + pad + wAuto + pad, y1, sc(60), h);
         y1 += rowH;
     }
     row(col1, y1, m_lblPairV, m_edtPairV);

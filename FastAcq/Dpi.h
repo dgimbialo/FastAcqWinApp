@@ -40,6 +40,41 @@ inline void MakeFont(CFont& f, HWND hwnd, int pt, bool bold = false, LPCTSTR fac
                  VARIABLE_PITCH | FF_SWISS, face);
 }
 
+// Pixel width of a control's caption in its own font.
+inline int TextWidth(CWnd& w)
+{
+    if (!w.GetSafeHwnd()) return 0;
+    CString t; w.GetWindowText(t);
+    if (t.IsEmpty()) return 0;
+    CClientDC dc(&w);
+    CFont* f = w.GetFont();
+    CFont* old = f ? dc.SelectObject(f) : nullptr;
+    const int cx = dc.GetTextExtent(t).cx;
+    if (old) dc.SelectObject(old);
+    return cx;
+}
+
+// Width a control needs for its caption (buttons, check boxes, radios and
+// static labels), never less than `fallbackPx`. Other controls (combos,
+// edits, sliders) keep the fallback. Used so translated captions always fit.
+inline int FitWidth(CWnd& w, int fallbackPx)
+{
+    if (!w.GetSafeHwnd()) return fallbackPx;
+    TCHAR cls[32]{};
+    ::GetClassName(w.GetSafeHwnd(), cls, 31);
+    const int tw = TextWidth(w);
+    if (tw == 0) return fallbackPx;
+    const HWND h = w.GetSafeHwnd();
+    if (_tcsicmp(cls, _T("Button")) == 0) {
+        const LONG style = ::GetWindowLong(h, GWL_STYLE) & BS_TYPEMASK;
+        const bool box = (style == BS_AUTOCHECKBOX || style == BS_CHECKBOX || style == BS_AUTORADIOBUTTON ||
+                          style == BS_RADIOBUTTON || style == BS_3STATE || style == BS_AUTO3STATE);
+        return (std::max)(fallbackPx, tw + Scale(h, box ? 26 : 18));
+    }
+    if (_tcsicmp(cls, _T("Static")) == 0) return (std::max)(fallbackPx, tw + Scale(h, 6));
+    return fallbackPx;
+}
+
 inline void MakeMonoFont(CFont& f, HWND hwnd, int pt)
 {
     if (f.GetSafeHandle()) f.DeleteObject();

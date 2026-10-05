@@ -303,9 +303,9 @@ void ProcPanel::Relayout()
     auto sc = [&](int px) { return ::MulDiv(px, S, 96); };
     CRect rc; GetClientRect(&rc);
 
-    const int lblW = sc(138), pad = sc(6), h = sc(22), rowH = sc(26);
+    const int lblW = LabelWidth(), pad = sc(6), h = sc(22), rowH = sc(26);
     const int x = sc(8);
-    const int ctlW = (std::max)(sc(60), rc.Width() - x - lblW - pad - sc(8));
+    const int ctlW = (std::max)(sc(60), rc.Width() - x - lblW - pad - sc(8) - ::GetSystemMetrics(SM_CXVSCROLL));
     int y = sc(6) - m_scroll;
 
     auto header = [&](CStatic& hdr) { hdr.MoveWindow(x, y, lblW + pad + ctlW, sc(20)); y += sc(24); };
@@ -317,8 +317,11 @@ void ProcPanel::Relayout()
 
     header(m_hdrProc);
     m_lblSource.MoveWindow(x, y, lblW, h);
-    m_rdoSrcRaw.MoveWindow(x + lblW + pad, y, sc(84), h);
-    m_rdoSrcMcu.MoveWindow(x + lblW + pad + sc(86), y, (std::max)(sc(40), ctlW - sc(86)), h);
+    {
+        const int wRaw = Dpi::FitWidth(m_rdoSrcRaw, sc(84));
+        m_rdoSrcRaw.MoveWindow(x + lblW + pad, y, wRaw, h);
+        m_rdoSrcMcu.MoveWindow(x + lblW + pad + wRaw + sc(2), y, (std::max)(sc(40), ctlW - wRaw - sc(2)), h);
+    }
     y += rowH;
     row(m_lblGuard, m_edtGuard);
     row(m_lblDetrend, m_chkDetrend);
@@ -348,8 +351,11 @@ void ProcPanel::Relayout()
     row(m_lblMinSnr, m_edtMinSnr);
     row(m_lblConfirm, m_edtConfirm);
     row(m_lblSpurs, m_edtSpurs);
-    m_btnLearn.MoveWindow(x + lblW + pad, y, sc(90), h);
-    m_btnClearSpurs.MoveWindow(x + lblW + pad + sc(96), y, (std::max)(sc(40), ctlW - sc(96)), h);
+    {
+        const int wLearn = Dpi::FitWidth(m_btnLearn, sc(90));
+        m_btnLearn.MoveWindow(x + lblW + pad, y, wLearn, h);
+        m_btnClearSpurs.MoveWindow(x + lblW + pad + wLearn + pad, y, (std::max)(sc(40), ctlW - wLearn - pad), h);
+    }
     y += rowH + sc(4);
     header(m_hdrDisplay);
     row(m_lblDbTop, m_edtDbTop);
@@ -357,7 +363,7 @@ void ProcPanel::Relayout()
     row(m_lblWfRows, m_edtWfRows);
     row(m_lblAdcBits, m_edtAdcBits);
     row(m_lblVref, m_edtVref);
-    m_btnDefaults.MoveWindow(x + lblW + pad, y, sc(80), h);
+    m_btnDefaults.MoveWindow(x + lblW + pad, y, Dpi::FitWidth(m_btnDefaults, sc(80)), h);
     y += rowH + sc(6);
 
     m_contentH = y + m_scroll;
@@ -367,6 +373,32 @@ void ProcPanel::Relayout()
     const int maxScroll = (std::max)(0, m_contentH - rc.Height());
     if (m_scroll > maxScroll) { m_scroll = maxScroll; Relayout(); return; }
     Invalidate();
+}
+
+int ProcPanel::LabelWidth() const
+{
+    int w = Dpi::Scale(m_hWnd, 138);
+    for (CWnd* c = GetWindow(GW_CHILD); c; c = c->GetWindow(GW_HWNDNEXT)) {
+        TCHAR cls[32]{}; ::GetClassName(c->GetSafeHwnd(), cls, 31);
+        if (_tcsicmp(cls, _T("Static")) != 0) continue;
+        if (c == &m_hdrProc || c == &m_hdrDetect || c == &m_hdrReject || c == &m_hdrDisplay) continue;
+        w = (std::max)(w, Dpi::FitWidth(*c, 0));
+    }
+    return (std::min)(w, Dpi::Scale(m_hWnd, 240));
+}
+
+int ProcPanel::DesiredWidth() const
+{
+    if (!GetSafeHwnd()) return Dpi::Scale(nullptr, kWidth96);
+    int ctl = Dpi::Scale(m_hWnd, 140);
+    for (CWnd* c = GetWindow(GW_CHILD); c; c = c->GetWindow(GW_HWNDNEXT)) {
+        TCHAR cls[32]{}; ::GetClassName(c->GetSafeHwnd(), cls, 31);
+        if (_tcsicmp(cls, _T("Button")) != 0) continue;
+        const LONG st = ::GetWindowLong(c->GetSafeHwnd(), GWL_STYLE) & BS_TYPEMASK;
+        if (st == BS_AUTOCHECKBOX || st == BS_AUTORADIOBUTTON) ctl = (std::max)(ctl, Dpi::FitWidth(*c, 0));
+    }
+    ctl = (std::min)(ctl, Dpi::Scale(m_hWnd, 260));
+    return Dpi::Scale(m_hWnd, 8) + LabelWidth() + Dpi::Scale(m_hWnd, 6) + ctl + Dpi::Scale(m_hWnd, 8) + ::GetSystemMetrics(SM_CXVSCROLL);
 }
 
 void ProcPanel::SetScrollPos(int pos)

@@ -109,8 +109,9 @@ void CommandPanel::Relayout()
     const int pad = sc(4), h = sc(24), rowH = sc(32);
     int x = pad, y = (rowH - h) / 2;
     auto place = [&](CWnd& w, int wpx, int hh = 0) {
-        if (w.GetSafeHwnd()) w.MoveWindow(x, y, sc(wpx), hh ? hh : h);
-        x += sc(wpx) + pad;
+        const int ww = Dpi::FitWidth(w, sc(wpx));
+        if (w.GetSafeHwnd()) w.MoveWindow(x, y, ww, hh ? hh : h);
+        x += ww + pad;
     };
     place(m_cmbCom, 120, sc(200));
     place(m_btnConnect, 90);
@@ -184,6 +185,7 @@ void CommandPanel::SetConnected(bool c)
     m_btnTrigger.EnableWindow(c);
     m_btnAbort.EnableWindow(c);
     if (!c) SetRunning(false);
+    Relayout();
 }
 
 void CommandPanel::SetRunning(bool running)
@@ -195,6 +197,7 @@ void CommandPanel::SetHold(bool hold)
 {
     m_hold = hold;
     if (m_btnHold.GetSafeHwnd()) m_btnHold.SetWindowText(hold ? _T("\u25B6 Live") : _T("\u23F8 Hold"));
+    Relayout();
 }
 
 void CommandPanel::SetRecording(bool rec, const CString& info)
@@ -202,6 +205,7 @@ void CommandPanel::SetRecording(bool rec, const CString& info)
     m_recording = rec;
     if (m_btnRecord.GetSafeHwnd()) m_btnRecord.SetWindowText(rec ? _T("\u25A0 Stop rec") : _T("\u25CF Record"));
     if (m_lblRec.GetSafeHwnd()) { m_lblRec.SetWindowText(info); m_lblRec.Invalidate(); }
+    Relayout();
 }
 
 void CommandPanel::SetReplay(bool active, const CString& name, int count)

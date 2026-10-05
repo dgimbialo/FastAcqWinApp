@@ -12,7 +12,9 @@
 
 class ProcPanel : public CWnd {
 public:
-    static constexpr int kWidth96 = 300;      // panel width at 96 dpi
+    static constexpr int kWidth96 = 300;      // minimum panel width at 96 dpi
+    // Width needed so the longest label and check-box caption fit.
+    int DesiredWidth() const;
 
     BOOL CreatePanel(CWnd* parent, UINT id);
 
@@ -42,6 +44,7 @@ protected:
 private:
     void Relayout();
     void SetScrollPos(int pos);
+    int  LabelWidth() const;
     void NotifyChanged();
     static int    GetInt(const CEdit& e, int def);
     static double GetDouble(const CEdit& e, double def);

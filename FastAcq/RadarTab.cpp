@@ -257,7 +257,7 @@ void RadarTab::Relayout()
     const int splitH = sc(kSplitH96), footerH = sc(kFooterH96), minPane = sc(kMinPane96);
     const int cxAll = rc.Width(), cy = rc.Height();
     // Settings column on the right; the plots take the rest.
-    const int panelW = sc(ProcPanel::kWidth96);
+    const int panelW = (std::max)(sc(ProcPanel::kWidth96), m_proc.GetSafeHwnd() ? m_proc.DesiredWidth() : 0);
     const int cx = (std::max)(50, cxAll - panelW - sc(4));
     if (m_proc.GetSafeHwnd()) m_proc.MoveWindow(cx + sc(4), 0, cxAll - cx - sc(4), cy);
     if (cx < 50 || cy < footerH + 3 * minPane) return;
@@ -298,8 +298,9 @@ void RadarTab::Relayout()
     const int h = sc(22);
     int x = sc(6);
     auto place = [&](CWnd& w, int wpx, int extraH = 0) {
-        if (w.GetSafeHwnd()) w.MoveWindow(x, fy, sc(wpx), extraH ? extraH : h);
-        x += sc(wpx) + sc(4);
+        const int ww = Dpi::FitWidth(w, sc(wpx));
+        if (w.GetSafeHwnd()) w.MoveWindow(x, fy, ww, extraH ? extraH : h);
+        x += ww + sc(4);
     };
     place(m_lblTrace, 40);
     place(m_cmbTrace, 95, sc(200));
