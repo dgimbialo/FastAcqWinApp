@@ -4,14 +4,21 @@ FastAcq device emulator for end-to-end host testing without hardware.
 Speaks the binary CMD/FRAME protocol on a com0com port (pair the host with
 the other end). Implements ACK/STATUS/PONG, synthetic RAW chirp frames using
 the SET_RAMP / START_CHIRP geometry, and TRACE frames (test mode) with a
-realistic step timeline. Usage:  python device_emu.py COM9
+realistic step timeline. Usage:  python device_emu.py COM9 [--v2]
+  --v2   send protocol v2 frames (magic 0xFACEDA7B, 72-byte header with the
+         interpolated peak and the exact samples per chirp / rise samples)
 """
 import sys, time, struct, math, random, threading
 import serial
 
-PORT = sys.argv[1] if len(sys.argv) > 1 else "COM9"
+ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
+PORT = ARGS[0] if ARGS else "COM9"
+V2   = "--v2" in sys.argv
 
-MAGIC = 0xFACEDA7A
+MAGIC_V1 = 0xFACEDA7A
+MAGIC_V2 = 0xFACEDA7B
+MAGIC    = MAGIC_V2 if V2 else MAGIC_V1
+HEADER_V2_SIZE = 72
 FS    = 60_000_000
 CHUNK = 16384
 
@@ -42,9 +49,13 @@ def crc32(data, crc=0xFFFFFFFF):
     return crc
 
 def header(frame_id, ts, n_samples, freq, flags, fft_size=0, peak_bin=0, peak_mag=0.0,
-           res=0.0, raw_bytes=0, fft_bytes=0, reserved=b"\0"*8, srate=FS, reserved0=0):
-    return struct.pack("<IIIIIHBBIIffII8s", MAGIC, frame_id, ts, n_samples, srate, freq,
-                       flags, reserved0, fft_size, peak_bin, peak_mag, res, raw_bytes, fft_bytes, reserved)
+           res=0.0, raw_bytes=0, fft_bytes=0, reserved=b"\0"*8, srate=FS, reserved0=0,
+           peak_hz=0.0, samples_per_chirp=0, rise_samples=0):
+    h = struct.pack("<IIIIIHBBIIffII8s", MAGIC, frame_id, ts, n_samples, srate, freq,
+                    flags, reserved0, fft_size, peak_bin, peak_mag, res, raw_bytes, fft_bytes, reserved)
+    if V2:   # FrameHeaderExt: peak_freq_hz, header_size, proto_version, reserved2, samples_per_chirp, rise_samples
+        h += struct.pack("<fHBBII", peak_hz, HEADER_V2_SIZE, 2, 0, samples_per_chirp, rise_samples)
+    return h
 
 class Dev:
     def __init__(self, ser):
@@ -142,7 +153,8 @@ class Dev:
             struct.pack_into("<H", smp, i * 2, v)
         res = struct.pack("<HHHH", self.amp, self.burst, min(rise, 65535), min(fall, 65535))
         self.frame_id += 1
-        hdr = header(self.frame_id, ts, n, f_act, F_RAW, raw_bytes=raw_bytes, reserved=res)
+        hdr = header(self.frame_id, ts, n, f_act, F_RAW, raw_bytes=raw_bytes, reserved=res,
+                     samples_per_chirp=per_n, rise_samples=rise_n)
         tx0 = time.time()
         self.send(hdr, bytes(smp))
         tx_ms = int((time.time() - tx0) * 1000)
@@ -198,7 +210,7 @@ class Dev:
 def main():
     ser = serial.Serial(PORT, 921600, timeout=0.05)
     dev = Dev(ser)
-    print(f"emulator on {PORT}; waiting for commands")
+    print(f"emulator on {PORT} (protocol {'v2' if V2 else 'v1'}); waiting for commands")
     buf = b""
     while True:
         data = ser.read(64)

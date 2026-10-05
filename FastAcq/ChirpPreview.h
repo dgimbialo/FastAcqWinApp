@@ -4,51 +4,34 @@
 // generate from the values typed on the Settings tab: triangle waveform with
 // rise / fall / amplitude / period annotations, burst repetition, ADC capture
 // window (samples, DMA chunks) and the interval / trigger gap to the next
-// cycle. Geometry is computed with the same integer-tick rules as the
-// firmware (chirp_dac.c), so the numbers shown are what the device applies.
+// cycle. Geometry comes from core::ComputeChirpGeometry (the same integer
+// tick rules as the firmware), so the numbers shown are what the device
+// applies. Follows the application theme and the monitor DPI.
 //
 
 #include "pch.h"
-
-struct ChirpParams {
-    uint32_t freqHz{458};      // used when riseUs == 0 || fallUs == 0
-    uint32_t riseUs{0};
-    uint32_t fallUs{0};
-    uint32_t amplitude{4095};  // DAC counts
-    uint32_t burst{1};         // chirps per capture
-    uint32_t intervalMs{30};   // CONTINUOUS pause
-    uint32_t samplesOvr{0};    // 0 = auto
-    int      mode{1};          // 0 IDLE, 1 CONTINUOUS, 2 SINGLE
-};
-
-// Result of the firmware geometry rules (mirror of chirp_geometry_t).
-struct ChirpGeometry {
-    bool     valid{false};
-    bool     rampMode{false};
-    uint32_t tableLen{0}, riseLen{0}, ticksPerSample{0}, periodTicks{0};
-    uint32_t samplesPerChirp{0}, riseSamples{0}, samplesPerBurst{0};
-    uint32_t captureTarget{0}, chunks{0};
-    double   riseUs{0}, fallUs{0}, periodUs{0}, freqHz{0};
-};
-
-ChirpGeometry ComputeChirpGeometry(const ChirpParams& p);
+#include "Core/ChirpGeometry.h"
 
 class ChirpPreviewCtrl : public CWnd {
 public:
     BOOL CreateCtrl(CWnd* parent, UINT id);
-    void SetParams(const ChirpParams& p);
+    void SetParams(const core::ChirpParams& p);
+    const core::ChirpGeometry& Geometry() const { return m_g; }
+    void ApplyTheme();
 
 protected:
     afx_msg int  OnCreate(LPCREATESTRUCT);
     afx_msg void OnPaint();
     afx_msg BOOL OnEraseBkgnd(CDC*) { return TRUE; }
     afx_msg void OnSize(UINT, int, int);
+    afx_msg LRESULT OnDpiChangedAfterParent(WPARAM, LPARAM);
     DECLARE_MESSAGE_MAP()
 
 private:
+    void MakeFonts();
     void Render(CDC& dc, const CRect& rc);
 
-    ChirpParams   m_p;
-    ChirpGeometry m_g;
+    core::ChirpParams   m_p;
+    core::ChirpGeometry m_g;
     CFont m_font, m_boldFont, m_smallFont;
 };

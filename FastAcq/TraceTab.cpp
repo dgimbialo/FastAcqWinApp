@@ -1,8 +1,11 @@
 #include "pch.h"
 #include "TraceTab.h"
 #include "AppMessages.h"
+#include "Dpi.h"
 #include "ProtocolDefs.h"
+#include "Theme.h"
 #include "resource.h"
+
 #include <cstring>
 
 // ---------------------------------------------------------------------------
@@ -149,115 +152,159 @@ CString TraceEventDetails(const TraceRecord& r)
 }
 
 // ---------------------------------------------------------------------------
-BEGIN_MESSAGE_MAP(TraceTabWnd, CWnd)
+BEGIN_MESSAGE_MAP(TraceTab, CWnd)
     ON_WM_CREATE()
     ON_WM_SIZE()
-    ON_BN_CLICKED(IDC_TRC_CHK_ENABLE, &TraceTabWnd::OnTraceToggle)
-    ON_BN_CLICKED(IDC_TRC_BTN_SHOT,   &TraceTabWnd::OnSingleShot)
-    ON_BN_CLICKED(IDC_TRC_BTN_GET,    &TraceTabWnd::OnGetTrace)
-    ON_BN_CLICKED(IDC_TRC_BTN_CLEAR,  &TraceTabWnd::OnClear)
-    ON_BN_CLICKED(IDC_TRC_BTN_EXPORT, &TraceTabWnd::OnExport)
+    ON_WM_ERASEBKGND()
+    ON_WM_CTLCOLOR()
+    ON_BN_CLICKED(IDC_TRC_CHK_ENABLE, &TraceTab::OnTraceToggle)
+    ON_BN_CLICKED(IDC_TRC_BTN_SHOT,   &TraceTab::OnSingleShot)
+    ON_BN_CLICKED(IDC_TRC_BTN_GET,    &TraceTab::OnGetTrace)
+    ON_BN_CLICKED(IDC_TRC_BTN_CLEAR,  &TraceTab::OnClear)
+    ON_BN_CLICKED(IDC_TRC_BTN_EXPORT, &TraceTab::OnExport)
 END_MESSAGE_MAP()
 
-BOOL TraceTabWnd::CreateTab(CWnd* parent, UINT id)
+BOOL TraceTab::CreateTab(CWnd* parent, UINT id)
 {
-    LPCTSTR cls = AfxRegisterWndClass(0, ::LoadCursor(nullptr, IDC_ARROW),
-                                      reinterpret_cast<HBRUSH>(COLOR_BTNFACE + 1),
-                                      nullptr);
-    return Create(cls, nullptr, WS_CHILD, CRect(0, 0, 10, 10), parent, id);
+    LPCTSTR cls = AfxRegisterWndClass(0, ::LoadCursor(nullptr, IDC_ARROW), nullptr, nullptr);
+    return Create(cls, nullptr, WS_CHILD | WS_CLIPCHILDREN, CRect(0, 0, 10, 10), parent, id);
 }
 
-int TraceTabWnd::OnCreate(LPCREATESTRUCT lpcs)
+int TraceTab::OnCreate(LPCREATESTRUCT lpcs)
 {
     if (CWnd::OnCreate(lpcs) == -1) return -1;
-
-    m_font.CreatePointFont(90, _T("Segoe UI"));
+    m_bgBrush.CreateSolidBrush(Theme::Get().bg);
+    Dpi::MakeFont(m_font, m_hWnd, 9);
 
     const DWORD bs = WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON;
     CRect rc(0, 0, 100, 22);
 
     m_chkTrace.Create(_T("Trace enabled (MCU test mode)"),
                       WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, rc, this, IDC_TRC_CHK_ENABLE);
-    m_btnShot.Create  (_T("Single shot"), bs, rc, this, IDC_TRC_BTN_SHOT);
-    m_btnGet.Create   (_T("Get trace"),   bs, rc, this, IDC_TRC_BTN_GET);
-    m_btnClear.Create (_T("Clear"),       bs, rc, this, IDC_TRC_BTN_CLEAR);
+    m_btnShot.Create  (_T("Single shot"),   bs, rc, this, IDC_TRC_BTN_SHOT);
+    m_btnGet.Create   (_T("Get trace"),     bs, rc, this, IDC_TRC_BTN_GET);
+    m_btnClear.Create (_T("Clear"),         bs, rc, this, IDC_TRC_BTN_CLEAR);
     m_btnExport.Create(_T("Export CSV..."), bs, rc, this, IDC_TRC_BTN_EXPORT);
     m_lblSummary.Create(_T("No trace received. Enable trace, then fire a single shot."),
-                        WS_CHILD | WS_VISIBLE | SS_LEFT | SS_ENDELLIPSIS, rc, this);
+                        WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE | SS_ENDELLIPSIS, rc, this, IDC_TRC_LBL_SUMMARY);
 
     m_list.Create(WS_CHILD | WS_VISIBLE | WS_BORDER | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS,
                   rc, this, IDC_TRC_LIST);
     m_list.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_GRIDLINES);
-    m_list.InsertColumn(0, _T("#"),        LVCFMT_RIGHT,  44);
-    m_list.InsertColumn(1, _T("t, us"),    LVCFMT_RIGHT,  90);
-    m_list.InsertColumn(2, _T("dt, us"),   LVCFMT_RIGHT,  80);
-    m_list.InsertColumn(3, _T("tick, ms"), LVCFMT_RIGHT,  80);
-    m_list.InsertColumn(4, _T("ctx"),      LVCFMT_LEFT,   46);
-    m_list.InsertColumn(5, _T("event"),    LVCFMT_LEFT,  130);
-    m_list.InsertColumn(6, _T("details"),  LVCFMT_LEFT,  700);
+    const int S = static_cast<int>(Dpi::Of(m_hWnd));
+    auto sc = [&](int px) { return ::MulDiv(px, S, 96); };
+    m_list.InsertColumn(0, _T("#"),        LVCFMT_RIGHT, sc(44));
+    m_list.InsertColumn(1, _T("t, us"),    LVCFMT_RIGHT, sc(90));
+    m_list.InsertColumn(2, _T("dt, us"),   LVCFMT_RIGHT, sc(80));
+    m_list.InsertColumn(3, _T("tick, ms"), LVCFMT_RIGHT, sc(80));
+    m_list.InsertColumn(4, _T("ctx"),      LVCFMT_LEFT,  sc(46));
+    m_list.InsertColumn(5, _T("event"),    LVCFMT_LEFT,  sc(130));
+    m_list.InsertColumn(6, _T("details"),  LVCFMT_LEFT,  sc(700));
 
-    CWnd* kids[] = { &m_chkTrace, &m_btnShot, &m_btnGet, &m_btnClear, &m_btnExport,
-                     &m_lblSummary, &m_list };
+    CWnd* kids[] = { &m_chkTrace, &m_btnShot, &m_btnGet, &m_btnClear, &m_btnExport, &m_lblSummary, &m_list };
     for (auto* c : kids) c->SetFont(&m_font);
 
     SetConnected(false);
+    ApplyTheme();
     return 0;
 }
 
-void TraceTabWnd::OnSize(UINT t, int cx, int cy)
+void TraceTab::ApplyTheme()
+{
+    const Theme::Palette& th = Theme::Get();
+    if (m_bgBrush.GetSafeHandle()) m_bgBrush.DeleteObject();
+    m_bgBrush.CreateSolidBrush(th.bg);
+    if (m_list.GetSafeHwnd()) {
+        m_list.SetBkColor(th.plot);
+        m_list.SetTextBkColor(th.plot);
+        m_list.SetTextColor(th.text);
+        m_list.Invalidate();
+    }
+    Invalidate();
+    CWnd* pw = GetWindow(GW_CHILD);
+    while (pw) { pw->Invalidate(); pw = pw->GetWindow(GW_HWNDNEXT); }
+}
+
+BOOL TraceTab::OnEraseBkgnd(CDC* pDC)
+{
+    CRect rc; GetClientRect(&rc);
+    pDC->FillSolidRect(rc, Theme::Get().bg);
+    return TRUE;
+}
+
+HBRUSH TraceTab::OnCtlColor(CDC* pDC, CWnd*, UINT nCtlColor)
+{
+    if (nCtlColor == CTLCOLOR_STATIC || nCtlColor == CTLCOLOR_BTN) {
+        pDC->SetBkMode(TRANSPARENT);
+        pDC->SetTextColor(Theme::Get().text);
+        return static_cast<HBRUSH>(m_bgBrush.GetSafeHandle());
+    }
+    pDC->SetTextColor(Theme::Get().text);
+    pDC->SetBkColor(Theme::Get().bg);
+    return static_cast<HBRUSH>(m_bgBrush.GetSafeHandle());
+}
+
+void TraceTab::OnSize(UINT t, int cx, int cy)
 {
     CWnd::OnSize(t, cx, cy);
     Relayout();
 }
 
-void TraceTabWnd::Relayout()
+void TraceTab::Relayout()
 {
     if (!m_list.GetSafeHwnd()) return;
     CRect rc; GetClientRect(&rc);
-    const int pad = 6, h = 24;
+    const int S = static_cast<int>(Dpi::Of(m_hWnd));
+    auto sc = [&](int px) { return ::MulDiv(px, S, 96); };
+    const int pad = sc(6), h = sc(24);
     int x = pad, y = pad;
     auto place = [&](CWnd& w, int ww) { w.MoveWindow(x, y, ww, h); x += ww + pad; };
-    place(m_chkTrace, 220);
-    place(m_btnShot,   90);
-    place(m_btnGet,    90);
-    place(m_btnClear,  70);
-    place(m_btnExport, 110);
-    m_lblSummary.MoveWindow(x, y + 3, (std::max)(50, rc.Width() - x - pad), 18);
-    int top = pad + h + pad;
+    place(m_chkTrace, sc(220));
+    place(m_btnShot,  sc(90));
+    place(m_btnGet,   sc(90));
+    place(m_btnClear, sc(70));
+    place(m_btnExport, sc(110));
+    m_lblSummary.MoveWindow(x, y, (std::max)(sc(50), rc.Width() - x - pad), h);
+    const int top = pad + h + pad;
     m_list.MoveWindow(0, top, rc.Width(), (std::max)(10, rc.Height() - top));
 }
 
-void TraceTabWnd::SetConnected(bool c)
+void TraceTab::SetConnected(bool c)
 {
     m_connected = c;
-    m_chkTrace.EnableWindow(c);
+    m_chkTrace.EnableWindow(c && m_traceAvail);
     m_btnShot.EnableWindow(c);
-    m_btnGet.EnableWindow(c);
+    m_btnGet.EnableWindow(c && m_traceAvail);
 }
 
-void TraceTabWnd::SetDeviceTraceEnabled(bool on)
+void TraceTab::SetDeviceTraceState(bool enabled, bool available)
 {
-    if (m_chkTrace.GetSafeHwnd())
-        m_chkTrace.SetCheck(on ? BST_CHECKED : BST_UNCHECKED);
+    m_traceAvail = available;
+    if (m_chkTrace.GetSafeHwnd()) {
+        m_chkTrace.SetCheck(enabled ? BST_CHECKED : BST_UNCHECKED);
+        m_chkTrace.SetWindowText(available ? _T("Trace enabled (MCU test mode)")
+                                           : _T("Trace not compiled into firmware"));
+    }
+    SetConnected(m_connected);
 }
 
-bool TraceTabWnd::IsTraceRequested() const
+bool TraceTab::IsTraceRequested() const
 {
     return m_chkTrace.GetSafeHwnd() && m_chkTrace.GetCheck() == BST_CHECKED;
 }
 
-void TraceTabWnd::PostToMain(UINT msg, WPARAM wp, LPARAM lp)
+void TraceTab::PostToMain(UINT msg, WPARAM wp, LPARAM lp)
 {
     CWnd* pMain = AfxGetMainWnd();
     if (pMain && ::IsWindow(pMain->GetSafeHwnd()))
         pMain->PostMessage(msg, wp, lp);
 }
 
-void TraceTabWnd::OnTraceToggle() { PostToMain(WM_APP_CMD_SET_TRACE, IsTraceRequested() ? 1 : 0); }
-void TraceTabWnd::OnSingleShot()  { PostToMain(WM_APP_CMD_SINGLE_SHOT); }
-void TraceTabWnd::OnGetTrace()    { PostToMain(WM_APP_CMD_GET_TRACE); }
+void TraceTab::OnTraceToggle() { PostToMain(WM_APP_CMD_SET_TRACE, IsTraceRequested() ? 1 : 0); }
+void TraceTab::OnSingleShot()  { PostToMain(WM_APP_CMD_SINGLE_SHOT); }
+void TraceTab::OnGetTrace()    { PostToMain(WM_APP_CMD_GET_TRACE); }
 
-void TraceTabWnd::OnClear()
+void TraceTab::OnClear()
 {
     m_records.clear();
     m_list.DeleteAllItems();
@@ -265,7 +312,7 @@ void TraceTabWnd::OnClear()
 }
 
 // ---------------------------------------------------------------------------
-void TraceTabWnd::ShowTrace(const ChirpFrame& f)
+void TraceTab::ShowTrace(const ChirpFrame& f)
 {
     m_hdr = f.header;
     m_records.clear();
@@ -277,18 +324,18 @@ void TraceTabWnd::ShowTrace(const ChirpFrame& f)
     Rebuild();
 }
 
-void TraceTabWnd::Rebuild()
+void TraceTab::Rebuild()
 {
     m_list.SetRedraw(FALSE);
     m_list.DeleteAllItems();
 
-    uint32_t t0 = m_records.empty() ? 0 : m_records.front().t_us;
+    const uint32_t t0 = m_records.empty() ? 0 : m_records.front().t_us;
     uint32_t prev = t0;
     int row = 0;
     CString s;
     for (const auto& r : m_records) {
         s.Format(_T("%d"), row + 1);
-        int it = m_list.InsertItem(row, s);
+        const int it = m_list.InsertItem(row, s);
         s.Format(_T("%u"), r.t_us - t0);        m_list.SetItemText(it, 1, s);
         s.Format(_T("+%u"), r.t_us - prev);     m_list.SetItemText(it, 2, s);
         s.Format(_T("%u"), r.tick_ms);          m_list.SetItemText(it, 3, s);
@@ -301,22 +348,22 @@ void TraceTabWnd::Rebuild()
     m_list.SetRedraw(TRUE);
     m_list.Invalidate();
 
-    uint32_t span = m_records.empty() ? 0 : (m_records.back().t_us - t0);
-    s.Format(_T("%u records (%u dropped), span %u.%03u ms, capture tick %u ms, chirp %u Hz, "
-                "amp %u, burst %u, rise/fall %u/%u us"),
+    const uint32_t span = m_records.empty() ? 0 : (m_records.back().t_us - t0);
+    s.Format(_T("%u records (%u dropped), span %u.%03u ms, capture tick %u ms, chirp %u Hz, ")
+             _T("amp %u, burst %u, rise/fall %u/%u us"),
              static_cast<unsigned>(m_records.size()), m_hdr.fft_peak_bin,
              span / 1000, span % 1000, m_hdr.timestamp_ms, m_hdr.chirp_freq_hz,
              HeaderAmplitude(m_hdr), HeaderBurst(m_hdr), HeaderRiseUs(m_hdr), HeaderFallUs(m_hdr));
     m_lblSummary.SetWindowText(s);
 }
 
-void TraceTabWnd::OnExport()
+void TraceTab::OnExport()
 {
     if (m_records.empty()) { AfxMessageBox(_T("No trace to export.")); return; }
     CString defName;
     defName.Format(_T("trace_%u.csv"), m_hdr.timestamp_ms);
     CFileDialog dlg(FALSE, _T("csv"), defName, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,
-                    _T("CSV files (*.csv)|*.csv|All files (*.*)|*.*||"));
+                    _T("CSV files (*.csv)|*.csv|All files (*.*)|*.*||"), this);
     if (dlg.DoModal() != IDOK) return;
 
     CStdioFile fp;
@@ -330,7 +377,8 @@ void TraceTabWnd::OnExport()
                 HeaderRiseUs(m_hdr), HeaderFallUs(m_hdr), m_hdr.fft_peak_bin);
     fp.WriteString(line);
     fp.WriteString(_T("index,t_us,dt_us,tick_ms,ctx,event,a,b,c,details\n"));
-    uint32_t t0 = m_records.front().t_us, prev = t0;
+    const uint32_t t0 = m_records.front().t_us;
+    uint32_t prev = t0;
     int i = 1;
     for (const auto& r : m_records) {
         CString det = TraceEventDetails(r);

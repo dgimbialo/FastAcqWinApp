@@ -1,21 +1,26 @@
 #pragma once
 //
-// SettingsTabWnd -- "Settings" tab hosting all MCU acquisition configuration
-// (mode, chirp frequency, samples, interval, data mask, amplitude, burst)
-// plus PC-side processing mode and diagnostics (Ping / Status).
-// Posts the same WM_APP_CMD_* messages as CommandPanel, to the main frame.
-// Native Win32 look: standard buttons, system colors.
+// SettingsTab -- MCU acquisition, radar geometry, processing chain, display
+// and application settings in three columns, with a live "derived values"
+// read-out (range resolution, max range, velocity limits, USB load...).
 //
 
 #include "pch.h"
+#include "AppSettings.h"
 #include "ChirpPreview.h"
 
-class SettingsTabWnd : public CWnd {
+class SettingsTab : public CWnd {
 public:
     BOOL CreateTab(CWnd* parent, UINT id);
 
     void SetConnected(bool c);
+    void ApplySettings(const AppSettings& s);     // settings -> controls
+    void ReadInto(AppSettings& s) const;          // controls -> settings
+    void SetObserved(double fsHz, size_t samplesPerFrame, size_t mcuFftSize);
+    void RefreshDerived();
+    void ApplyTheme();
 
+    // MCU values as currently typed (used by Start / Send all).
     uint16_t GetFreqHz() const;
     uint32_t GetSamples() const;
     uint16_t GetModeSel() const;
@@ -23,95 +28,116 @@ public:
     uint16_t GetIntervalMs() const;
     uint16_t GetAmplitude() const;
     uint16_t GetBurst() const;
-    void     GetRampUs(uint16_t& riseUs, uint16_t& fallUs) const;
-    bool     IsPcRawMode() const;
-    // ADC clock correction, ppm (+ = ADC clock fast). Persisted in
-    // %APPDATA%\FastAcq\FastAcq.ini, [Calibration] FsPpm.
-    double   GetFsPpm() const { return m_fsPpm; }
+    uint16_t GetRiseUs() const;       // 0 when the chirp is defined by its frequency
+    uint16_t GetFallUs() const;
+    double   GetFsPpm() const;
 
 protected:
-    afx_msg int  OnCreate(LPCREATESTRUCT lpcs);
-    afx_msg void OnSize(UINT, int, int);
-    afx_msg void OnApplyMode();
-    afx_msg void OnSetFreq();
-    afx_msg void OnSetSamples();
-    afx_msg void OnApplyInterval();
-    afx_msg void OnApplyData();
-    afx_msg void OnSetAmplitude();
-    afx_msg void OnSetBurst();
-    afx_msg void OnSetRamp();
-    afx_msg void OnPing();
-    afx_msg void OnGetStatus();
-    afx_msg void OnPcModeChanged();
-    afx_msg void OnApplyPpm();
-    afx_msg void OnParamChanged();   // any edit / mode change -> redraw preview
-    afx_msg void OnFreqChanged();    // freq edited -> rise/fall follow (symmetric), freq mode
-    afx_msg void OnRampChanged();    // rise/fall edited -> freq follows, ramp mode
+    afx_msg int    OnCreate(LPCREATESTRUCT lpcs);
+    afx_msg void   OnSize(UINT, int, int);
+    afx_msg BOOL   OnEraseBkgnd(CDC* pDC);
+    afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
+    afx_msg void   OnApplyMode();
+    afx_msg void   OnSetFreq();
+    afx_msg void   OnSetSamples();
+    afx_msg void   OnApplyInterval();
+    afx_msg void   OnApplyData();
+    afx_msg void   OnSetAmplitude();
+    afx_msg void   OnSetBurst();
+    afx_msg void   OnSetRamp();
+    afx_msg void   OnApplyPpm();
+    afx_msg void   OnFreqChanged();               // mirror frequency -> rise/fall
+    afx_msg void   OnRampChanged();               // mirror rise/fall -> frequency
+    afx_msg void   OnPreviewInput(UINT id);       // any chirp parameter typed: refresh the preview
+    afx_msg void   OnModeSelChanged();
+    afx_msg void   OnPing();
+    afx_msg void   OnGetStatus();
+    afx_msg void   OnSendAll();
+    afx_msg void   OnApplyProc();
+    afx_msg void   OnDefaults();
+    afx_msg void   OnAutoApply();                 // combos / checkboxes / radios
+    afx_msg void   OnAutoApplyRange(UINT id);
+    afx_msg void   OnEditKillFocus(UINT id);
     DECLARE_MESSAGE_MAP()
 
 private:
     void Relayout();
     void PostToMain(UINT msg, WPARAM wp = 0, LPARAM lp = 0);
+    void NotifyChanged();
     void UpdatePreview();
-    bool ControlsReady() const;
-    static CString IniPath();
-    void LoadFsPpm();
-    void SaveFsPpm() const;
+    static int    GetInt(const CEdit& e, int def);
+    static double GetDouble(const CEdit& e, double def);
+    static void   SetInt(CEdit& e, long long v);
+    static void   SetDouble(CEdit& e, double v, LPCTSTR fmt = _T("%g"));
 
+    // --- MCU acquisition
+    CStatic m_hdrMcu;
+    CStatic m_lblMode;      CComboBox m_cmbMode;      CButton m_btnApplyMode;
+    CStatic m_lblFreq;      CEdit m_edtFreq;          CButton m_btnSetFreq;
+    CStatic m_lblSamples;   CEdit m_edtSamples;       CButton m_btnSetSamples;
+    CStatic m_lblInterval;  CEdit m_edtInterval;      CButton m_btnApplyInterval;
+    CStatic m_lblAmplitude; CEdit m_edtAmplitude;     CButton m_btnSetAmp;
+    CStatic m_lblBurst;     CEdit m_edtBurst;         CButton m_btnSetBurst;
+    CStatic m_lblRamp;      CEdit m_edtRise;          CEdit m_edtFall;       CButton m_btnSetRamp;
+    CStatic m_lblData;      CButton m_chkRaw;         CButton m_chkFft;      CButton m_btnApplyData;
+    CButton m_btnPing;      CButton m_btnGetStatus;   CButton m_btnSendAll;
+    CStatic m_hdrSource;
+    CStatic m_lblSource;    CButton m_rdoSrcRaw;      CButton m_rdoSrcMcu;
+    // --- Radar
+    CStatic m_hdrRadar;
+    CStatic m_lblF0;        CEdit m_edtF0;
+    CStatic m_lblBw;        CEdit m_edtBw;
+    CStatic m_lblTramp;     CEdit m_edtTramp;
+    CStatic m_lblRoff;      CEdit m_edtRoff;
+    CStatic m_lblShape;     CComboBox m_cmbShape;
+    CStatic m_lblChirps;    CButton m_chkChirpsAuto;  CEdit m_edtChirps;
+    CStatic m_lblPairV;     CEdit m_edtPairV;
+    // --- Display
+    CStatic m_hdrDisplay;
+    CStatic m_lblDbTop;     CEdit m_edtDbTop;
+    CStatic m_lblDbBottom;  CEdit m_edtDbBottom;
+    CStatic m_lblPalette;   CComboBox m_cmbPalette;
+    CStatic m_lblWfRows;    CEdit m_edtWfRows;
+    CStatic m_lblDark;      CButton m_chkDark;
+    CStatic m_lblAdcBits;   CEdit m_edtAdcBits;
+    CStatic m_lblVref;      CEdit m_edtVref;
+    CStatic m_lblFsCal;     CEdit m_edtFsCal;
+    CStatic m_lblPpm;       CEdit m_edtPpm;           CButton m_btnApplyPpm;
+    CStatic m_lblVerbose;   CButton m_chkVerbose;
+    CStatic m_lblAutoConn;  CButton m_chkAutoConnect;
+    // --- Processing
+    CStatic m_hdrProc;
+    CStatic m_lblGuard;     CEdit m_edtGuard;
+    CStatic m_lblDetrend;   CButton m_chkDetrend;
+    CStatic m_lblDecim;     CComboBox m_cmbDecim;
+    CStatic m_lblMaxRange;  CEdit m_edtMaxRange;
+    CStatic m_lblWindow;    CComboBox m_cmbWindow;
+    CStatic m_lblKaiser;    CEdit m_edtKaiser;
+    CStatic m_lblZeroPad;   CComboBox m_cmbZeroPad;
+    CStatic m_lblRangeGain; CComboBox m_cmbRangeGain;
+    CStatic m_lblDetector;  CComboBox m_cmbDetector;
+    CStatic m_lblThresh;    CEdit m_edtThresh;
+    CStatic m_lblPfa;       CComboBox m_cmbPfa;
+    CStatic m_lblCfarGuard; CEdit m_edtCfarGuard;
+    CStatic m_lblCfarTrain; CEdit m_edtCfarTrain;
+    CStatic m_lblInterp;    CComboBox m_cmbInterp;
+    CStatic m_lblMaxPeaks;  CEdit m_edtMaxPeaks;
+    CStatic m_lblMti;       CButton m_chkMti;
+    CStatic m_lblTrack;     CButton m_chkTrack;
+    CStatic m_lblFwGeom;    CButton m_chkFwGeom;
+    CStatic m_lblTone;      CButton m_chkTone;
+    CButton m_btnApplyProc; CButton m_btnDefaults;
+    CStatic m_hdrDerived;   CStatic m_lblDerived;
     ChirpPreviewCtrl m_preview;
-    bool m_rampMode{false};   // which of freq / rise-fall was edited last
-    bool m_syncing{false};    // guard against EN_CHANGE recursion while mirroring
 
-    // MCU acquisition settings
-    CStatic   m_lblMode;
-    CComboBox m_cmbMode;
-    CButton   m_btnApplyMode;
-    CStatic   m_lblFreq;
-    CEdit     m_edtFreq;
-    CButton   m_btnSetFreq;
-    CStatic   m_lblSamples;
-    CEdit     m_edtSamples;
-    CButton   m_btnSetSamples;
-    CStatic   m_lblInterval;
-    CEdit     m_edtInterval;
-    CButton   m_btnApplyInterval;
-    CStatic   m_lblAmplitude;
-    CEdit     m_edtAmplitude;
-    CButton   m_btnSetAmp;
-    CStatic   m_lblBurst;
-    CEdit     m_edtBurst;
-    CButton   m_btnSetBurst;
-    CStatic   m_lblRamp;
-    CEdit     m_edtRise;
-    CEdit     m_edtFall;
-    CButton   m_btnSetRamp;
-
-    // Data selection
-    CStatic   m_lblData;
-    CButton   m_chkRaw;
-    CButton   m_chkFft;
-    CButton   m_btnApplyData;
-
-    // Diagnostics
-    CButton   m_btnPing;
-    CButton   m_btnGetStatus;
-
-    // PC-side processing
-    CStatic   m_lblPcMode;
-    CButton   m_rdoPcRaw;
-    CButton   m_rdoPcFft;
-    CStatic   m_lblPpm;
-    CEdit     m_edtPpm;
-    CButton   m_btnApplyPpm;
-    CStatic   m_lblPpmHint;
-    double    m_fsPpm{0.0};
-
-    // Section headers
-    CStatic   m_hdrMcu;
-    CStatic   m_hdrData;
-    CStatic   m_hdrPc;
-
-    CFont     m_font;
-    CFont     m_hdrFont;
-    bool      m_connected{false};
+    CFont   m_font;
+    CFont   m_hdrFont;
+    CBrush  m_bgBrush;
+    bool    m_connected{false};
+    bool    m_suppress{false};
+    bool    m_syncing{false};         // inside a freq <-> rise/fall mirror update
+    bool    m_rampMode{false};        // rise/fall typed explicitly (CMD_SET_RAMP)
+    double  m_obsFs{0.0};
+    size_t  m_obsSamples{0};
+    size_t  m_obsMcuFft{0};
 };
