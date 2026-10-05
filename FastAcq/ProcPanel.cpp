@@ -64,7 +64,7 @@ int ProcPanel::OnCreate(LPCREATESTRUCT lpcs)
     m_lblWindow.Create(TR("Window"), ss, rc, this);
     m_cmbWindow.Create(cs, rc, this, IDC_CMB_WINDOW);
     for (int i = 0; i < static_cast<int>(dsp::WindowType::Count); ++i)
-        m_cmbWindow.AddString(CString(dsp::WindowName(static_cast<dsp::WindowType>(i))));
+        m_cmbWindow.AddString(Lang::Tr(CString(dsp::WindowName(static_cast<dsp::WindowType>(i)))));
     m_lblKaiser.Create(TR("Kaiser beta"), ss, rc, this);          m_edtKaiser.Create(esf, rc, this, IDC_EDT_KAISER);
     m_lblZeroPad.Create(TR("Zero padding"), ss, rc, this);
     m_cmbZeroPad.Create(cs, rc, this, IDC_CMB_ZEROPAD);
@@ -79,7 +79,7 @@ int ProcPanel::OnCreate(LPCREATESTRUCT lpcs)
     m_lblDetector.Create(TR("Detector"), ss, rc, this);
     m_cmbDetector.Create(cs, rc, this, IDC_CMB_DETECTOR);
     for (int i = 0; i < static_cast<int>(dsp::DetectorType::Count); ++i)
-        m_cmbDetector.AddString(CString(dsp::DetectorName(static_cast<dsp::DetectorType>(i))));
+        m_cmbDetector.AddString(Lang::Tr(CString(dsp::DetectorName(static_cast<dsp::DetectorType>(i)))));
     m_lblThresh.Create(TR("Threshold above noise, dB"), ss, rc, this); m_edtThresh.Create(esf, rc, this, IDC_EDT_THRESH);
     m_lblPfa.Create(TR("CFAR false-alarm prob."), ss, rc, this);
     m_cmbPfa.Create(cs, rc, this, IDC_CMB_PFA);
@@ -93,7 +93,7 @@ int ProcPanel::OnCreate(LPCREATESTRUCT lpcs)
     m_lblInterp.Create(TR("Peak interpolation"), ss, rc, this);
     m_cmbInterp.Create(cs, rc, this, IDC_CMB_INTERP);
     for (int i = 0; i < static_cast<int>(dsp::PeakInterp::Count); ++i)
-        m_cmbInterp.AddString(CString(dsp::PeakInterpName(static_cast<dsp::PeakInterp>(i))));
+        m_cmbInterp.AddString(Lang::Tr(CString(dsp::PeakInterpName(static_cast<dsp::PeakInterp>(i)))));
     m_lblMaxPeaks.Create(TR("Max targets"), ss, rc, this);        m_edtMaxPeaks.Create(es, rc, this, IDC_EDT_MAXPEAKS);
     m_lblMti.Create(TR("Doppler"), ss, rc, this);                 m_chkMti.Create(TR("MTI (subtract mean)"), chk, rc, this, IDC_CHK_MTI);
     m_lblTrack.Create(TR("Tracking"), ss, rc, this);              m_chkTrack.Create(TR("Stable target IDs"), chk, rc, this, IDC_CHK_TRACK);

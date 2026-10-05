@@ -118,7 +118,7 @@ int SettingsTab::OnCreate(LPCREATESTRUCT lpcs)
     m_lblShape.Create(TR("Modulation"), ss, rc, this);
     m_cmbShape.Create(cs, rc, this, IDC_CMB_SHAPE);
     for (int i = 0; i < static_cast<int>(dsp::RampShape::Count); ++i)
-        m_cmbShape.AddString(CString(dsp::RampShapeName(static_cast<dsp::RampShape>(i))));
+        m_cmbShape.AddString(Lang::Tr(CString(dsp::RampShapeName(static_cast<dsp::RampShape>(i)))));
     m_lblChirps.Create(TR("Chirps per frame"), ss, rc, this);
     m_chkChirpsAuto.Create(TR("= burst"), chk, rc, this, IDC_CHK_CHIRPS_AUTO);
     m_edtChirps.Create(es, rc, this, IDC_EDT_CHIRPS);
@@ -313,37 +313,50 @@ void SettingsTab::RefreshDerived()
                                                s.acq.intervalMs, s.acq.sendRaw, s.acq.sendFft, m_obsMcuFft);
     CString t, line;
     UpdateVcoDerived(s);
+    // One block per topic: a short caption line, then indented detail lines.
+    const CString ind = _T("      ");
     {
         const core::VcoSweep sw = s.vco.SweepFor(s.acq.offset, s.acq.amplitude);
+        t += TR("VCO sweep") + _T("\r\n");
         if (sw.valid) {
-            line.Format(TR("VCO: DAC %d..%d = Vtune %.2f..%.2f V -> %.4f..%.4f GHz, B %.1f MHz, %.0f..%.0f MHz/V, nonlin. %.1f%%%s\r\n"),
-                        s.acq.offset, (std::min)(4095, s.acq.offset + s.acq.amplitude), sw.vLowV, sw.vHighV, sw.fStartHz / 1e9, sw.fStopHz / 1e9, sw.bandwidthHz / 1e6,
-                        sw.sensMinHzPerV / 1e6, sw.sensMaxHzPerV / 1e6, sw.nonlinearityPct,
-                        sw.outOfTable ? TR(" [Vtune outside the curve table!]") : CString());
-            t += line;
+            line.Format(TR("DAC %d..%d = Vtune %.2f..%.2f V = %.4f..%.4f GHz"), s.acq.offset,
+                        (std::min)(4095, s.acq.offset + s.acq.amplitude), sw.vLowV, sw.vHighV, sw.fStartHz / 1e9, sw.fStopHz / 1e9);
+            t += ind + line + _T("\r\n");
+            line.Format(TR("B = %.1f MHz, slope %.0f..%.0f MHz/V, sweep nonlinearity %.1f%%"),
+                        sw.bandwidthHz / 1e6, sw.sensMinHzPerV / 1e6, sw.sensMaxHzPerV / 1e6, sw.nonlinearityPct);
+            t += ind + line;
+            if (sw.outOfTable) t += TR(" [Vtune outside the curve table!]");
+            t += _T("\r\n");
         } else {
-            t += TR("VCO: tuning curve invalid (need >= 2 points V:GHz)\r\n");
+            t += ind + TR("tuning curve invalid (need >= 2 points V:GHz)") + _T("\r\n");
         }
     }
-    line.Format(TR("Ramp %.4f ms, period %.4f ms\r\n"), d.rampSec * 1e3, d.periodSec * 1e3); t += line;
-    line.Format(TR("%zu samples/ramp, %zu used\r\n"), d.samplesPerRamp, d.samplesUsed); t += line;
-    line.Format(TR("Decimation x%d: Fs_eff %.1f kHz, FFT %zu\r\n"), d.decimation, d.fsEffHz / 1e3, d.fftSize); t += line;
-    line.Format(TR("Bin %.1f Hz"), d.binHz); t += line;
+    t += _T("\r\n") + TR("Chirp") + _T("\r\n");
+    line.Format(TR("ramp %.4f ms, period %.4f ms"), d.rampSec * 1e3, d.periodSec * 1e3); t += ind + line + _T("\r\n");
+    line.Format(TR("%zu samples per ramp, %zu of them go into the FFT"), d.samplesPerRamp, d.samplesUsed); t += ind + line + _T("\r\n");
+
+    t += _T("\r\n") + TR("Spectrum") + _T("\r\n");
+    line.Format(TR("decimation x%d: effective Fs %.1f kHz, FFT %zu points"), d.decimation, d.fsEffHz / 1e3, d.fftSize); t += ind + line + _T("\r\n");
+    line.Format(TR("one bin = %.1f Hz"), d.binHz); t += ind + line;
     if (d.rangeBinM > 0.0) { line.Format(TR(" = %.3f m"), d.rangeBinM); t += line; }
     t += _T("\r\n");
+
+    t += _T("\r\n") + TR("Range") + _T("\r\n");
     if (d.rangeResM > 0.0) {
-        line.Format(TR("Range res. c/2B %.3f m (eff. %.3f m), R_max %.1f m\r\n"), d.rangeResM, d.rangeResEffM, d.rangeMaxM); t += line;
-        line.Format(TR("Beat %.1f Hz per metre\r\n"), d.beatPerMeterHz); t += line;
+        line.Format(TR("resolution c/2B = %.3f m (effective %.3f m)"), d.rangeResM, d.rangeResEffM); t += ind + line + _T("\r\n");
+        line.Format(TR("maximum %.1f m, beat frequency %.1f Hz per metre"), d.rangeMaxM, d.beatPerMeterHz); t += ind + line + _T("\r\n");
     } else {
-        t += TR("Range axis: set bandwidth B > 0\r\n");
+        t += ind + TR("set bandwidth B > 0 for a range axis") + _T("\r\n");
     }
     if (d.velResMps > 0.0) {
-        line.Format(TR("Velocity res. %.3f m/s (burst %d), max +/- %.2f m/s\r\n"), d.velResMps, (std::max)(1, s.dsp.chirpsInFrame), d.velMaxMps); t += line;
+        t += _T("\r\n") + TR("Velocity") + _T("\r\n");
+        line.Format(TR("resolution %.3f m/s (burst %d), unambiguous +/- %.2f m/s"), d.velResMps, (std::max)(1, s.dsp.chirpsInFrame), d.velMaxMps);
+        t += ind + line + _T("\r\n");
     }
-    line.Format(TR("USB %.2f MB/s at %d ms (FS CDC limit ~0.8 MB/s)"), d.usbMBps, s.acq.intervalMs); t += line;
+    t += _T("\r\n") + TR("USB link") + _T("\r\n");
+    line.Format(TR("%.2f MB/s at %d ms interval (full-speed CDC limit ~0.8 MB/s)"), d.usbMBps, s.acq.intervalMs); t += ind + line;
     if (s.fsPpm != 0.0) {
-        line.Format(TR("\r\nADC clock %+.3f ppm: %.6f -> %.6f MS/s"), s.fsPpm,
-                    fs / 1e6, fs * (1.0 + s.fsPpm * 1e-6) / 1e6);
+        line.Format(TR("\r\n%sADC clock %+.3f ppm: %.6f -> %.6f MS/s"), ind.GetString(), s.fsPpm, fs / 1e6, fs * (1.0 + s.fsPpm * 1e-6) / 1e6);
         t += line;
     }
     m_lblDerived.SetWindowText(t);
@@ -700,8 +713,8 @@ void SettingsTab::Relayout()
     y1 += sc(6);
     header(m_hdrDerived, col1, y1);
     const int derivedW = narrow ? rc.Width() - colX[col1] - sc(10) : colW + sc(10);
-    m_lblDerived.MoveWindow(colX[col1], y1, derivedW, sc(150));
-    y1 += sc(156);
+    m_lblDerived.MoveWindow(colX[col1], y1, derivedW, sc(262));
+    y1 += sc(268);
 
     const int y2 = narrow ? (std::max)(y0, yD) : sc(10);
     (void)y2;

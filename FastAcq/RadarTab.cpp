@@ -61,7 +61,7 @@ int RadarTab::OnCreate(LPCREATESTRUCT lpcs)
     m_lblTrace.Create(TR("Trace:"), ss, rc, this);
     m_cmbTrace.Create(cs, rc, this, IDC_CMB_TRACE);
     for (int i = 0; i < static_cast<int>(dsp::TraceMode::Count); ++i)
-        m_cmbTrace.AddString(CString(dsp::TraceModeName(static_cast<dsp::TraceMode>(i))));
+        m_cmbTrace.AddString(Lang::Tr(CString(dsp::TraceModeName(static_cast<dsp::TraceMode>(i)))));
     m_cmbTrace.SetCurSel(0);
     m_lblPalette.Create(TR("Palette:"), ss, rc, this);
     m_cmbPalette.Create(cs, rc, this, IDC_CMB_WF_PALETTE);
