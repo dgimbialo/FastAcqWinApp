@@ -625,7 +625,11 @@ void SettingsTab::Relayout()
     }
     lblW = (std::min)(lblW, sc(230));
     const int ctlW = sc(92), pad = sc(6), h = sc(23), rowH = sc(28);
-    const int colW = lblW + ctlW + btnW + 3 * pad;
+    // The "frame carries" row holds two check boxes instead of an edit field;
+    // the column must be wide enough for them so the button stays inside it.
+    const int wRaw = Dpi::FitWidth(m_chkRaw, sc(44)), wFft = Dpi::FitWidth(m_chkFft, sc(44));
+    const int chkRowW = (std::max)(ctlW, wRaw + pad + wFft);
+    const int colW = lblW + chkRowW + btnW + 3 * pad;
     int colX[4] = { sc(12), sc(12) + colW + sc(16), sc(12) + 2 * (colW + sc(16)), sc(12) + 3 * (colW + sc(16)) };
     // Wide: MCU | Radar + derived | Application, chirp preview under the
     // first two columns. Medium: Application under MCU, preview under Radar.
@@ -665,10 +669,9 @@ void SettingsTab::Relayout()
         m_lblData.MoveWindow(x, y0, lblW, h);
         // Check boxes take the width their captions need; the button moves
         // right when the two of them are wider than a normal edit field.
-        const int wRaw = Dpi::FitWidth(m_chkRaw, sc(44)), wFft = Dpi::FitWidth(m_chkFft, sc(44));
         m_chkRaw.MoveWindow(x + lblW + pad, y0, wRaw, h);
         m_chkFft.MoveWindow(x + lblW + pad + wRaw + pad, y0, wFft, h);
-        m_btnApplyData.MoveWindow(x + lblW + pad + (std::max)(ctlW, wRaw + pad + wFft) + pad, y0, btnW, h);
+        m_btnApplyData.MoveWindow(x + lblW + pad + chkRowW + pad, y0, btnW, h);
         y0 += rowH;
         const int wPing = Dpi::FitWidth(m_btnPing, sc(70)), wStat = Dpi::FitWidth(m_btnGetStatus, sc(90)),
                   wAll = Dpi::FitWidth(m_btnSendAll, sc(90));
@@ -718,9 +721,19 @@ void SettingsTab::Relayout()
         y1 += rowH;
     }
     row(col1, y1, m_lblPairV, m_edtPairV);
-    y1 += sc(6);
-    header(m_hdrDerived, col1, y1);
-    const int derivedW = narrow ? rc.Width() - colX[col1] - sc(10) : colW + sc(10);
+    const int yRadarEnd = y1;
+    int derivedW;
+    if (wide) {
+        yD += sc(6);
+        header(m_hdrDerived, colD, yD);
+        derivedW = rc.Width() - colX[colD] - sc(10);
+        y1 = yD;
+    } else {
+        y1 += sc(6);
+        header(m_hdrDerived, col1, y1);
+        derivedW = narrow ? rc.Width() - colX[col1] - sc(10) : colW + sc(10);
+    }
+    const int colDer = wide ? colD : col1;
     // The read-out grows with its text so the chirp preview below never
     // covers the last block.
     int derivedLines = 1;
@@ -729,8 +742,9 @@ void SettingsTab::Relayout()
         for (int i = 0; i < t.GetLength(); ++i) if (t[i] == _T('\n')) ++derivedLines;
     }
     const int derivedH = derivedLines * Dpi::LineHeight(m_lblDerived) + sc(8);
-    m_lblDerived.MoveWindow(colX[col1], y1, derivedW, derivedH);
+    m_lblDerived.MoveWindow(colX[colDer], y1, derivedW, derivedH);
     y1 += derivedH + sc(6);
+    if (wide) { yD = y1; y1 = yRadarEnd + sc(6); }
 
     const int y2 = narrow ? (std::max)(y0, yD) : sc(10);
     (void)y2;
