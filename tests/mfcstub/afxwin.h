@@ -56,6 +56,8 @@ public:
     void AppendFormat(const wchar_t*, ...) {}
     CString& Trim() { return *this; }
     CString& TrimRight() { return *this; }
+    CString& TrimRight(TCHAR ch) { (void)ch; return *this; }
+    CString& TrimLeft(TCHAR ch) { (void)ch; return *this; }
     CString& MakeUpper() { return *this; }
     CString& MakeLower() { return *this; }
     int  Replace(wchar_t, wchar_t) { return 0; }

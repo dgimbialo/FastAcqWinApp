@@ -193,6 +193,19 @@ CString PlotWnd::FormatTime(double sec)
     return s;
 }
 
+CString PlotWnd::FormatRangeTick(double m)
+{
+    CString s;
+    const double a = std::fabs(m);
+    if (a >= 1000.0) s.Format(_T("%.2f"), m / 1000.0);
+    else             s.Format(_T("%.2f"), m);
+    // Trim trailing zeros and a dangling point: "12.50" -> "12.5", "2000.00" -> "2000".
+    if (s.Find(_T('.')) >= 0) { s.TrimRight(_T('0')); s.TrimRight(_T('.')); }
+    if (s == _T("-0")) s = _T("0");
+    s += (a >= 1000.0) ? _T(" km") : _T(" m");
+    return s;
+}
+
 CString PlotWnd::FormatDb(double db)
 {
     CString s; s.Format(_T("%.1f dB"), db); return s;

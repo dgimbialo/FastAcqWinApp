@@ -38,6 +38,9 @@ public:
     static double  NiceStep(double range, int maxTicks);
     static CString FormatFreq(double hz);
     static CString FormatRange(double m);
+    // Axis tick label for a range: plain metres below 1 km, kilometres above
+    // (never scientific notation), trailing zeros trimmed: "250 m", "12.5 km".
+    static CString FormatRangeTick(double m);
     static CString FormatTime(double sec);
     static CString FormatDb(double db);
     static CString FormatVelocity(double mps);

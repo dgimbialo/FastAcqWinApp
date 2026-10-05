@@ -127,7 +127,7 @@ void RangeDopplerView::Render(CDC& dc, const CRect& rc)
     xa.v1 = haveRange ? rd.nRange * rd.rangeBinM - m_res->rangeOffsetM : rd.nRange * rd.freqResHz;
     DrawXAxis(dc, L.plot, L.axisBottom, xa, [haveRange](double v) {
         CString s;
-        if (haveRange) s.Format(_T("%.4g m"), v);
+        if (haveRange) s = FormatRangeTick(v);
         else if (std::fabs(v) >= 1e3) s.Format(_T("%.4g kHz"), v / 1e3);
         else s.Format(_T("%.0f Hz"), v);
         return s; }, false, false);

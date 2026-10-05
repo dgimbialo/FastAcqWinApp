@@ -380,7 +380,7 @@ void RangeProfileView::Render(CDC& dc, const CRect& rc)
         const double off = m_res->rangeOffsetM;
         ra.v0 = xa.v0 * m_res->rangePerHz - off;
         ra.v1 = xa.v1 * m_res->rangePerHz - off;
-        DrawXAxis(dc, L.plot, L.axisTop, ra, [](double v) { CString s; s.Format(_T("%.4g m"), v); return s; }, true, false);
+        DrawXAxis(dc, L.plot, L.axisTop, ra, [](double v) { return FormatRangeTick(v); }, true, false);
     }
     {
         CFont* pOld = dc.SelectObject(&m_fontAxis);

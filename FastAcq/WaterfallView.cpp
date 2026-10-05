@@ -303,7 +303,7 @@ void WaterfallView::Render(CDC& dc, const CRect& rc)
         LinearAxis ra = xa;
         ra.v0 = f0 * m_rangePerHz - m_rangeOffsetM;
         ra.v1 = f1 * m_rangePerHz - m_rangeOffsetM;
-        DrawXAxis(dc, L.plot, L.axisBottom, ra, [](double v) { CString s; s.Format(_T("%.4g m"), v); return s; }, false, false);
+        DrawXAxis(dc, L.plot, L.axisBottom, ra, [](double v) { return FormatRangeTick(v); }, false, false);
     } else {
         DrawXAxis(dc, L.plot, L.axisBottom, xa, [](double v) {
             CString s;
