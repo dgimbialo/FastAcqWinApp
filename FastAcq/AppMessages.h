@@ -48,6 +48,7 @@ constexpr UINT WM_APP_CMD_SET_TRACE     = WM_APP + 48; // wParam = 1 enable / 0 
 constexpr UINT WM_APP_CMD_SET_RAMP      = WM_APP + 49; // wParam = rise_us | (fall_us << 16)
 constexpr UINT WM_APP_CMD_GET_TRACE     = WM_APP + 50;
 constexpr UINT WM_APP_CMD_SINGLE_SHOT   = WM_APP + 51; // SET_MODE(SINGLE) + TRIGGER
+constexpr UINT WM_APP_CMD_SET_OFFSET    = WM_APP + 52; // wParam = chirp DAC offset
 
 enum ServiceFrameType : WPARAM {
     SVC_FRAME_PONG   = 0,

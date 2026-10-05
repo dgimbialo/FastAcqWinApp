@@ -36,6 +36,8 @@ constexpr uint8_t CMD_ABORT           = 0x0C; // abort current capture immediate
 constexpr uint8_t CMD_SET_TRACE       = 0x0D; // arg1 = 1 enable / 0 disable MCU acquisition trace
 constexpr uint8_t CMD_SET_RAMP        = 0x0E; // arg1 = rise_us, arg2 = fall_us (0/0 = symmetric from freq)
 constexpr uint8_t CMD_GET_TRACE       = 0x0F; // send the trace buffer now
+constexpr uint8_t CMD_SET_OFFSET      = 0x10; // arg1 = chirp DAC offset (base level) 0..4094; the
+                                              // triangle runs offset .. offset + amplitude (<= 4095)
 
 // Modes
 constexpr uint16_t MODE_IDLE       = 0;
@@ -90,7 +92,9 @@ constexpr uint32_t BURST_MAX         = 1024;
 //   reserved1[4]    <- MCU FSM state (0=idle-wait, 1=capturing)
 //   reserved1[5]    <- last error code (0 = none)
 //   reserved1[6..7] <- configured rise_us (0 = symmetric), fft_freq_res_hz <- fall_us
-//   reserved0       <- trace flags: bit0 enabled, bit1 compiled in
+//   reserved0       <- bit0 trace enabled, bit1 trace compiled in,
+//                      bit2 chirp offset supported (CMD_SET_OFFSET)
+//   raw_data_bytes  <- chirp DAC offset (valid when reserved0 bit2 is set)
 
 #pragma pack(push, 1)
 
@@ -199,6 +203,8 @@ struct DeviceStatus {
     uint16_t burst{1};
     uint8_t  fsmState{0};
     uint8_t  lastError{0};
+    uint16_t offset{0};        // chirp DAC offset (base level), 0 when unsupported
+    bool     offsetSupported{false};
     uint16_t riseUs{0};        // configured rise, us (0 = symmetric from freq)
     uint16_t fallUs{0};        // configured fall, us
     bool     traceOn{false};   // MCU acquisition trace enabled
@@ -221,6 +227,8 @@ inline DeviceStatus DecodeStatusFrame(const FrameHeader& h) {
     s.fallUs      = static_cast<uint16_t>(h.fft_freq_res_hz);
     s.traceOn     = (h.reserved0 & 0x01) != 0;
     s.traceAvail  = (h.reserved0 & 0x02) != 0;
+    s.offsetSupported = (h.reserved0 & 0x04) != 0;
+    s.offset      = s.offsetSupported ? static_cast<uint16_t>(h.raw_data_bytes & 0xFFFF) : 0;
     return s;
 }
 

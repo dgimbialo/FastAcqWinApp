@@ -17,6 +17,7 @@ struct AcqSettings {
     int  samples{0};         // 0 = auto
     int  intervalMs{30};
     int  amplitude{4095};
+    int  offset{0};          // chirp DAC offset (base level): triangle runs offset..offset+amplitude
     int  burst{1};
     int  riseUs{0};          // CMD_SET_RAMP rise, us (0/0 = symmetric from chirpFreqHz)
     int  fallUs{0};
@@ -34,8 +35,9 @@ struct VcoSettings {
     std::string curveText;             // "V:GHz,V:GHz,..." (empty = HMC431 typical)
 
     core::VcoCurve Curve() const;
-    // Sweep for a chirp of `amplitude` DAC counts starting at code 0.
-    core::VcoSweep SweepFor(int amplitude) const;
+    // Sweep for a chirp running from DAC code `offset` to `offset + amplitude`.
+    core::VcoSweep SweepFor(int offset, int amplitude) const;
+    double VtuneOfDac(int code) const;
 };
 
 struct DisplaySettings {

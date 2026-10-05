@@ -62,6 +62,7 @@ protected:
     afx_msg LRESULT OnCmdTrigger     (WPARAM, LPARAM);
     afx_msg LRESULT OnCmdGetStatus   (WPARAM, LPARAM);
     afx_msg LRESULT OnCmdSetAmplitude(WPARAM wp, LPARAM);
+    afx_msg LRESULT OnCmdSetOffset   (WPARAM wp, LPARAM);
     afx_msg LRESULT OnCmdSetBurst    (WPARAM wp, LPARAM);
     afx_msg LRESULT OnCmdAbort       (WPARAM, LPARAM);
     afx_msg LRESULT OnCmdHold        (WPARAM wp, LPARAM);

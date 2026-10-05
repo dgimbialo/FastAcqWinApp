@@ -47,17 +47,25 @@ core::VcoCurve VcoSettings::Curve() const
     return core::VcoCurve::Hmc431Typical();
 }
 
-core::VcoSweep VcoSettings::SweepFor(int amplitude) const
+double VcoSettings::VtuneOfDac(int code) const
 {
+    if (code < 0) code = 0;
+    if (code > static_cast<int>(AMPLITUDE_MAX)) code = AMPLITUDE_MAX;
+    return vtuneAtDac0V + (vtuneAtDacFullV - vtuneAtDac0V) * code / static_cast<double>(AMPLITUDE_MAX);
+}
+
+core::VcoSweep VcoSettings::SweepFor(int offset, int amplitude) const
+{
+    if (offset < 0) offset = 0;
+    if (offset > static_cast<int>(AMPLITUDE_MAX) - 1) offset = AMPLITUDE_MAX - 1;
     if (amplitude < 1) amplitude = 1;
-    if (amplitude > static_cast<int>(AMPLITUDE_MAX)) amplitude = AMPLITUDE_MAX;
-    const double vHigh = vtuneAtDac0V + (vtuneAtDacFullV - vtuneAtDac0V) * amplitude / static_cast<double>(AMPLITUDE_MAX);
-    return core::ComputeVcoSweep(Curve(), vtuneAtDac0V, vHigh);
+    if (offset + amplitude > static_cast<int>(AMPLITUDE_MAX)) amplitude = AMPLITUDE_MAX - offset;
+    return core::ComputeVcoSweep(Curve(), VtuneOfDac(offset), VtuneOfDac(offset + amplitude));
 }
 
 core::VcoSweep AppSettings::ApplyVcoToRadar()
 {
-    core::VcoSweep s = vco.SweepFor(acq.amplitude);
+    core::VcoSweep s = vco.SweepFor(acq.offset, acq.amplitude);
     if (vco.useCurve && s.valid && s.bandwidthHz > 0.0) {
         radar.f0Hz        = s.f0Hz;
         radar.bandwidthHz = s.bandwidthHz;
@@ -87,6 +95,8 @@ bool AppSettings::Load(const CString& path)
     acq.riseUs      = ini.GetInt(_T("Acq"), _T("RiseUs"),      acq.riseUs);
     acq.fallUs      = ini.GetInt(_T("Acq"), _T("FallUs"),      acq.fallUs);
     acq.amplitude   = ini.GetInt(_T("Acq"), _T("Amplitude"),   acq.amplitude);
+    acq.offset      = ini.GetInt(_T("Acq"), _T("Offset"),      acq.offset);
+    if (acq.offset < 0 || acq.offset > 4094) acq.offset = 0;
     acq.burst       = ini.GetInt(_T("Acq"), _T("Burst"),       acq.burst);
     acq.sendRaw     = ini.GetBool(_T("Acq"), _T("SendRaw"),    acq.sendRaw);
     acq.sendFft     = ini.GetBool(_T("Acq"), _T("SendFft"),    acq.sendFft);
@@ -189,6 +199,7 @@ bool AppSettings::Save(const CString& path) const
     ini.SetInt(_T("Acq"), _T("RiseUs"),      acq.riseUs);
     ini.SetInt(_T("Acq"), _T("FallUs"),      acq.fallUs);
     ini.SetInt(_T("Acq"), _T("Amplitude"),   acq.amplitude);
+    ini.SetInt(_T("Acq"), _T("Offset"),      acq.offset);
     ini.SetInt(_T("Acq"), _T("Burst"),       acq.burst);
     ini.SetBool(_T("Acq"), _T("SendRaw"),    acq.sendRaw);
     ini.SetBool(_T("Acq"), _T("SendFft"),    acq.sendFft);

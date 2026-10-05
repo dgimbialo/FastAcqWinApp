@@ -667,6 +667,10 @@ static void TestParserV2()
         st.reserved0 = 0x03;
         DeviceStatus d = DecodeStatusFrame(st);
         CHECK(d.riseUs == 1200 && d.fallUs == 900 && d.traceOn && d.traceAvail);
+        CHECK(!d.offsetSupported && d.offset == 0);
+        st.reserved0 = 0x07; st.raw_data_bytes = 1234;      // bit2: chirp offset supported
+        d = DecodeStatusFrame(st);
+        CHECK(d.offsetSupported && d.offset == 1234);
     }
     static_assert(sizeof(TraceRecord) == 24, "trace record");
 }

@@ -25,7 +25,8 @@ struct ChirpParams {
     uint32_t freqHz{458};      // used when riseUs == 0 || fallUs == 0
     uint32_t riseUs{0};
     uint32_t fallUs{0};
-    uint32_t amplitude{4095};  // DAC counts
+    uint32_t amplitude{4095};  // DAC counts (height of the triangle)
+    uint32_t offset{0};        // DAC counts (base level); top = offset + amplitude
     uint32_t burst{1};         // chirps per capture
     uint32_t intervalMs{30};   // CONTINUOUS pause
     uint32_t samplesOvr{0};    // 0 = auto

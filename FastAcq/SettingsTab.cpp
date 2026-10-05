@@ -17,6 +17,8 @@ BEGIN_MESSAGE_MAP(SettingsTab, CWnd)
     ON_BN_CLICKED(IDC_BTN_APPLY_INT,   &SettingsTab::OnApplyInterval)
     ON_BN_CLICKED(IDC_BTN_APPLY_DATA,  &SettingsTab::OnApplyData)
     ON_BN_CLICKED(IDC_BTN_SET_AMP,     &SettingsTab::OnSetAmplitude)
+    ON_BN_CLICKED(IDC_BTN_SET_OFFSET,  &SettingsTab::OnSetOffset)
+    ON_CONTROL_RANGE(EN_CHANGE, IDC_EDT_OFFSET, IDC_EDT_OFFSET, &SettingsTab::OnPreviewInput)
     ON_BN_CLICKED(IDC_BTN_SET_BURST,   &SettingsTab::OnSetBurst)
     ON_BN_CLICKED(IDC_BTN_SET_RAMP,    &SettingsTab::OnSetRamp)
     ON_BN_CLICKED(IDC_BTN_APPLY_PPM,   &SettingsTab::OnApplyPpm)
@@ -82,6 +84,9 @@ int SettingsTab::OnCreate(LPCREATESTRUCT lpcs)
     m_lblAmplitude.Create(_T("Chirp amplitude, DAC"), ss, rc, this);
     m_edtAmplitude.Create(es, rc, this, IDC_EDT_AMPLITUDE);
     m_btnSetAmp.Create(_T("Set"), bs, rc, this, IDC_BTN_SET_AMP);
+    m_lblOffset.Create(_T("Chirp offset (base), DAC"), ss, rc, this);
+    m_edtOffset.Create(es, rc, this, IDC_EDT_OFFSET);
+    m_btnSetOffset.Create(_T("Set"), bs, rc, this, IDC_BTN_SET_OFFSET);
     m_lblBurst.Create(_T("Chirps per capture"), ss, rc, this);
     m_edtBurst.Create(es, rc, this, IDC_EDT_BURST);
     m_btnSetBurst.Create(_T("Set"), bs, rc, this, IDC_BTN_SET_BURST);
@@ -235,6 +240,7 @@ void SettingsTab::ApplySettings(const AppSettings& s)
     SetInt(m_edtSamples, s.acq.samples);
     SetInt(m_edtInterval, s.acq.intervalMs);
     SetInt(m_edtAmplitude, s.acq.amplitude);
+    SetInt(m_edtOffset, s.acq.offset);
     SetInt(m_edtBurst, s.acq.burst);
     m_rampMode = (s.acq.riseUs > 0 && s.acq.fallUs > 0);
     if (m_rampMode) {
@@ -312,6 +318,7 @@ void SettingsTab::ReadInto(AppSettings& s) const
     s.acq.samples     = static_cast<int>(GetSamples());
     s.acq.intervalMs  = GetIntervalMs();
     s.acq.amplitude   = GetAmplitude();
+    s.acq.offset      = GetOffset();
     s.acq.burst       = GetBurst();
     s.acq.riseUs      = GetRiseUs();
     s.acq.fallUs      = GetFallUs();
@@ -407,10 +414,10 @@ void SettingsTab::RefreshDerived()
     CString t, line;
     UpdateVcoDerived(s);
     {
-        const core::VcoSweep sw = s.vco.SweepFor(s.acq.amplitude);
+        const core::VcoSweep sw = s.vco.SweepFor(s.acq.offset, s.acq.amplitude);
         if (sw.valid) {
-            line.Format(_T("VCO: Vtune %.2f..%.2f V -> %.4f..%.4f GHz, B %.1f MHz, %.0f..%.0f MHz/V, nonlin. %.1f%%%s\r\n"),
-                        sw.vLowV, sw.vHighV, sw.fStartHz / 1e9, sw.fStopHz / 1e9, sw.bandwidthHz / 1e6,
+            line.Format(_T("VCO: DAC %d..%d = Vtune %.2f..%.2f V -> %.4f..%.4f GHz, B %.1f MHz, %.0f..%.0f MHz/V, nonlin. %.1f%%%s\r\n"),
+                        s.acq.offset, (std::min)(4095, s.acq.offset + s.acq.amplitude), sw.vLowV, sw.vHighV, sw.fStartHz / 1e9, sw.fStopHz / 1e9, sw.bandwidthHz / 1e6,
                         sw.sensMinHzPerV / 1e6, sw.sensMaxHzPerV / 1e6, sw.nonlinearityPct,
                         sw.outOfTable ? _T(" [Vtune outside the curve table!]") : _T(""));
             t += line;
@@ -465,6 +472,7 @@ void SettingsTab::UpdatePreview()
     p.riseUs     = GetRiseUs();
     p.fallUs     = GetFallUs();
     p.amplitude  = GetAmplitude();
+    p.offset     = GetOffset();
     p.burst      = GetBurst();
     p.intervalMs = GetIntervalMs();
     p.samplesOvr = GetSamples();
@@ -511,7 +519,7 @@ void SettingsTab::OnModeSelChanged()     { if (!m_suppress) UpdatePreview(); }
 void SettingsTab::SetConnected(bool c)
 {
     m_connected = c;
-    for (CButton* b : { &m_btnApplyMode, &m_btnSetFreq, &m_btnSetSamples, &m_btnApplyInterval, &m_btnSetAmp,
+    for (CButton* b : { &m_btnApplyMode, &m_btnSetFreq, &m_btnSetSamples, &m_btnApplyInterval, &m_btnSetAmp, &m_btnSetOffset,
                         &m_btnSetBurst, &m_btnSetRamp, &m_btnApplyData, &m_btnPing, &m_btnGetStatus, &m_btnSendAll })
         b->EnableWindow(c);
 }
@@ -562,6 +570,14 @@ uint16_t SettingsTab::GetAmplitude() const
     int v = GetInt(m_edtAmplitude, 4095);
     if (v < 1) v = 1;
     if (v > static_cast<int>(AMPLITUDE_MAX)) v = AMPLITUDE_MAX;
+    return static_cast<uint16_t>(v);
+}
+
+uint16_t SettingsTab::GetOffset() const
+{
+    int v = GetInt(m_edtOffset, 0);
+    if (v < 0) v = 0;
+    if (v > static_cast<int>(AMPLITUDE_MAX) - 1) v = AMPLITUDE_MAX - 1;
     return static_cast<uint16_t>(v);
 }
 
@@ -620,6 +636,7 @@ void SettingsTab::OnSetSamples()    { PostToMain(WM_APP_CMD_SET_SAMPLES,   GetSa
 void SettingsTab::OnApplyInterval() { PostToMain(WM_APP_CMD_SET_INTERVAL,  GetIntervalMs()); NotifyChanged(); }
 void SettingsTab::OnApplyData()     { PostToMain(WM_APP_CMD_SET_DATA_MASK, GetDataMask()); NotifyChanged(); }
 void SettingsTab::OnSetAmplitude()  { PostToMain(WM_APP_CMD_SET_AMPLITUDE, GetAmplitude()); NotifyChanged(); }
+void SettingsTab::OnSetOffset()     { PostToMain(WM_APP_CMD_SET_OFFSET,    GetOffset()); NotifyChanged(); }
 void SettingsTab::OnSetBurst()      { PostToMain(WM_APP_CMD_SET_BURST,     GetBurst()); NotifyChanged(); }
 void SettingsTab::OnApplyPpm()      { NotifyChanged(); }
 
@@ -649,6 +666,7 @@ void SettingsTab::OnSendAll()
     PostToMain(WM_APP_CMD_SET_SAMPLES,   GetSamples());
     PostToMain(WM_APP_CMD_SET_INTERVAL,  GetIntervalMs());
     PostToMain(WM_APP_CMD_SET_AMPLITUDE, GetAmplitude());
+    PostToMain(WM_APP_CMD_SET_OFFSET,    GetOffset());
     PostToMain(WM_APP_CMD_SET_BURST,     GetBurst());
     PostToMain(WM_APP_CMD_SET_DATA_MASK, GetDataMask());
     PostToMain(WM_APP_CMD_GET_STATUS);
@@ -716,6 +734,7 @@ void SettingsTab::Relayout()
     row(0, y0, m_lblSamples, m_edtSamples, &m_btnSetSamples);
     row(0, y0, m_lblInterval, m_edtInterval, &m_btnApplyInterval);
     row(0, y0, m_lblAmplitude, m_edtAmplitude, &m_btnSetAmp);
+    row(0, y0, m_lblOffset, m_edtOffset, &m_btnSetOffset);
     row(0, y0, m_lblBurst, m_edtBurst, &m_btnSetBurst);
     {
         const int x = colX[0];
@@ -850,7 +869,9 @@ HBRUSH SettingsTab::OnCtlColor(CDC* pDC, CWnd*, UINT nCtlColor)
         return static_cast<HBRUSH>(m_bgBrush.GetSafeHandle());
     }
     // Edit fields, list boxes and combo drop-downs: keep text readable in the dark theme.
+    // Editable fields: white (light theme) so they stand out from read-only
+    // read-outs, which arrive as CTLCOLOR_STATIC and keep the grey background.
     pDC->SetTextColor(Theme::Get().text);
-    pDC->SetBkColor(Theme::Get().bg);
-    return static_cast<HBRUSH>(m_bgBrush.GetSafeHandle());
+    pDC->SetBkColor(Theme::Get().plot);
+    return Theme::FieldBrush();
 }

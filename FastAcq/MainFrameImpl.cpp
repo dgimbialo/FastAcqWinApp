@@ -47,6 +47,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
     ON_MESSAGE(WM_APP_CMD_TRIGGER,       &CMainFrame::OnCmdTrigger)
     ON_MESSAGE(WM_APP_CMD_GET_STATUS,    &CMainFrame::OnCmdGetStatus)
     ON_MESSAGE(WM_APP_CMD_SET_AMPLITUDE, &CMainFrame::OnCmdSetAmplitude)
+    ON_MESSAGE(WM_APP_CMD_SET_OFFSET,    &CMainFrame::OnCmdSetOffset)
     ON_MESSAGE(WM_APP_CMD_SET_BURST,     &CMainFrame::OnCmdSetBurst)
     ON_MESSAGE(WM_APP_CMD_ABORT,         &CMainFrame::OnCmdAbort)
     ON_MESSAGE(WM_APP_CMD_HOLD,          &CMainFrame::OnCmdHold)
@@ -539,6 +540,7 @@ LRESULT CMainFrame::OnCmdSetInterval(WPARAM wp, LPARAM) { SendCmd(CMD_SET_INTERV
 LRESULT CMainFrame::OnCmdTrigger(WPARAM, LPARAM)        { SendCmd(CMD_TRIGGER); return 0; }
 LRESULT CMainFrame::OnCmdGetStatus(WPARAM, LPARAM)      { SendCmd(CMD_GET_STATUS); return 0; }
 LRESULT CMainFrame::OnCmdSetAmplitude(WPARAM wp, LPARAM){ SendCmd(CMD_SET_AMPLITUDE, static_cast<uint16_t>(wp)); return 0; }
+LRESULT CMainFrame::OnCmdSetOffset(WPARAM wp, LPARAM)   { SendCmd(CMD_SET_OFFSET, static_cast<uint16_t>(wp)); return 0; }
 LRESULT CMainFrame::OnCmdSetBurst(WPARAM wp, LPARAM)    { SendCmd(CMD_SET_BURST, static_cast<uint16_t>(wp)); return 0; }
 LRESULT CMainFrame::OnCmdAbort(WPARAM, LPARAM)          { SendCmd(CMD_ABORT); return 0; }
 LRESULT CMainFrame::OnCmdSetTrace(WPARAM wp, LPARAM)    { SendCmd(CMD_SET_TRACE, wp ? 1 : 0); return 0; }
@@ -609,8 +611,10 @@ LRESULT CMainFrame::OnServiceFrame(WPARAM wp, LPARAM lp)
         if (m_device.samples == 0) samples = _T("auto"); else samples.Format(_T("%u"), m_device.samples);
         CString ramp;
         if (m_device.riseUs && m_device.fallUs) ramp.Format(_T(" ramp=%u/%uus"), m_device.riseUs, m_device.fallUs);
-        m_mcuStatus.Format(_T("MCU: %s %uHz%s amp=%u burst=%u int=%ums smp=%s %s err=%u%s"),
-                           modeName, m_device.chirpFreqHz, ramp.GetString(), m_device.amplitude, m_device.burst, m_device.intervalMs,
+        CString offs;
+        if (m_device.offsetSupported) offs.Format(_T("+%u"), m_device.offset);
+        m_mcuStatus.Format(_T("MCU: %s %uHz%s amp=%u%s burst=%u int=%ums smp=%s %s err=%u%s"),
+                           modeName, m_device.chirpFreqHz, ramp.GetString(), m_device.amplitude, offs.GetString(), m_device.burst, m_device.intervalMs,
                            samples.GetString(), m_device.fsmState ? _T("CAPTURING") : _T("IDLE"), m_device.lastError,
                            m_device.traceOn ? _T(" TRACE") : _T(""));
         line.Format(_T("STATUS mode=%s mask=0x%02X interval=%u ms samples=%s freq=%u Hz ramp=%u/%u us amp=%u burst=%u state=%s err=%u trace=%s%s"),
@@ -625,6 +629,7 @@ LRESULT CMainFrame::OnServiceFrame(WPARAM wp, LPARAM lp)
         if (m_settings.acq.chirpFreqHz != m_device.chirpFreqHz && m_device.chirpFreqHz > 0) { m_settings.acq.chirpFreqHz = m_device.chirpFreqHz; changed = true; }
         if (m_settings.acq.burst != m_device.burst)            { m_settings.acq.burst = m_device.burst; changed = true; }
         if (m_settings.acq.amplitude != m_device.amplitude && m_device.amplitude > 0) { m_settings.acq.amplitude = m_device.amplitude; changed = true; }
+        if (m_device.offsetSupported && m_settings.acq.offset != m_device.offset) { m_settings.acq.offset = m_device.offset; changed = true; }
         if (m_settings.acq.intervalMs != static_cast<int>(m_device.intervalMs) && m_device.intervalMs > 0) { m_settings.acq.intervalMs = static_cast<int>(m_device.intervalMs); changed = true; }
         if (m_settings.acq.samples != static_cast<int>(m_device.samples)) { m_settings.acq.samples = static_cast<int>(m_device.samples); changed = true; }
         if (static_cast<int>(m_device.mode) <= 2 && m_settings.acq.mode != static_cast<int>(m_device.mode)) { m_settings.acq.mode = static_cast<int>(m_device.mode); changed = true; }

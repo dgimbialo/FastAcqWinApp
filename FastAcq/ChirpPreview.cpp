@@ -133,6 +133,8 @@ void ChirpPreviewCtrl::Render(CDC& dc, const CRect& full)
     //         dim row 2 (period) | info line 1 | info line 2
     const bool haveVco = m_vco.Valid();
     auto vtuneOf = [&](double counts) { return m_vLow + (m_vHigh - m_vLow) * counts / 4095.0; };
+    const double base = (std::min<double>)(m_p.offset, 4094.0);
+    const double top  = (std::min<double>)(base + m_p.amplitude, 4095.0);
     const int mL = sc(66), mR = haveVco ? sc(128) : sc(82), mT = sc(46);
     const int dimRow = sc(26);
     const int infoLine = sc(18);
@@ -199,9 +201,9 @@ void ChirpPreviewCtrl::Render(CDC& dc, const CRect& full)
         CPen pen(PS_SOLID, sc(2), cChirp); CPen* op = dc.SelectObject(&pen);
         for (uint32_t k = 0; k < shown; ++k) {
             double t0 = k * m_g.periodUs;
-            dc.MoveTo(X(t0), Y(0));
-            dc.LineTo(X(t0 + m_g.riseUs), Y(m_p.amplitude));
-            dc.LineTo(X(t0 + m_g.periodUs), Y(0));
+            dc.MoveTo(X(t0), Y(base));
+            dc.LineTo(X(t0 + m_g.riseUs), Y(top));
+            dc.LineTo(X(t0 + m_g.periodUs), Y(base));
         }
         dc.SelectObject(op);
     }
@@ -211,24 +213,26 @@ void ChirpPreviewCtrl::Render(CDC& dc, const CRect& full)
         int riseW = (std::max)(1, static_cast<int>(m_g.riseUs * pxPerUs));
         double frac = (std::min)(1.0, (plot.right - nextX0) / static_cast<double>(riseW));
         CPen nxt(PS_SOLID, sc(2), cNext); CPen* op = dc.SelectObject(&nxt);
-        dc.MoveTo(nextX0, Y(0));
-        dc.LineTo((std::min)(static_cast<int>(plot.right), nextX0 + riseW), Y(m_p.amplitude * frac));
+        dc.MoveTo(nextX0, Y(base));
+        dc.LineTo((std::min)(static_cast<int>(plot.right), nextX0 + riseW), Y(base + (top - base) * frac));
         dc.SelectObject(op);
     }
     // Amplitude: dotted level line + label above the first peak
     {
-        int px = X(m_g.riseUs), py = Y(m_p.amplitude);
+        int px = X(m_g.riseUs), py = Y(top), pb = Y(base);
         CPen dash(PS_DOT, 1, cDim); CPen* op = dc.SelectObject(&dash);
         dc.MoveTo(plot.left, py); dc.LineTo(px, py);
+        if (base > 0.0) { dc.MoveTo(plot.left, pb); dc.LineTo(plot.right, pb); }
         dc.SelectObject(op);
         CString a;
         if (haveVco)
-            a.Format(_T("A = %u DAC: Vtune %.2f..%.2f V = %.3f..%.3f GHz (B %.0f MHz)"), m_p.amplitude,
-                     vtuneOf(0), vtuneOf(m_p.amplitude), m_vco.FreqHz(vtuneOf(0)) / 1e9,
-                     m_vco.FreqHz(vtuneOf(m_p.amplitude)) / 1e9,
-                     std::fabs(m_vco.FreqHz(vtuneOf(m_p.amplitude)) - m_vco.FreqHz(vtuneOf(0))) / 1e6);
+            a.Format(_T("DAC %.0f..%.0f (offset %u + A %u): Vtune %.2f..%.2f V = %.3f..%.3f GHz (B %.0f MHz)"),
+                     base, top, m_p.offset, m_p.amplitude,
+                     vtuneOf(base), vtuneOf(top), m_vco.FreqHz(vtuneOf(base)) / 1e9, m_vco.FreqHz(vtuneOf(top)) / 1e9,
+                     std::fabs(m_vco.FreqHz(vtuneOf(top)) - m_vco.FreqHz(vtuneOf(base))) / 1e6);
         else
-            a.Format(_T("A = %u DAC: Vtune %.2f..%.2f V"), m_p.amplitude, vtuneOf(0), vtuneOf(m_p.amplitude));
+            a.Format(_T("DAC %.0f..%.0f (offset %u + A %u): Vtune %.2f..%.2f V"), base, top, m_p.offset, m_p.amplitude,
+                     vtuneOf(base), vtuneOf(top));
         dc.SetTextColor(cDim);
         dc.SelectObject(&m_font);
         CRect ar(px - sc(200), py - sc(19), px + sc(200), py - sc(3));

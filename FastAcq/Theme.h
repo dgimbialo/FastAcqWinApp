@@ -79,6 +79,18 @@ inline bool IsDark() { return DarkFlag(); }
 inline void SetDark(bool dark) { DarkFlag() = dark; }
 inline const Palette& Get() { return IsDark() ? Dark() : Light(); }
 
+// Background brush for editable fields (edit boxes, combo lists): white in
+// the light theme, the plot canvas colour in the dark one. Read-only edits
+// are painted through CTLCOLOR_STATIC and keep the window background, so an
+// editable field is always distinguishable from a computed read-out.
+inline HBRUSH FieldBrush()
+{
+    static CBrush light, dark;
+    CBrush& b = IsDark() ? dark : light;
+    if (!b.GetSafeHandle()) b.CreateSolidBrush(Get().plot);
+    return static_cast<HBRUSH>(b.GetSafeHandle());
+}
+
 // Scale a color's brightness by factor f (clamped to 0..255).
 inline COLORREF Shade(COLORREF c, double f)
 {

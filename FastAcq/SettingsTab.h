@@ -27,6 +27,7 @@ public:
     uint8_t  GetDataMask() const;
     uint16_t GetIntervalMs() const;
     uint16_t GetAmplitude() const;
+    uint16_t GetOffset() const;       // chirp DAC offset (base level)
     uint16_t GetBurst() const;
     uint16_t GetRiseUs() const;       // 0 when the chirp is defined by its frequency
     uint16_t GetFallUs() const;
@@ -43,6 +44,7 @@ protected:
     afx_msg void   OnApplyInterval();
     afx_msg void   OnApplyData();
     afx_msg void   OnSetAmplitude();
+    afx_msg void   OnSetOffset();
     afx_msg void   OnSetBurst();
     afx_msg void   OnSetRamp();
     afx_msg void   OnApplyPpm();
@@ -78,6 +80,7 @@ private:
     CStatic m_lblSamples;   CEdit m_edtSamples;       CButton m_btnSetSamples;
     CStatic m_lblInterval;  CEdit m_edtInterval;      CButton m_btnApplyInterval;
     CStatic m_lblAmplitude; CEdit m_edtAmplitude;     CButton m_btnSetAmp;
+    CStatic m_lblOffset;    CEdit m_edtOffset;        CButton m_btnSetOffset;
     CStatic m_lblBurst;     CEdit m_edtBurst;         CButton m_btnSetBurst;
     CStatic m_lblRamp;      CEdit m_edtRise;          CEdit m_edtFall;       CButton m_btnSetRamp;
     CStatic m_lblData;      CButton m_chkRaw;         CButton m_chkFft;      CButton m_btnApplyData;

@@ -239,9 +239,11 @@ HBRUSH TraceTab::OnCtlColor(CDC* pDC, CWnd*, UINT nCtlColor)
         pDC->SetTextColor(Theme::Get().text);
         return static_cast<HBRUSH>(m_bgBrush.GetSafeHandle());
     }
+    // Editable fields: white (light theme) so they stand out from read-only
+    // read-outs, which arrive as CTLCOLOR_STATIC and keep the grey background.
     pDC->SetTextColor(Theme::Get().text);
-    pDC->SetBkColor(Theme::Get().bg);
-    return static_cast<HBRUSH>(m_bgBrush.GetSafeHandle());
+    pDC->SetBkColor(Theme::Get().plot);
+    return Theme::FieldBrush();
 }
 
 void TraceTab::OnSize(UINT t, int cx, int cy)

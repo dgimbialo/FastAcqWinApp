@@ -25,7 +25,8 @@ CHUNK = 16384
 # opcodes
 CMD = {0x01:"START_CHIRP",0x02:"GET_FRAME",0x03:"PING",0x04:"SET_SAMPLES",0x05:"SET_MODE",
        0x06:"SET_DATA_MASK",0x07:"SET_INTERVAL",0x08:"TRIGGER",0x09:"GET_STATUS",
-       0x0A:"SET_AMPLITUDE",0x0B:"SET_BURST",0x0C:"ABORT",0x0D:"SET_TRACE",0x0E:"SET_RAMP",0x0F:"GET_TRACE"}
+       0x0A:"SET_AMPLITUDE",0x0B:"SET_BURST",0x0C:"ABORT",0x0D:"SET_TRACE",0x0E:"SET_RAMP",0x0F:"GET_TRACE",
+       0x10:"SET_OFFSET"}
 FRAME_ID_PONG, FRAME_ID_STATUS, FRAME_ID_ACK, FRAME_ID_TRACE = 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFFFD, 0xFFFFFFFC
 F_RAW, F_FFT, F_FFTV, F_STATUS, F_ACK, F_TRACE = 1, 2, 4, 8, 16, 32
 
@@ -62,7 +63,7 @@ class Dev:
         self.ser = ser
         self.lock = threading.Lock()
         self.mode = 0; self.mask = 3; self.interval = 30
-        self.freq = 458; self.amp = 4095; self.burst = 1; self.samples_ovr = 0
+        self.freq = 458; self.amp = 4095; self.offset = 0; self.burst = 1; self.samples_ovr = 0
         self.rise_us = 0; self.fall_us = 0
         self.trace_on = False
         self.frame_id = 0
@@ -96,7 +97,8 @@ class Dev:
         res = struct.pack("<HHBBH", self.amp, self.burst, 0, 0, rise)
         hdr = header(FRAME_ID_STATUS, self.tick(), self.samples_ovr, self.freq, F_STATUS,
                      fft_size=self.mode, peak_bin=self.mask, peak_mag=float(self.interval),
-                     res=float(fall), reserved0=(1 if self.trace_on else 0) | 2, reserved=res)
+                     res=float(fall), reserved0=(1 if self.trace_on else 0) | 2 | 4,
+                     raw_bytes=self.offset, reserved=res)
         self.send(hdr)
 
     def capture(self, trig):
@@ -194,6 +196,9 @@ class Dev:
         elif cmd == 0x07: self.interval = a1; self.ack(cmd, 0, a1)
         elif cmd == 0x09: self.status()
         elif cmd == 0x0A: self.amp = a1; self.ack(cmd, 0, a1)
+        elif cmd == 0x10:
+            if a1 <= 4094: self.offset = a1; self.ack(cmd, 0, a1)
+            else: self.ack(cmd, 1, 0)
         elif cmd == 0x0B: self.burst = a1; self.ack(cmd, 0, a1)
         elif cmd == 0x0C: self.ack(cmd, 0, 0)
         elif cmd == 0x0D: self.trace_on = bool(a1); self.ack(cmd, 0, a1)
