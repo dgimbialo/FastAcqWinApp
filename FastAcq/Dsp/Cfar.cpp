@@ -12,6 +12,8 @@ const char* DetectorName(DetectorType t)
     case DetectorType::FixedAboveNoise: return "Noise floor + X dB";
     case DetectorType::CaCfar:          return "CA-CFAR";
     case DetectorType::OsCfar:          return "OS-CFAR";
+    case DetectorType::GoCfar:          return "GO-CFAR (greatest of)";
+    case DetectorType::SoCfar:          return "SO-CFAR (smallest of)";
     default:                            return "?";
     }
 }
@@ -60,6 +62,46 @@ double OsCfarAlpha(int nTrainTotal, int rank, double pfa)
     return 0.5 * (lo + hi);
 }
 
+namespace {
+
+// Pfa of GO / SO cell averaging with n cells per side and threshold
+// T = a * (sum of the chosen side), unit-mean exponential noise (Hansen 1980):
+//   Pfa_SO = 2 * sum_{k=0}^{n-1} C(n-1+k, k) (2 + a)^-(n+k)
+//   Pfa_GO = 2 (1 + a)^-n - Pfa_SO
+double LogBinom(int n, int k)
+{
+    return std::lgamma(n + 1.0) - std::lgamma(k + 1.0) - std::lgamma(n - k + 1.0);
+}
+double PfaSo(int n, double a)
+{
+    double s = 0.0;
+    for (int k = 0; k < n; ++k)
+        s += std::exp(LogBinom(n - 1 + k, k) - (n + k) * std::log(2.0 + a));
+    return 2.0 * s;
+}
+double PfaGo(int n, double a) { return 2.0 * std::pow(1.0 + a, -n) - PfaSo(n, a); }
+
+double SolveAlphaSum(int n, double pfa, double (*pfaOf)(int, double))
+{
+    if (n < 1) n = 1;
+    if (pfa <= 0.0) pfa = 1e-12;
+    if (pfa >= 1.0) pfa = 0.999;
+    double lo = 0.0, hi = 1.0;
+    while (pfaOf(n, hi) > pfa && hi < 1e9) hi *= 2.0;
+    for (int it = 0; it < 200; ++it) {
+        const double mid = 0.5 * (lo + hi);
+        if (pfaOf(n, mid) > pfa) lo = mid; else hi = mid;
+        if (hi - lo < 1e-9 * hi) break;
+    }
+    return 0.5 * (lo + hi);
+}
+
+} // namespace
+
+// Mean convention: alpha_mean = n * alpha_sum.
+double GoCfarAlpha(int nPerSide, double pfa) { return nPerSide * SolveAlphaSum(nPerSide, pfa, &PfaGo); }
+double SoCfarAlpha(int nPerSide, double pfa) { return nPerSide * SolveAlphaSum(nPerSide, pfa, &PfaSo); }
+
 void RunDetector(const std::vector<float>& powerLin, size_t fromBin, size_t toBin,
                  const DetectorParams& p, DetectorOutput& out)
 {
@@ -106,6 +148,36 @@ void RunDetector(const std::vector<float>& powerLin, size_t fromBin, size_t toBi
             if (c < 1) { c = 1; s = powerLin[k]; }
             const double noise = s / c;
             const double alpha = CaCfarAlpha(c, p.pfa);
+            out.noiseDb[k]     = PowerToDb(static_cast<float>(noise));
+            out.thresholdDb[k] = PowerToDb(static_cast<float>(alpha * noise));
+        }
+        break;
+    }
+    case DetectorType::GoCfar:
+    case DetectorType::SoCfar: {
+        const bool greatest = (p.type == DetectorType::GoCfar);
+        const int G = p.guardCells < 0 ? 0 : p.guardCells;
+        const int T = p.trainCells < 1 ? 1 : p.trainCells;
+        std::vector<double> pre(n + 1, 0.0);
+        for (size_t k = 0; k < n; ++k) pre[k + 1] = pre[k] + powerLin[k];
+        auto meanRange = [&](long a, long b, int& cnt) -> double {
+            if (a < static_cast<long>(fromBin)) a = static_cast<long>(fromBin);
+            if (b > static_cast<long>(toBin))   b = static_cast<long>(toBin);
+            cnt = (a >= b) ? 0 : static_cast<int>(b - a);
+            return cnt ? (pre[static_cast<size_t>(b)] - pre[static_cast<size_t>(a)]) / cnt : 0.0;
+        };
+        for (size_t k = fromBin; k < toBin; ++k) {
+            const long kk = static_cast<long>(k);
+            int c1 = 0, c2 = 0;
+            const double m1 = meanRange(kk - G - T, kk - G, c1);
+            const double m2 = meanRange(kk + G + 1, kk + G + 1 + T, c2);
+            double noise; int cells;
+            if (c1 && c2) { noise = greatest ? (std::max)(m1, m2) : (std::min)(m1, m2); cells = (std::min)(c1, c2); }
+            else if (c1)  { noise = m1; cells = c1; }
+            else if (c2)  { noise = m2; cells = c2; }
+            else          { noise = powerLin[k]; cells = 1; }
+            const double alpha = (c1 && c2) ? (greatest ? GoCfarAlpha(cells, p.pfa) : SoCfarAlpha(cells, p.pfa))
+                                            : CaCfarAlpha(cells, p.pfa);
             out.noiseDb[k]     = PowerToDb(static_cast<float>(noise));
             out.thresholdDb[k] = PowerToDb(static_cast<float>(alpha * noise));
         }

@@ -354,6 +354,14 @@ void RangeProfileView::Render(CDC& dc, const CRect& rc)
                         FormatFreq(s.fsEffHz).GetString(), s.nSamples, m_res->processingMs);
             info += more;
             if (m_res->fromMcuFft) info += _T("   [MCU FFT]");
+            const int rej = m_res->up.rejected.Total() + m_res->down.rejected.Total();
+            if (rej > 0 || m_res->unconfirmed > 0) {
+                CString rj; rj.Format(_T("   rejected: %d harmonic, %d spur, %d low SNR, %d unconfirmed"),
+                                      m_res->up.rejected.harmonics + m_res->down.rejected.harmonics,
+                                      m_res->up.rejected.spurs + m_res->down.rejected.spurs,
+                                      m_res->up.rejected.lowSnr + m_res->down.rejected.lowSnr, m_res->unconfirmed);
+                info += rj;
+            }
         } else {
             info = _T("no data");
         }

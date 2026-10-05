@@ -18,6 +18,8 @@ public:
     void ApplySettings(const AppSettings& s);     // settings -> controls
     void ReadInto(AppSettings& s) const;          // controls -> settings (only the fields owned here)
     void ApplyTheme();
+    // Append frequencies (Hz) to the spur mask with the given half width.
+    void AddSpurs(const std::vector<double>& hz, double halfWidthHz);
 
 protected:
     afx_msg int    OnCreate(LPCREATESTRUCT lpcs);
@@ -30,6 +32,8 @@ protected:
     afx_msg void   OnAutoApplyRange(UINT id);
     afx_msg void   OnEditKillFocus(UINT id);
     afx_msg void   OnDefaults();
+    afx_msg void   OnLearnSpurs();
+    afx_msg void   OnClearSpurs();
     DECLARE_MESSAGE_MAP()
 
 private:
@@ -65,6 +69,14 @@ private:
     CStatic m_lblMaxPeaks;  CEdit m_edtMaxPeaks;
     CStatic m_lblMti;       CButton m_chkMti;
     CStatic m_lblTrack;     CButton m_chkTrack;
+    // --- Rejection
+    CStatic m_hdrReject;
+    CStatic m_lblHarm;      CButton m_chkHarm;
+    CStatic m_lblHarmDrop;  CEdit m_edtHarmDrop;
+    CStatic m_lblMinSnr;    CEdit m_edtMinSnr;
+    CStatic m_lblConfirm;   CEdit m_edtConfirm;
+    CStatic m_lblSpurs;     CEdit m_edtSpurs;
+    CButton m_btnLearn;     CButton m_btnClearSpurs;
     // --- Display
     CStatic m_hdrDisplay;
     CStatic m_lblDbTop;     CEdit m_edtDbTop;

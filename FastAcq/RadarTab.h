@@ -46,6 +46,7 @@ protected:
     afx_msg void   OnAutoscale();
     afx_msg void   OnClearWf();
     afx_msg LRESULT OnXRangeChanged(WPARAM src, LPARAM);
+    afx_msg LRESULT OnLearnSpurs(WPARAM, LPARAM);
     DECLARE_MESSAGE_MAP()
 
 private:

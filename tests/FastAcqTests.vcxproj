@@ -69,6 +69,7 @@
     <ClCompile Include="..\FastAcq\Dsp\FftPlan.cpp" />
     <ClCompile Include="..\FastAcq\Dsp\PeakFinder.cpp" />
     <ClCompile Include="..\FastAcq\Dsp\RadarDsp.cpp" />
+    <ClCompile Include="..\FastAcq\Dsp\Rejection.cpp" />
     <ClCompile Include="..\FastAcq\Dsp\ToneEstimator.cpp" />
     <ClCompile Include="..\FastAcq\Dsp\Window.cpp" />
   </ItemGroup>

@@ -13,6 +13,8 @@ enum class DetectorType {
     FixedAboveNoise = 0,   // threshold = median noise floor + thresholdDb
     CaCfar,                // cell-averaging CFAR
     OsCfar,                // ordered-statistic CFAR
+    GoCfar,                // greatest-of CA-CFAR: noise = max(mean of leading, mean of lagging cells)
+    SoCfar,                // smallest-of CA-CFAR: noise = min(...) (keeps targets next to clutter edges)
     Count
 };
 
@@ -37,9 +39,12 @@ struct DetectorOutput {
 void RunDetector(const std::vector<float>& powerLin, size_t fromBin, size_t toBin,
                  const DetectorParams& p, DetectorOutput& out);
 
-// Threshold multipliers (square-law detector, exponential noise).
+// Threshold multipliers (square-law detector, exponential noise); the
+// threshold is alpha * (mean of the selected training cells).
 double CaCfarAlpha(int nTrainTotal, double pfa);
 double OsCfarAlpha(int nTrainTotal, int rank, double pfa);
+double GoCfarAlpha(int nPerSide, double pfa);
+double SoCfarAlpha(int nPerSide, double pfa);
 
 // Median of v[from, to) (copy + nth_element).
 float MedianOf(const std::vector<float>& v, size_t from, size_t to);

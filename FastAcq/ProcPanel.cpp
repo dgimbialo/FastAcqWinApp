@@ -15,6 +15,10 @@ BEGIN_MESSAGE_MAP(ProcPanel, CWnd)
     ON_BN_CLICKED(IDC_BTN_DEFAULTS,    &ProcPanel::OnDefaults)
     ON_BN_CLICKED(IDC_CHK_FW_GEOM,     &ProcPanel::OnAutoApply)
     ON_BN_CLICKED(IDC_CHK_TONE,        &ProcPanel::OnAutoApply)
+    ON_BN_CLICKED(IDC_CHK_HARMONICS,   &ProcPanel::OnAutoApply)
+    ON_BN_CLICKED(IDC_BTN_LEARN_SPURS, &ProcPanel::OnLearnSpurs)
+    ON_BN_CLICKED(IDC_BTN_CLEAR_SPURS, &ProcPanel::OnClearSpurs)
+    ON_CONTROL_RANGE(EN_KILLFOCUS,  IDC_EDT_HARM_DROP, IDC_EDT_SPURS, &ProcPanel::OnEditKillFocus)
     ON_CONTROL_RANGE(CBN_SELCHANGE, IDC_EDT_GUARD, IDC_EDT_VREF, &ProcPanel::OnAutoApplyRange)
     ON_CONTROL_RANGE(BN_CLICKED,    IDC_EDT_GUARD, IDC_EDT_VREF, &ProcPanel::OnAutoApplyRange)
     ON_CONTROL_RANGE(EN_KILLFOCUS,  IDC_EDT_GUARD, IDC_EDT_VREF, &ProcPanel::OnEditKillFocus)
@@ -93,6 +97,15 @@ int ProcPanel::OnCreate(LPCREATESTRUCT lpcs)
     m_lblMti.Create(_T("Doppler"), ss, rc, this);                 m_chkMti.Create(_T("MTI (subtract mean)"), chk, rc, this, IDC_CHK_MTI);
     m_lblTrack.Create(_T("Tracking"), ss, rc, this);              m_chkTrack.Create(_T("Stable target IDs"), chk, rc, this, IDC_CHK_TRACK);
 
+    m_hdrReject.Create(_T("Rejection"), ss, rc, this);
+    m_lblHarm.Create(_T("Harmonics"), ss, rc, this);              m_chkHarm.Create(_T("Drop 2f, 3f.. of a stronger peak"), chk, rc, this, IDC_CHK_HARMONICS);
+    m_lblHarmDrop.Create(_T("Harmonic weaker by, dB"), ss, rc, this); m_edtHarmDrop.Create(esf, rc, this, IDC_EDT_HARM_DROP);
+    m_lblMinSnr.Create(_T("Min SNR, dB (0 = off)"), ss, rc, this); m_edtMinSnr.Create(esf, rc, this, IDC_EDT_MIN_SNR);
+    m_lblConfirm.Create(_T("Confirm after N frames"), ss, rc, this); m_edtConfirm.Create(es, rc, this, IDC_EDT_CONFIRM);
+    m_lblSpurs.Create(_T("Spur mask Hz:halfwidth,..."), ss, rc, this); m_edtSpurs.Create(esf, rc, this, IDC_EDT_SPURS);
+    m_btnLearn.Create(_T("Learn spurs"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, rc, this, IDC_BTN_LEARN_SPURS);
+    m_btnClearSpurs.Create(_T("Clear"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, rc, this, IDC_BTN_CLEAR_SPURS);
+
     m_hdrDisplay.Create(_T("Display"), ss, rc, this);
     m_lblDbTop.Create(_T("dB axis top"), ss, rc, this);           m_edtDbTop.Create(esf, rc, this, IDC_EDT_DBTOP);
     m_lblDbBottom.Create(_T("dB axis bottom"), ss, rc, this);     m_edtDbBottom.Create(esf, rc, this, IDC_EDT_DBBOTTOM);
@@ -103,7 +116,7 @@ int ProcPanel::OnCreate(LPCREATESTRUCT lpcs)
 
     CWnd* pw = GetWindow(GW_CHILD);
     while (pw) { pw->SetFont(&m_font); pw = pw->GetWindow(GW_HWNDNEXT); }
-    for (CStatic* h : { &m_hdrProc, &m_hdrDetect, &m_hdrDisplay }) h->SetFont(&m_hdrFont);
+    for (CStatic* h : { &m_hdrProc, &m_hdrDetect, &m_hdrReject, &m_hdrDisplay }) h->SetFont(&m_hdrFont);
 
     AppSettings defaults;
     ApplySettings(defaults);
@@ -167,6 +180,12 @@ void ProcPanel::ApplySettings(const AppSettings& s)
     m_chkMti.SetCheck(s.dsp.mti ? BST_CHECKED : BST_UNCHECKED);
     m_chkTrack.SetCheck(s.dsp.trackTargets ? BST_CHECKED : BST_UNCHECKED);
 
+    m_chkHarm.SetCheck(s.dsp.reject.harmonics ? BST_CHECKED : BST_UNCHECKED);
+    SetDouble(m_edtHarmDrop, s.dsp.reject.harmonicMinDropDb, _T("%.1f"));
+    SetDouble(m_edtMinSnr, s.dsp.reject.minSnrDb, _T("%.1f"));
+    SetInt(m_edtConfirm, s.dsp.confirmHits);
+    m_edtSpurs.SetWindowText(CString(dsp::FormatSpurList(s.dsp.reject.spurs).c_str()));
+
     SetDouble(m_edtDbTop, s.display.dbTop, _T("%.0f"));
     SetDouble(m_edtDbBottom, s.display.dbBottom, _T("%.0f"));
     SetInt(m_edtWfRows, s.display.waterfallRows);
@@ -207,6 +226,15 @@ void ProcPanel::ReadInto(AppSettings& s) const
     s.dsp.mti          = m_chkMti.GetCheck() == BST_CHECKED;
     s.dsp.trackTargets = m_chkTrack.GetCheck() == BST_CHECKED;
 
+    s.dsp.reject.harmonics         = m_chkHarm.GetCheck() == BST_CHECKED;
+    s.dsp.reject.harmonicMinDropDb = static_cast<float>((std::max)(0.0, GetDouble(m_edtHarmDrop, 6.0)));
+    s.dsp.reject.minSnrDb          = static_cast<float>((std::max)(0.0, GetDouble(m_edtMinSnr, 0.0)));
+    s.dsp.confirmHits              = (std::max)(0, (std::min)(100, GetInt(m_edtConfirm, 0)));
+    {
+        CString t; const_cast<CEdit&>(m_edtSpurs).GetWindowText(t);
+        s.dsp.reject.spurs = dsp::ParseSpurList(std::string(CStringA(t)), 2000.0);
+    }
+
     s.display.dbTop    = static_cast<float>(GetDouble(m_edtDbTop, 0.0));
     s.display.dbBottom = static_cast<float>(GetDouble(m_edtDbBottom, -120.0));
     if (s.display.dbTop <= s.display.dbBottom) { s.display.dbTop = 0.0f; s.display.dbBottom = -120.0f; }
@@ -220,6 +248,33 @@ void ProcPanel::NotifyChanged()
     if (m_suppress) return;
     CWnd* pMain = AfxGetMainWnd();
     if (pMain && ::IsWindow(pMain->GetSafeHwnd())) pMain->PostMessage(WM_APP_SETTINGS_CHANGED, SETTINGS_FROM_PROC, 0);
+}
+
+void ProcPanel::AddSpurs(const std::vector<double>& hz, double halfWidthHz)
+{
+    CString t; m_edtSpurs.GetWindowText(t);
+    std::vector<dsp::SpurBand> spurs = dsp::ParseSpurList(std::string(CStringA(t)), 2000.0);
+    for (double f : hz) {
+        bool known = false;
+        for (const auto& b : spurs) if (std::fabs(b.centerHz - f) <= b.halfWidthHz) { known = true; break; }
+        if (!known && f > 0.0) spurs.push_back({ f, halfWidthHz });
+    }
+    std::sort(spurs.begin(), spurs.end(), [](const dsp::SpurBand& a, const dsp::SpurBand& b) { return a.centerHz < b.centerHz; });
+    m_edtSpurs.SetWindowText(CString(dsp::FormatSpurList(spurs).c_str()));
+    NotifyChanged();
+}
+
+void ProcPanel::OnLearnSpurs()
+{
+    // The parent (Radar tab) knows the current peaks; it calls AddSpurs().
+    CWnd* p = GetParent();
+    if (p) p->SendMessage(WM_APP_LEARN_SPURS, 0, 0);
+}
+
+void ProcPanel::OnClearSpurs()
+{
+    m_edtSpurs.SetWindowText(_T(""));
+    NotifyChanged();
 }
 
 void ProcPanel::OnDefaults()
@@ -285,6 +340,15 @@ void ProcPanel::Relayout()
     row(m_lblMti, m_chkMti);
     row(m_lblTrack, m_chkTrack);
     y += sc(4);
+    header(m_hdrReject);
+    row(m_lblHarm, m_chkHarm);
+    row(m_lblHarmDrop, m_edtHarmDrop);
+    row(m_lblMinSnr, m_edtMinSnr);
+    row(m_lblConfirm, m_edtConfirm);
+    row(m_lblSpurs, m_edtSpurs);
+    m_btnLearn.MoveWindow(x + lblW + pad, y, sc(90), h);
+    m_btnClearSpurs.MoveWindow(x + lblW + pad + sc(96), y, (std::max)(sc(40), ctlW - sc(96)), h);
+    y += rowH + sc(4);
     header(m_hdrDisplay);
     row(m_lblDbTop, m_edtDbTop);
     row(m_lblDbBottom, m_edtDbBottom);

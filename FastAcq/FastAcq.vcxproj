@@ -128,6 +128,7 @@
     <ClInclude Include="Dsp\FftPlan.h" />
     <ClInclude Include="Dsp\PeakFinder.h" />
     <ClInclude Include="Dsp\RadarDsp.h" />
+    <ClInclude Include="Dsp\Rejection.h" />
     <ClInclude Include="Dsp\ToneEstimator.h" />
     <ClInclude Include="Dsp\Window.h" />
   </ItemGroup>
@@ -199,6 +200,9 @@
     <ClCompile Include="Dsp\RadarDsp.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <FloatingPointModel Condition="'$(Configuration)'=='Release'">Fast</FloatingPointModel>
+    </ClCompile>
+    <ClCompile Include="Dsp\Rejection.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Dsp\ToneEstimator.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>

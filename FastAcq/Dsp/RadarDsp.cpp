@@ -363,6 +363,7 @@ void RadarDsp::FinishSpectrum(const std::vector<float>& powerIn, const SegSpectr
     pp.interp      = m_s.interp;
     out.peaks = FindPeaks(out.db, out.thrDb, out.noiseDb,
                           out.cplx.empty() ? nullptr : &out.cplx, out.freqResHz, pp);
+    RejectPeaks(out.peaks, out.freqResHz, m_s.reject, out.rejected);
 }
 
 void RadarDsp::BuildMcuSpectrum(const ChirpFrame& f, RampSpectrum& out)
@@ -482,11 +483,13 @@ void RadarDsp::BuildTargets(FrameResult& r, bool updateState)
             tr.velocity = t.velocityMps;
             tr.missed   = 0;
             tr.age++;
-            t.id = tr.id;
+            t.id   = tr.id;
+            t.hits = tr.age;
             updated.push_back(tr);
         } else {
             Track tr{ m_nextTrackId, key, t.velocityMps, 0, 1 };
-            t.id = tr.id;
+            t.id   = tr.id;
+            t.hits = 1;
             if (updateState) m_nextTrackId++;
             updated.push_back(tr);
         }
@@ -498,6 +501,16 @@ void RadarDsp::BuildTargets(FrameResult& r, bool updateState)
             if (++tr.missed <= 5) updated.push_back(tr);
         }
         m_tracks = std::move(updated);
+    }
+
+    // Confirmation: a target has to be seen in N consecutive frames before it
+    // is reported (its track keeps accumulating hits meanwhile).
+    if (m_s.confirmHits > 1) {
+        std::vector<Target> confirmed;
+        for (const Target& t : r.targets) {
+            if (t.hits >= m_s.confirmHits) confirmed.push_back(t); else ++r.unconfirmed;
+        }
+        r.targets.swap(confirmed);
     }
 }
 

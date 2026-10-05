@@ -131,6 +131,11 @@ bool AppSettings::Load(const CString& path)
     dsp.detector.guardCells  = ini.GetInt(_T("Dsp"), _T("CfarGuard"), dsp.detector.guardCells);
     dsp.detector.trainCells  = ini.GetInt(_T("Dsp"), _T("CfarTrain"), dsp.detector.trainCells);
     dsp.detector.pfa         = static_cast<float>(ini.GetDouble(_T("Dsp"), _T("Pfa"), dsp.detector.pfa));
+    dsp.reject.harmonics     = ini.GetBool(_T("Dsp"), _T("RejectHarmonics"), dsp.reject.harmonics);
+    dsp.reject.harmonicMinDropDb = static_cast<float>(ini.GetDouble(_T("Dsp"), _T("HarmonicMinDropDb"), dsp.reject.harmonicMinDropDb));
+    dsp.reject.minSnrDb      = static_cast<float>(ini.GetDouble(_T("Dsp"), _T("MinSnrDb"), dsp.reject.minSnrDb));
+    dsp.reject.spurs         = dsp::ParseSpurList(std::string(CStringA(ini.GetStr(_T("Dsp"), _T("SpurMask"), _T("")))), 2000.0);
+    dsp.confirmHits          = ini.GetInt(_T("Dsp"), _T("ConfirmHits"), dsp.confirmHits);
     dsp.interp          = ClampEnum(ini.GetInt(_T("Dsp"), _T("Interp"), static_cast<int>(dsp.interp)), dsp::PeakInterp::Count);
     dsp.maxPeaks        = ini.GetInt(_T("Dsp"), _T("MaxPeaks"), dsp.maxPeaks);
     dsp.mti             = ini.GetBool(_T("Dsp"), _T("Mti"), dsp.mti);
@@ -231,6 +236,11 @@ bool AppSettings::Save(const CString& path) const
     ini.SetInt(_T("Dsp"), _T("CfarGuard"),     dsp.detector.guardCells);
     ini.SetInt(_T("Dsp"), _T("CfarTrain"),     dsp.detector.trainCells);
     ini.SetDouble(_T("Dsp"), _T("Pfa"),        dsp.detector.pfa);
+    ini.SetBool(_T("Dsp"), _T("RejectHarmonics"), dsp.reject.harmonics);
+    ini.SetDouble(_T("Dsp"), _T("HarmonicMinDropDb"), dsp.reject.harmonicMinDropDb);
+    ini.SetDouble(_T("Dsp"), _T("MinSnrDb"),   dsp.reject.minSnrDb);
+    ini.Set(_T("Dsp"), _T("SpurMask"),         CString(dsp::FormatSpurList(dsp.reject.spurs).c_str()));
+    ini.SetInt(_T("Dsp"), _T("ConfirmHits"),   dsp.confirmHits);
     ini.SetInt(_T("Dsp"), _T("Interp"),        static_cast<int>(dsp.interp));
     ini.SetInt(_T("Dsp"), _T("MaxPeaks"),      dsp.maxPeaks);
     ini.SetBool(_T("Dsp"), _T("Mti"),          dsp.mti);

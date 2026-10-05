@@ -15,6 +15,7 @@
 #include "Decimator.h"
 #include "FftPlan.h"
 #include "PeakFinder.h"
+#include "Rejection.h"
 #include "ToneEstimator.h"
 #include "Window.h"
 
@@ -79,6 +80,8 @@ struct DspSettings {
     bool        trackTargets{true};
     bool        firmwareGeometry{true};    // segment chirps from the header's rise/fall (v2 exact samples)
     bool        toneEstimate{true};        // precise single-tone estimate per ramp (double FFT)
+    RejectionParams reject;                // harmonics / spur bands / minimum SNR
+    int         confirmHits{0};            // report a target only after it was tracked in N frames (0 = off)
 };
 
 struct Segment {
@@ -101,7 +104,8 @@ struct RampSpectrum {
     size_t                            nFft{0};
     size_t                            firstBin{0};   // first evaluated bin (after DC skip)
     float                             noiseFloorDb{0.0f};
-    std::vector<Peak>                 peaks;         // sorted by amplitude, descending
+    std::vector<Peak>                 peaks;         // sorted by amplitude, descending (after rejection)
+    RejectionStats                    rejected;      // what the rejection filters removed
     ToneEstimate                      tone;          // precise estimate of the strongest tone (first chirp)
 };
 
@@ -114,6 +118,7 @@ struct Target {
     float  ampDb{0.0f};
     float  snrDb{0.0f};
     bool   paired{false};
+    int    hits{1};            // frames this track has been seen in (1 = new)
 };
 
 struct RangeDopplerMap {
@@ -169,6 +174,7 @@ struct FrameResult {
     double    processingMs{0.0};
     bool      fromMcuFft{false};
     double    mcuPeakHz{0.0};    // peak reported by the MCU (ppm-corrected), 0 if none
+    int       unconfirmed{0};    // targets withheld by the confirmation filter this frame
 };
 
 struct DerivedValues {

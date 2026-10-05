@@ -9,6 +9,7 @@
 #include "Dsp/FftPlan.h"
 #include "Dsp/PeakFinder.h"
 #include "Dsp/RadarDsp.h"
+#include "Dsp/Rejection.h"
 #include "Dsp/ToneEstimator.h"
 #include "Dsp/Window.h"
 #include "Core/ChirpGeometry.h"
@@ -769,6 +770,56 @@ static void TestVcoCurve()
 }
 
 // ---------------------------------------------------------------------------
+static void TestGoSoCfarAndRejection()
+{
+    std::puts("GO/SO-CFAR + rejection");
+    using namespace dsp;
+    // Alphas: SO must be larger than CA (same cells), GO smaller than SO; all > 0 and monotone in Pfa.
+    const double aCa = CaCfarAlpha(32, 1e-4), aGo = GoCfarAlpha(16, 1e-4), aSo = SoCfarAlpha(16, 1e-4);
+    std::printf("  alpha(Pfa 1e-4): CA %.2f  GO %.2f  SO %.2f\n", aCa, aGo, aSo);
+    CHECK(aCa > 0.0 && aGo > 0.0 && aSo > 0.0);
+    CHECK(aSo > aGo);
+    CHECK(GoCfarAlpha(16, 1e-2) < GoCfarAlpha(16, 1e-4));
+    CHECK(SoCfarAlpha(16, 1e-2) < SoCfarAlpha(16, 1e-4));
+    // Empirical false-alarm rate on exponential noise must land near the requested Pfa.
+    std::mt19937 rng(5);
+    std::exponential_distribution<double> ed(1.0);
+    std::vector<float> pw(200000);
+    for (auto& v : pw) v = static_cast<float>(ed(rng));
+    for (DetectorType t : { DetectorType::CaCfar, DetectorType::GoCfar, DetectorType::SoCfar, DetectorType::OsCfar }) {
+        DetectorParams p; p.type = t; p.pfa = 1e-2f; p.guardCells = 2; p.trainCells = 16;
+        DetectorOutput o; RunDetector(pw, 0, pw.size(), p, o);
+        size_t fa = 0, n = 0;
+        for (size_t k = 100; k + 100 < pw.size(); ++k) { ++n; if (PowerToDb(pw[k]) > o.thresholdDb[k]) ++fa; }
+        const double rate = static_cast<double>(fa) / n;
+        std::printf("  %-24s empirical Pfa %.4f (target 0.01)\n", DetectorName(t), rate);
+        CHECK(rate > 0.004 && rate < 0.025);
+    }
+
+    // Harmonics / spurs / SNR rejection on a peak list (sorted by amplitude).
+    std::vector<Peak> pk;
+    auto add = [&](double f, float a, float snr) { Peak q; q.freqHz = f; q.ampDb = a; q.snrDb = snr; q.bin = static_cast<size_t>(f / 10.0); pk.push_back(q); };
+    add(1000.0, 0.0f, 60.0f);      // fundamental
+    add(2500.0, -10.0f, 50.0f);    // real second target
+    add(2000.0, -20.0f, 40.0f);    // 2nd harmonic of 1000
+    add(3012.0, -25.0f, 35.0f);    // 3rd harmonic (3 bins off at 10 Hz/bin, k * 1.5 bins tolerance = 45 Hz)
+    add(7000.0, -30.0f, 30.0f);    // spur band
+    add(5000.0, -40.0f, 4.0f);     // low SNR
+    RejectionParams rp; rp.harmonics = true; rp.harmonicTolBins = 1.5; rp.harmonicMinDropDb = 6.0f; rp.minSnrDb = 5.0f;
+    rp.spurs = ParseSpurList("7000:100, 9e6", 2000.0);
+    CHECK(rp.spurs.size() == 2 && rp.spurs[1].halfWidthHz == 2000.0 && rp.spurs[0].centerHz == 7000.0);
+    RejectionStats st;
+    RejectPeaks(pk, 10.0, rp, st);
+    CHECK(st.harmonics == 2 && st.spurs == 1 && st.lowSnr == 1);
+    CHECK(pk.size() == 2 && pk[0].freqHz == 1000.0 && pk[1].freqHz == 2500.0);
+    CHECK(FormatSpurList(rp.spurs) == "7000:100, 9000000:2000");
+    // A "harmonic" that is not weaker enough is kept.
+    pk.clear(); add(1000.0, 0.0f, 60.0f); add(2000.0, -3.0f, 50.0f);
+    RejectPeaks(pk, 10.0, rp, st);
+    CHECK(pk.size() == 2 && st.harmonics == 0);
+}
+
+// ---------------------------------------------------------------------------
 static void TestToneEstimator()
 {
     std::puts("ToneEstimator");
@@ -1009,6 +1060,7 @@ int main()
     TestParserV2();
     TestChirpGeometry();
     TestVcoCurve();
+    TestGoSoCfarAndRejection();
     TestToneEstimator();
     TestFirmwareGeometry();
     TestSessionFile();

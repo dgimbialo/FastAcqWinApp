@@ -26,6 +26,7 @@ BEGIN_MESSAGE_MAP(RadarTab, CWnd)
     ON_BN_CLICKED(IDC_BTN_AUTOSCALE,     &RadarTab::OnAutoscale)
     ON_BN_CLICKED(IDC_BTN_CLEAR_WF,      &RadarTab::OnClearWf)
     ON_MESSAGE(WM_APP_XRANGE_CHANGED,    &RadarTab::OnXRangeChanged)
+    ON_MESSAGE(WM_APP_LEARN_SPURS,       &RadarTab::OnLearnSpurs)
 END_MESSAGE_MAP()
 
 BOOL RadarTab::CreateTab(CWnd* parent, UINT id)
@@ -222,6 +223,23 @@ LRESULT RadarTab::OnXRangeChanged(WPARAM src, LPARAM)
     if (src == IDC_RP_VIEW) { m_profile.GetXRange(f0, f1); m_waterfall.SetXRange(m_profile.HasZoom() ? f0 : 0.0, m_profile.HasZoom() ? f1 : 0.0); }
     else if (src == IDC_WF_VIEW) { m_waterfall.GetXRange(f0, f1); m_profile.SetXRange(f0, f1); }
     FollowZoomWithRangeOfInterest();
+    return 0;
+}
+
+// "Learn spurs": every peak currently detected on the UP and DOWN spectra is
+// added to the spur mask (use it with no target in front of the antenna, so
+// that the fixed spurious lines are masked afterwards).
+LRESULT RadarTab::OnLearnSpurs(WPARAM, LPARAM)
+{
+    if (!m_res || !m_res->valid) return 0;
+    std::vector<double> hz;
+    double halfWidth = 2000.0;
+    for (const dsp::RampSpectrum* sp : { &m_res->up, &m_res->down }) {
+        if (!sp->valid) continue;
+        for (const auto& pk : sp->peaks) hz.push_back(pk.freqHz);
+        if (sp->freqResHz > 0.0) halfWidth = (std::max)(halfWidth, 2.0 * sp->freqResHz);
+    }
+    m_proc.AddSpurs(hz, halfWidth);
     return 0;
 }
 

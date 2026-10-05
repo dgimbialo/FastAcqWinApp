@@ -6,7 +6,7 @@ SRC := test_main.cpp \
        ../FastAcq/ChirpStore.cpp ../FastAcq/ProtocolParser.cpp \
        ../FastAcq/Dsp/FftPlan.cpp ../FastAcq/Dsp/Window.cpp ../FastAcq/Dsp/Decimator.cpp \
        ../FastAcq/Dsp/Cfar.cpp ../FastAcq/Dsp/PeakFinder.cpp ../FastAcq/Dsp/RadarDsp.cpp \
-       ../FastAcq/Dsp/ToneEstimator.cpp \
+       ../FastAcq/Dsp/ToneEstimator.cpp ../FastAcq/Dsp/Rejection.cpp \
        ../FastAcq/Core/SessionFile.cpp ../FastAcq/Core/Export.cpp ../FastAcq/Core/ChirpGeometry.cpp \
        ../FastAcq/Core/VcoCurve.cpp
 

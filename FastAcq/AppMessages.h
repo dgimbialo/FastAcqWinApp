@@ -49,6 +49,7 @@ constexpr UINT WM_APP_CMD_SET_RAMP      = WM_APP + 49; // wParam = rise_us | (fa
 constexpr UINT WM_APP_CMD_GET_TRACE     = WM_APP + 50;
 constexpr UINT WM_APP_CMD_SINGLE_SHOT   = WM_APP + 51; // SET_MODE(SINGLE) + TRIGGER
 constexpr UINT WM_APP_CMD_SET_OFFSET    = WM_APP + 52; // wParam = chirp DAC offset
+constexpr UINT WM_APP_LEARN_SPURS       = WM_APP + 53; // ProcPanel -> RadarTab: add current peaks to the spur mask
 
 enum ServiceFrameType : WPARAM {
     SVC_FRAME_PONG   = 0,

@@ -171,6 +171,14 @@
 #define IDC_CHK_SHOW_RD      1313
 #define IDC_LBL_PHASE        1314
 #define IDC_PROC_PANEL       1315
+// ProcPanel: rejection section (1320..1329)
+#define IDC_CHK_HARMONICS    1320
+#define IDC_EDT_HARM_DROP    1321
+#define IDC_EDT_MIN_SNR      1322
+#define IDC_EDT_CONFIRM      1323
+#define IDC_EDT_SPURS        1324
+#define IDC_BTN_LEARN_SPURS  1325
+#define IDC_BTN_CLEAR_SPURS  1326
 
 // Scope tab (1400..1499)
 #define IDC_WAVE_FRAME       1400
