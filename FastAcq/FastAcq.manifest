@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  DPI awareness (PerMonitorV2) is NOT declared here: the Manifest Tool adds
+  the <windowsSettings> block itself (project setting "DPI Awareness =
+  Per Monitor High DPI Aware", the MFC default is "High DPI Aware"). A second
+  dpiAware element in this file would be merged into a duplicate, the
+  activation context would fail to build and the executable would not start
+  ("the application configuration is incorrect", error 14001).
+-->
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <application xmlns="urn:schemas-microsoft-com:asm.v3">
-    <windowsSettings>
-      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
-      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
-    </windowsSettings>
-  </application>
   <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
     <application>
       <!-- Windows 10 / 11 -->
