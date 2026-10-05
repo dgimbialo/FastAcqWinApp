@@ -37,6 +37,10 @@ public:
     // Per-frame "[RX] ..." lines in the communication log.
     void SetVerbose(bool v) { m_verbose.store(v); }
 
+    // Connection generation: WM_APP_PORT_STATUS carries it in lParam so the
+    // frame can ignore status messages left over from a previous session.
+    uint32_t Generation() const { return m_gen.load(); }
+
     // Enumerate COM ports of FastAcq devices ("COM1", "COM14", ...).
     static std::vector<CString> EnumPorts();
 
@@ -44,6 +48,7 @@ private:
     static UINT __stdcall ThreadProc(LPVOID p);
     void ThreadLoop();
     void PostCommLog(LogKind kind, const CString& line);
+    void CloseHandleQuiet();   // failure path of Open(): no status / log traffic
 
     ChirpStore&       m_store;
     HWND              m_hwnd;
@@ -53,4 +58,5 @@ private:
     CRITICAL_SECTION  m_writeCs;
     ProtocolParser    m_parser;
     std::atomic<bool> m_verbose{false};
+    std::atomic<uint32_t> m_gen{0};
 };

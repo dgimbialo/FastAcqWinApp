@@ -77,9 +77,12 @@ bool SerialWorker::Open(LPCTSTR portName, DWORD baud)
         PostCommLog(LOG_ERR, err);
         return false;
     }
+    // New connection generation: status messages of the previous session
+    // (already queued) must not be mistaken for this one.
+    m_gen.fetch_add(1);
 
     DCB dcb{}; dcb.DCBlength = sizeof(dcb);
-    if (!::GetCommState(m_hPort, &dcb)) { Close(); return false; }
+    if (!::GetCommState(m_hPort, &dcb)) { CloseHandleQuiet(); return false; }
     dcb.BaudRate = baud;
     dcb.ByteSize = 8;
     dcb.Parity   = NOPARITY;
@@ -91,7 +94,7 @@ bool SerialWorker::Open(LPCTSTR portName, DWORD baud)
     dcb.fDtrControl  = DTR_CONTROL_ENABLE;
     dcb.fRtsControl  = RTS_CONTROL_ENABLE;
     dcb.fInX = dcb.fOutX = FALSE;
-    if (!::SetCommState(m_hPort, &dcb)) { Close(); return false; }
+    if (!::SetCommState(m_hPort, &dcb)) { CloseHandleQuiet(); return false; }
 
     COMMTIMEOUTS to{};
     // Return from ReadFile after 100ms if no data -- lets us check m_quit.
@@ -110,15 +113,23 @@ bool SerialWorker::Open(LPCTSTR portName, DWORD baud)
 
     unsigned tid = 0;
     m_hThread = reinterpret_cast<HANDLE>(_beginthreadex(nullptr, 0, ThreadProc, this, 0, &tid));
-    if (!m_hThread) { Close(); return false; }
+    if (!m_hThread) { CloseHandleQuiet(); return false; }
 
     if (::IsWindow(m_hwnd))
-        ::PostMessage(m_hwnd, WM_APP_PORT_STATUS, 1, 0);
+        ::PostMessage(m_hwnd, WM_APP_PORT_STATUS, 1, static_cast<LPARAM>(m_gen.load()));
 
     CString openMsg;
     openMsg.Format(_T("Connected: %s @ %lu baud"), portName, baud);
     PostCommLog(LOG_PORT, openMsg);
     return true;
+}
+
+void SerialWorker::CloseHandleQuiet()
+{
+    if (m_hPort != INVALID_HANDLE_VALUE) {
+        ::CloseHandle(m_hPort);
+        m_hPort = INVALID_HANDLE_VALUE;
+    }
 }
 
 void SerialWorker::Close()
@@ -141,7 +152,7 @@ void SerialWorker::Close()
         ::CloseHandle(m_hPort);
         m_hPort = INVALID_HANDLE_VALUE;
         if (::IsWindow(m_hwnd))
-            ::PostMessage(m_hwnd, WM_APP_PORT_STATUS, 0, 0);
+            ::PostMessage(m_hwnd, WM_APP_PORT_STATUS, 0, static_cast<LPARAM>(m_gen.load()));
         PostCommLog(LOG_PORT, _T("Disconnected"));
     }
 }
@@ -189,6 +200,7 @@ UINT __stdcall SerialWorker::ThreadProc(LPVOID p)
 
 void SerialWorker::ThreadLoop()
 {
+    const uint32_t gen = m_gen.load();   // generation this reader belongs to
     std::vector<uint8_t> buf(1 << 16);
     uint64_t bytesLastPost   = 0;
     uint64_t framesLastPost  = 0;
@@ -257,7 +269,7 @@ void SerialWorker::ThreadLoop()
     }
 
     if (::IsWindow(m_hwnd))
-        ::PostMessage(m_hwnd, WM_APP_PORT_STATUS, 0, 0);
+        ::PostMessage(m_hwnd, WM_APP_PORT_STATUS, 0, static_cast<LPARAM>(gen));
 }
 
 std::vector<CString> SerialWorker::EnumPorts()
