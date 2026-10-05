@@ -1,0 +1,44 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  core-tests-linux:
+    name: Core unit tests (g++)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run tests
+        run: make -C tests test
+
+  windows:
+    name: Windows build (MSBuild)
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      # The hosted image ships Visual Studio 2022 without the MFC libraries;
+      # add "C++ MFC for latest v143 build tools" (no-op when already present).
+      - name: Install MFC component
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath  = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
+          $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vs_installer.exe"
+          Write-Host "Adding MFC to $vsPath"
+          $p = Start-Process -FilePath $installer -ArgumentList @('modify', '--installPath', "`"$vsPath`"", '--add', 'Microsoft.VisualStudio.Component.VC.ATLMFC', '--quiet', '--norestart', '--nocache') -Wait -PassThru
+          Write-Host "vs_installer exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { exit $p.ExitCode }
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build solution (Release x64)
+        run: msbuild FastAcq.sln /m /p:Configuration=Release /p:Platform=x64 /verbosity:minimal
+      # A solution build puts every project's output in $(SolutionDir)$(Platform)\$(Configuration)\
+      - name: Run core tests
+        run: .\x64\Release\FastAcqTests.exe
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: FastAcq-x64
+          path: x64\Release\FastAcq.exe
+          if-no-files-found: error

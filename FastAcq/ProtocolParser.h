@@ -3,13 +3,15 @@
 // ProtocolParser.h
 // Byte-stream state machine that reconstructs frames from the COM port.
 // Usage: feed bytes via Feed(); on complete+valid frame, OnFrame callback fires.
+// Portable: no Windows/MFC dependencies.
 //
 
-#include "pch.h"
 #include "ProtocolDefs.h"
 #include "ChirpStore.h"
 
+#include <cstdint>
 #include <functional>
+#include <vector>
 
 class ProtocolParser {
 public:
@@ -22,13 +24,19 @@ public:
     // Feed raw bytes received from serial port.
     void Feed(const uint8_t* data, size_t len);
 
-    // Drop any partial frame state.
+    // Drop any partial frame state AND all statistics (use on port open).
     void Reset();
 
+    // Drop only the partial-frame state; statistics are kept (used on resync).
+    void ResetStream();
+
     // Diagnostics
-    uint64_t FramesOk()      const { return m_framesOk; }
-    uint64_t FramesBadCrc()  const { return m_framesBadCrc; }
-    uint64_t BytesDropped()  const { return m_bytesDropped; }
+    uint64_t FramesOk()        const { return m_framesOk; }
+    uint64_t FramesBadCrc()    const { return m_framesBadCrc; }
+    uint64_t FramesBadHeader() const { return m_framesBadHeader; }
+    uint64_t FramesLost()      const { return m_framesLost; }     // gaps in frame_id of data frames
+    uint64_t BytesDropped()    const { return m_bytesDropped; }
+    uint64_t BytesTotal()      const { return m_bytesTotal; }
 
     // Last-frame CRC diagnostics (valid after at least one FinalizeFrame).
     uint32_t LastCrcCalc()  const { return m_lastCrcCalc; }
@@ -53,10 +61,15 @@ private:
     void HandleReadCrc(const uint8_t* data, size_t& i, size_t len);
     void FinalizeFrame();
     void ValidateHeaderAndAdvance();
+    static uint32_t NowMs();
 
     State          m_state{State::WaitMagic};
     uint32_t       m_magicShift{0};
-    FrameHeader    m_hdr{};
+    FrameHeader    m_hdr{};             // v1 part (first 56 bytes)
+    FrameHeaderExt m_ext{};             // v2 extension (valid when m_hasExt)
+    bool           m_hasExt{false};
+    uint8_t        m_hdrBytes[kHeaderMaxSize]{};   // header exactly as received (for CRC)
+    size_t         m_hdrExpected{0};    // header bytes to read: 56 (v1) or header_size (v2)
     size_t         m_hdrBytesRead{0};
     std::vector<uint8_t> m_rawBuf;      // raw bytes of raw section (uint16 samples)
     std::vector<uint8_t> m_fftBuf;      // raw bytes of fft section (float32)
@@ -64,12 +77,18 @@ private:
     size_t         m_fftNeeded{0};
     uint8_t        m_crcBuf[4]{};
     size_t         m_crcBytesRead{0};
+    uint32_t       m_crcState{0};       // incremental CRC over header+raw+fft
 
     FrameCallback  m_cb;
 
     uint64_t       m_framesOk{0};
     uint64_t       m_framesBadCrc{0};
+    uint64_t       m_framesBadHeader{0};
+    uint64_t       m_framesLost{0};
     uint64_t       m_bytesDropped{0};
+    uint64_t       m_bytesTotal{0};
+    bool           m_haveLastDataId{false};
+    uint32_t       m_lastDataFrameId{0};
 
     // Diagnostics: last frame seen (ok or bad).
     uint32_t       m_lastCrcCalc{0};

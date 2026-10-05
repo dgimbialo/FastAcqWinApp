@@ -1,17 +1,26 @@
 #pragma once
 //
-// ColorMap.h
-// Precomputed "Jet" palette for waterfall/spectrum rendering.
+// ColorMap.h -- 256-entry palettes for waterfall / heat-map rendering.
 //
 
 #include "pch.h"
 
+enum class Palette {
+    Jet = 0,
+    Viridis,
+    Inferno,
+    Turbo,
+    Plasma,
+    Gray,
+    Count
+};
+
 class ColorMap {
 public:
-    // Returns a precomputed Jet palette of 256 colors.
-    // Index 0 = deep blue, 255 = dark red.
-    static const COLORREF* Jet();
+    static const COLORREF* Table(Palette p);
+    static LPCTSTR Name(Palette p);
+    static COLORREF FromNorm(Palette p, float v);   // v in [0,1]
 
-    // Map a normalized value in [0, 1] to a Jet palette entry.
-    static COLORREF JetFromNorm(float v);
+    // Backward compatibility.
+    static const COLORREF* Jet() { return Table(Palette::Jet); }
 };
