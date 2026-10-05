@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "Lang.h"
 #include "CommLogWnd.h"
 #include "Dpi.h"
 #include "Theme.h"
@@ -36,30 +37,31 @@ int CommLogWnd::OnCreate(LPCREATESTRUCT lpcs)
                   CRect(0, 0, 10, 10), this, IDC_LOG_LIST);
     m_list.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
     m_list.SetFont(&m_monoFont);
-    m_list.InsertColumn(0, _T("Time"),    LVCFMT_LEFT, Dpi::Scale(m_hWnd, 96));
-    m_list.InsertColumn(1, _T("Kind"),    LVCFMT_LEFT, Dpi::Scale(m_hWnd, 50));
-    m_list.InsertColumn(2, _T("Message"), LVCFMT_LEFT, Dpi::Scale(m_hWnd, 1400));
+    m_list.InsertColumn(0, TR("Time"),    LVCFMT_LEFT, Dpi::Scale(m_hWnd, 96));
+    m_list.InsertColumn(1, TR("Kind"),    LVCFMT_LEFT, Dpi::Scale(m_hWnd, 50));
+    m_list.InsertColumn(2, TR("Message"), LVCFMT_LEFT, Dpi::Scale(m_hWnd, 1400));
 
     CRect rc(0, 0, 10, 10);
     m_cmbFilter.Create(WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL, rc, this, IDC_CMB_LOG_FILTER);
-    m_cmbFilter.AddString(_T("All"));
+    m_cmbFilter.AddString(TR("All"));
     m_cmbFilter.AddString(_T("TX"));
     m_cmbFilter.AddString(_T("RX"));
-    m_cmbFilter.AddString(_T("Service (ACK/STATUS/PONG)"));
-    m_cmbFilter.AddString(_T("Errors"));
-    m_cmbFilter.AddString(_T("Port / info"));
+    m_cmbFilter.AddString(TR("Service (ACK/STATUS/PONG)"));
+    m_cmbFilter.AddString(TR("Errors"));
+    m_cmbFilter.AddString(TR("Port / info"));
     m_cmbFilter.SetCurSel(0);
-    m_chkVerbose.Create(_T("Per-frame RX lines"), WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, rc, this, IDC_CHK_LOG_VERBOSE);
-    m_chkScroll.Create(_T("Auto-scroll"), WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, rc, this, IDC_CHK_LOG_SCROLL);
+    m_chkVerbose.Create(TR("Per-frame RX lines"), WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, rc, this, IDC_CHK_LOG_VERBOSE);
+    m_chkScroll.Create(TR("Auto-scroll"), WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, rc, this, IDC_CHK_LOG_SCROLL);
     m_chkScroll.SetCheck(BST_CHECKED);
-    m_btnCopy.Create(_T("Copy"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, rc, this, IDC_BTN_LOG_COPY);
-    m_btnSave.Create(_T("Save..."), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, rc, this, IDC_BTN_LOG_SAVE);
-    m_btnClear.Create(_T("Clear"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, rc, this, IDC_BTN_LOG_CLEAR);
+    m_btnCopy.Create(TR("Copy"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, rc, this, IDC_BTN_LOG_COPY);
+    m_btnSave.Create(TR("Save..."), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, rc, this, IDC_BTN_LOG_SAVE);
+    m_btnClear.Create(TR("Clear"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, rc, this, IDC_BTN_LOG_CLEAR);
     CWnd* kids[] = { &m_cmbFilter, &m_chkVerbose, &m_chkScroll, &m_btnCopy, &m_btnSave, &m_btnClear };
     for (auto* k : kids) k->SetFont(&m_font);
 
     ApplyTheme();
     SetTimer(kTimerId, 100, nullptr);
+    m_tips.Attach(this);
     return 0;
 }
 
@@ -233,13 +235,13 @@ void CommLogWnd::OnCopy()
 void CommLogWnd::OnSave()
 {
     CFileDialog dlg(FALSE, _T("txt"), _T("fastacq_log.txt"), OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,
-                    _T("Text files (*.txt)|*.txt|All files (*.*)|*.*||"), this);
+                    TR("Text files (*.txt)|*.txt|All files (*.*)|*.*||"), this);
     if (dlg.DoModal() != IDOK) return;
     CString text = LinesText(false);
     text.Replace(_T("\r\n"), _T("\n"));   // typeText re-expands LF to CRLF
     CStdioFile f;
     if (!f.Open(dlg.GetPathName(), CFile::modeCreate | CFile::modeWrite | CFile::typeText)) {
-        AfxMessageBox(_T("Cannot write the log file."));
+        AfxMessageBox(TR("Cannot write the log file."));
         return;
     }
     f.WriteString(text);
@@ -302,4 +304,10 @@ HBRUSH CommLogWnd::OnCtlColor(CDC* pDC, CWnd*, UINT nCtlColor)
     pDC->SetTextColor(Theme::Get().text);
     pDC->SetBkColor(Theme::Get().plot);
     return Theme::FieldBrush();
+}
+
+BOOL CommLogWnd::PreTranslateMessage(MSG* pMsg)
+{
+    m_tips.Relay(pMsg);
+    return CWnd::PreTranslateMessage(pMsg);
 }

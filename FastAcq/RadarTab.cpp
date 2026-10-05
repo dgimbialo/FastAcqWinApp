@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "Lang.h"
 #include "RadarTab.h"
 #include "AppMessages.h"
 #include "Dpi.h"
@@ -57,32 +58,33 @@ int RadarTab::OnCreate(LPCREATESTRUCT lpcs)
     const DWORD bs  = WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON;
     CRect rc(0, 0, 10, 10);
 
-    m_lblTrace.Create(_T("Trace:"), ss, rc, this);
+    m_lblTrace.Create(TR("Trace:"), ss, rc, this);
     m_cmbTrace.Create(cs, rc, this, IDC_CMB_TRACE);
     for (int i = 0; i < static_cast<int>(dsp::TraceMode::Count); ++i)
         m_cmbTrace.AddString(CString(dsp::TraceModeName(static_cast<dsp::TraceMode>(i))));
     m_cmbTrace.SetCurSel(0);
-    m_lblPalette.Create(_T("Palette:"), ss, rc, this);
+    m_lblPalette.Create(TR("Palette:"), ss, rc, this);
     m_cmbPalette.Create(cs, rc, this, IDC_CMB_WF_PALETTE);
     for (int i = 0; i < static_cast<int>(Palette::Count); ++i)
         m_cmbPalette.AddString(ColorMap::Name(static_cast<Palette>(i)));
     m_cmbPalette.SetCurSel(1);
-    m_chkUp.Create(_T("UP"), chk, rc, this, IDC_CHK_SHOW_UP);
-    m_chkDn.Create(_T("DOWN"), chk, rc, this, IDC_CHK_SHOW_DN);
-    m_chkThr.Create(_T("Threshold"), chk, rc, this, IDC_CHK_SHOW_THR);
-    m_chkNoise.Create(_T("Noise"), chk, rc, this, IDC_CHK_SHOW_NOISE);
-    m_chkRd.Create(_T("Range-Doppler"), chk, rc, this, IDC_CHK_SHOW_RD);
-    m_btnResetAvg.Create(_T("Reset avg"), bs, rc, this, IDC_BTN_RESET_AVG);
-    m_btnAutoscale.Create(_T("Autoscale"), bs, rc, this, IDC_BTN_AUTOSCALE);
-    m_btnClearWf.Create(_T("Clear WF"), bs, rc, this, IDC_BTN_CLEAR_WF);
+    m_chkUp.Create(TR("UP"), chk, rc, this, IDC_CHK_SHOW_UP);
+    m_chkDn.Create(TR("DOWN"), chk, rc, this, IDC_CHK_SHOW_DN);
+    m_chkThr.Create(TR("Threshold"), chk, rc, this, IDC_CHK_SHOW_THR);
+    m_chkNoise.Create(TR("Noise"), chk, rc, this, IDC_CHK_SHOW_NOISE);
+    m_chkRd.Create(TR("Range-Doppler"), chk, rc, this, IDC_CHK_SHOW_RD);
+    m_btnResetAvg.Create(TR("Reset avg"), bs, rc, this, IDC_BTN_RESET_AVG);
+    m_btnAutoscale.Create(TR("Autoscale"), bs, rc, this, IDC_BTN_AUTOSCALE);
+    m_btnClearWf.Create(TR("Clear WF"), bs, rc, this, IDC_BTN_CLEAR_WF);
     m_lblPhase.Create(_T(""), WS_CHILD | WS_VISIBLE | SS_RIGHT | SS_CENTERIMAGE, rc, this, IDC_LBL_PHASE);
 
     CWnd* kids[] = { &m_lblTrace, &m_cmbTrace, &m_lblPalette, &m_cmbPalette, &m_chkUp, &m_chkDn, &m_chkThr,
                      &m_chkNoise, &m_chkRd, &m_btnResetAvg, &m_btnAutoscale, &m_btnClearWf, &m_lblPhase };
     for (auto* k : kids) k->SetFont(&m_font);
 
-    m_profile.SetTitle(_T("Range profile"));
-    m_waterfall.SetTitle(_T("Waterfall (range - time)"));
+    m_profile.SetTitle(TR("Range profile"));
+    m_waterfall.SetTitle(TR("Waterfall (range - time)"));
+    m_tips.Attach(this);
     return 0;
 }
 
@@ -209,7 +211,7 @@ void RadarTab::ShowResult(std::shared_ptr<const dsp::FrameResult> r, bool pushWa
                              m_res->shape == dsp::RampShape::Triangle && m_res->down.valid);
         CString ph;
         if (m_res->phase.valid)
-            ph.Format(_T("Phase @ %s: %+.3f mm"), RangeProfileView::FormatFreq(m_res->phase.freqHz).GetString(),
+            ph.Format(TR("Phase @ %s: %+.3f mm"), RangeProfileView::FormatFreq(m_res->phase.freqHz).GetString(),
                       m_res->phase.displacementMm);
         m_lblPhase.SetWindowText(ph);
     }
@@ -390,4 +392,10 @@ BOOL RadarTab::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT msg)
     CPoint pt; ::GetCursorPos(&pt); ScreenToClient(&pt);
     if (HitSplitter(pt)) { ::SetCursor(::LoadCursor(nullptr, IDC_SIZENS)); return TRUE; }
     return CWnd::OnSetCursor(pWnd, nHitTest, msg);
+}
+
+BOOL RadarTab::PreTranslateMessage(MSG* pMsg)
+{
+    m_tips.Relay(pMsg);
+    return CWnd::PreTranslateMessage(pMsg);
 }

@@ -7,6 +7,7 @@
 //
 
 #include "pch.h"
+#include "Tips.h"
 #include "AppSettings.h"
 
 class ProcPanel : public CWnd {
@@ -20,6 +21,8 @@ public:
     void ApplyTheme();
     // Append frequencies (Hz) to the spur mask with the given half width.
     void AddSpurs(const std::vector<double>& hz, double halfWidthHz);
+
+    BOOL PreTranslateMessage(MSG* pMsg) override;
 
 protected:
     afx_msg int    OnCreate(LPCREATESTRUCT lpcs);
@@ -93,4 +96,5 @@ private:
     int     m_scroll{0};          // vertical scroll offset, px
     int     m_contentH{0};
     AppSettings m_last;           // last applied settings (fields not owned here are passed through)
+    FieldTips m_tips;
 };

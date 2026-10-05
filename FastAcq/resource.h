@@ -153,6 +153,7 @@
 #define IDC_EDT_VCO_CURVE    1281
 #define IDC_EDT_OFFSET       1282
 #define IDC_BTN_SET_OFFSET   1283
+#define IDC_CMB_LANG         1284
 
 // Radar tab (1300..1399)
 #define IDC_RP_VIEW          1300

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "Lang.h"
 #include "RangeProfileView.h"
 #include "AppMessages.h"
 #include "resource.h"
@@ -338,32 +339,32 @@ void RangeProfileView::Render(CDC& dc, const CRect& rc)
     {
         CFont* pOld = dc.SelectObject(&m_fontTitle);
         dc.SetTextColor(th.textHdr);
-        CString t = m_title.IsEmpty() ? CString(_T("Range profile")) : m_title;
+        CString t = m_title.IsEmpty() ? CString(TR("Range profile")) : m_title;
         dc.TextOut(L.title.left + S(6), L.title.top + S(3), t);
         dc.SelectObject(&m_fontAxis);
         dc.SetTextColor(th.textDim);
         CString info;
         if (m_res && m_res->valid) {
             const dsp::RampSpectrum& s = m_res->up;
-            info.Format(_T("frame %u   t = %u ms   bin %.1f Hz"), m_res->frameId, m_res->timestampMs, s.freqResHz);
+            info.Format(TR("frame %u   t = %u ms   bin %.1f Hz"), m_res->frameId, m_res->timestampMs, s.freqResHz);
             if (m_res->rangePerHz > 0.0) {
                 CString r; r.Format(_T(" (%s)"), FormatRange(s.freqResHz * m_res->rangePerHz).GetString()); info += r;
             }
             CString more;
-            more.Format(_T("   fs/%d = %s   N = %zu   DSP %.1f ms"), m_res->decimation,
+            more.Format(TR("   fs/%d = %s   N = %zu   DSP %.1f ms"), m_res->decimation,
                         FormatFreq(s.fsEffHz).GetString(), s.nSamples, m_res->processingMs);
             info += more;
-            if (m_res->fromMcuFft) info += _T("   [MCU FFT]");
+            if (m_res->fromMcuFft) info += TR("   [MCU FFT]");
             const int rej = m_res->up.rejected.Total() + m_res->down.rejected.Total();
             if (rej > 0 || m_res->unconfirmed > 0) {
-                CString rj; rj.Format(_T("   rejected: %d harmonic, %d spur, %d low SNR, %d unconfirmed"),
+                CString rj; rj.Format(TR("   rejected: %d harmonic, %d spur, %d low SNR, %d unconfirmed"),
                                       m_res->up.rejected.harmonics + m_res->down.rejected.harmonics,
                                       m_res->up.rejected.spurs + m_res->down.rejected.spurs,
                                       m_res->up.rejected.lowSnr + m_res->down.rejected.lowSnr, m_res->unconfirmed);
                 info += rj;
             }
         } else {
-            info = _T("no data");
+            info = TR("no data");
         }
         CRect ir(L.title.left + S(130), L.title.top, L.title.right - S(4), L.title.bottom);
         dc.DrawText(info, ir, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
@@ -443,10 +444,10 @@ void RangeProfileView::Render(CDC& dc, const CRect& rc)
     // Legend.
     {
         int lx = L.plot.right - S(260), ly = L.plot.top + S(10);
-        if (m_disp.showUp)        DrawLegendItem(dc, lx, ly, th.traceUp, _T("UP"));
-        if (m_disp.showDown && m_res->down.valid) DrawLegendItem(dc, lx, ly, th.traceDn, _T("DOWN"));
-        if (m_disp.showThreshold) DrawLegendItem(dc, lx, ly, th.threshold, _T("threshold"), true);
-        if (m_disp.showNoise)     DrawLegendItem(dc, lx, ly, th.noise, _T("noise"), true);
+        if (m_disp.showUp)        DrawLegendItem(dc, lx, ly, th.traceUp, TR("UP"));
+        if (m_disp.showDown && m_res->down.valid) DrawLegendItem(dc, lx, ly, th.traceDn, TR("DOWN"));
+        if (m_disp.showThreshold) DrawLegendItem(dc, lx, ly, th.threshold, TR("threshold"), true);
+        if (m_disp.showNoise)     DrawLegendItem(dc, lx, ly, th.noise, TR("noise"), true);
     }
 
     DrawCursor(dc, L, xa, ya);
@@ -550,12 +551,12 @@ void RangeProfileView::OnPlotRButtonUp(CPoint pt, UINT)
 {
     CMenu menu;
     menu.CreatePopupMenu();
-    menu.AppendMenu(MF_STRING, ID_PLOT_RESET_ZOOM,    _T("Reset zoom\tHome"));
-    menu.AppendMenu(MF_STRING, ID_PLOT_AUTOSCALE,     _T("Autoscale dB\tA"));
-    menu.AppendMenu(MF_STRING, ID_PLOT_SNAP_PEAKS,    _T("Markers on two strongest peaks"));
-    menu.AppendMenu(MF_STRING, ID_PLOT_CLEAR_MARKERS, _T("Clear markers\tEsc"));
+    menu.AppendMenu(MF_STRING, ID_PLOT_RESET_ZOOM,    TR("Reset zoom\tHome"));
+    menu.AppendMenu(MF_STRING, ID_PLOT_AUTOSCALE,     TR("Autoscale dB\tA"));
+    menu.AppendMenu(MF_STRING, ID_PLOT_SNAP_PEAKS,    TR("Markers on two strongest peaks"));
+    menu.AppendMenu(MF_STRING, ID_PLOT_CLEAR_MARKERS, TR("Clear markers\tEsc"));
     menu.AppendMenu(MF_SEPARATOR);
-    menu.AppendMenu(MF_STRING, ID_PLOT_COPY_IMAGE,    _T("Copy image"));
+    menu.AppendMenu(MF_STRING, ID_PLOT_COPY_IMAGE,    TR("Copy image"));
     CPoint sp = pt; ClientToScreen(&sp);
     int cmd = menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD, sp.x, sp.y, this);
     switch (cmd) {

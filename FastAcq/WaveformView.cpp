@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "Lang.h"
 #include "WaveformView.h"
 #include "resource.h"
 
@@ -392,10 +393,10 @@ void WaveformView::OnPlotRButtonUp(CPoint pt, UINT)
 {
     CMenu menu;
     menu.CreatePopupMenu();
-    menu.AppendMenu(MF_STRING, ID_PLOT_RESET_ZOOM,    _T("Reset zoom\tHome"));
-    menu.AppendMenu(MF_STRING, ID_PLOT_CLEAR_MARKERS, _T("Clear cursors\tEsc"));
+    menu.AppendMenu(MF_STRING, ID_PLOT_RESET_ZOOM,    TR("Reset zoom\tHome"));
+    menu.AppendMenu(MF_STRING, ID_PLOT_CLEAR_MARKERS, TR("Clear cursors\tEsc"));
     menu.AppendMenu(MF_SEPARATOR);
-    menu.AppendMenu(MF_STRING, ID_PLOT_COPY_IMAGE,    _T("Copy image"));
+    menu.AppendMenu(MF_STRING, ID_PLOT_COPY_IMAGE,    TR("Copy image"));
     CPoint sp = pt; ClientToScreen(&sp);
     int cmd = menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD, sp.x, sp.y, this);
     switch (cmd) {
@@ -538,7 +539,7 @@ void WaveformView::Render(CDC& dc, const CRect& full)
                     dc.TextOut(xa + S(4), plot.top + S(2), lbl);
                 } else if (xb - xa >= S(14) && sg.kind != dsp::Segment::Guard) {
                     dc.SetTextColor(sg.kind == dsp::Segment::Up ? th.traceUp : th.traceDn);
-                    dc.TextOut(xa + S(3), plot.top + S(2), sg.kind == dsp::Segment::Up ? _T("UP") : _T("DN"));
+                    dc.TextOut(xa + S(3), plot.top + S(2), sg.kind == dsp::Segment::Up ? TR("UP") : CString(_T("DN")));
                 }
             }
         }

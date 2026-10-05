@@ -57,6 +57,7 @@ Built entirely on **C++17 and MFC with GDI rendering, with no third-party librar
 - **Hold / Live**: freeze the display and inspect any buffered frame from the list.
 - **Record** the raw stream to a `.facq` session file and **replay** it later (play/pause, step, seek, speed), with the same processing chain - no hardware needed.
 - Export: frame as CSV, all buffered targets as CSV, IF signal as WAV, screenshot as PNG, plot image to the clipboard.
+- **Ukrainian or English interface** (Settings > Application > Language, applied at the next start) and **tooltips** on every input field explaining what it does, how to choose it and its default.
 - Settings persist in `FastAcq.ini` next to the executable; auto-connect to the FastAcq device at start-up; light and dark theme; per-monitor DPI aware.
 
 ### Keyboard

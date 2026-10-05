@@ -185,6 +185,7 @@ public:
 };
 
 class CWnd;
+class CMenu;
 class CDC : public CObject {
 public:
     HDC m_hDC{nullptr};
@@ -290,6 +291,8 @@ class CWinApp;
 
 class CWnd : public CCmdTarget {
 public:
+    CMenu* GetMenu() const;
+    void DrawMenuBar();
     HWND m_hWnd{nullptr};
     CWnd() {}
     virtual ~CWnd() {}
@@ -512,6 +515,12 @@ public:
 class CMenu {
 public:
     HMENU m_hMenu{nullptr};
+    HMENU GetSafeHmenu() const { return m_hMenu; }
+    UINT  GetMenuItemCount() const;
+    UINT  GetMenuItemID(int nPos) const;
+    int   GetMenuString(UINT nIDItem, CString& rString, UINT nFlags) const;
+    CMenu* GetSubMenu(int nPos) const;
+    BOOL  ModifyMenu(UINT nPosition, UINT nFlags, UINT_PTR nIDNewItem = 0, LPCTSTR lpszNewItem = nullptr);
     BOOL CreatePopupMenu();
     BOOL CreateMenu();
     BOOL AppendMenu(UINT nFlags, UINT_PTR nIDNewItem = 0, LPCTSTR lpszNewItem = nullptr);
@@ -519,6 +528,23 @@ public:
     BOOL TrackPopupMenu(UINT nFlags, int x, int y, CWnd* pWnd, LPCRECT lpRect = nullptr);
     BOOL DestroyMenu();
 };
+
+class CToolTipCtrl : public CWnd {
+public:
+    BOOL Create(CWnd* pParentWnd, DWORD dwStyle = 0);
+    BOOL AddTool(CWnd* pWnd, LPCTSTR lpszText = nullptr, LPCRECT lpRectTool = nullptr, UINT_PTR nIDTool = 0);
+    int  SetMaxTipWidth(int iWidth);
+    void SetDelayTime(DWORD dwDuration, int iTime);
+    void Activate(BOOL bActivate);
+    void RelayEvent(LPMSG lpMsg);
+};
+#ifndef TTS_ALWAYSTIP
+#define TTS_ALWAYSTIP 0x01
+#define TTS_NOPREFIX  0x02
+#define TTDT_AUTOPOP  2
+#define TTDT_INITIAL  3
+#define TTDT_RESHOW   1
+#endif
 
 // ---- Files / dialogs -------------------------------------------------------
 class CFileException : public CObject { public: int m_cause{0}; };

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "Lang.h"
 #include "TargetListCtrl.h"
 #include "Dpi.h"
 #include "Theme.h"
@@ -8,13 +9,13 @@ void TargetListCtrl::Init()
     SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_GRIDLINES);
     InsertColumn(0, _T("#"),        LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 32));
     InsertColumn(1, _T("ID"),       LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 40));
-    InsertColumn(2, _T("R, m"),     LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 78));
-    InsertColumn(3, _T("v, m/s"),   LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 70));
-    InsertColumn(4, _T("f_up, kHz"),LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 84));
-    InsertColumn(5, _T("f_dn, kHz"),LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 84));
-    InsertColumn(6, _T("A, dBFS"),  LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 70));
-    InsertColumn(7, _T("SNR, dB"),  LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 70));
-    InsertColumn(8, _T("pair"),     LVCFMT_CENTER,Dpi::Scale(m_hWnd, 44));
+    InsertColumn(2, TR("R, m"),     LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 78));
+    InsertColumn(3, TR("v, m/s"),   LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 70));
+    InsertColumn(4, TR("f_up, kHz"),LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 84));
+    InsertColumn(5, TR("f_dn, kHz"),LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 84));
+    InsertColumn(6, TR("A, dBFS"),  LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 70));
+    InsertColumn(7, TR("SNR, dB"),  LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 70));
+    InsertColumn(8, TR("pair"),     LVCFMT_CENTER,Dpi::Scale(m_hWnd, 44));
     ApplyTheme();
 }
 
@@ -45,7 +46,7 @@ void TargetListCtrl::SetTargets(const std::vector<dsp::Target>& t, bool haveRang
         if (tg.fDnHz > 0.0) s.Format(_T("%.3f"), tg.fDnHz / 1e3); else s = _T("-"); SetItemText(i, 5, s);
         s.Format(_T("%.1f"), tg.ampDb);                         SetItemText(i, 6, s);
         s.Format(_T("%.1f"), tg.snrDb);                         SetItemText(i, 7, s);
-        s = triangle ? (tg.paired ? _T("yes") : _T("no")) : _T("-"); SetItemText(i, 8, s);
+        s = triangle ? (tg.paired ? TR("yes") : TR("no")) : CString(_T("-")); SetItemText(i, 8, s);
     }
     SetRedraw(TRUE);
     Invalidate(FALSE);

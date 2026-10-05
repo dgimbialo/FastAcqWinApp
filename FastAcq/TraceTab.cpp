@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "Lang.h"
 #include "TraceTab.h"
 #include "AppMessages.h"
 #include "Dpi.h"
@@ -179,13 +180,13 @@ int TraceTab::OnCreate(LPCREATESTRUCT lpcs)
     const DWORD bs = WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON;
     CRect rc(0, 0, 100, 22);
 
-    m_chkTrace.Create(_T("Trace enabled (MCU test mode)"),
+    m_chkTrace.Create(TR("Trace enabled (MCU test mode)"),
                       WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, rc, this, IDC_TRC_CHK_ENABLE);
-    m_btnShot.Create  (_T("Single shot"),   bs, rc, this, IDC_TRC_BTN_SHOT);
-    m_btnGet.Create   (_T("Get trace"),     bs, rc, this, IDC_TRC_BTN_GET);
-    m_btnClear.Create (_T("Clear"),         bs, rc, this, IDC_TRC_BTN_CLEAR);
-    m_btnExport.Create(_T("Export CSV..."), bs, rc, this, IDC_TRC_BTN_EXPORT);
-    m_lblSummary.Create(_T("No trace received. Enable trace, then fire a single shot."),
+    m_btnShot.Create  (TR("Single shot"),   bs, rc, this, IDC_TRC_BTN_SHOT);
+    m_btnGet.Create   (TR("Get trace"),     bs, rc, this, IDC_TRC_BTN_GET);
+    m_btnClear.Create (TR("Clear"),         bs, rc, this, IDC_TRC_BTN_CLEAR);
+    m_btnExport.Create(TR("Export CSV..."), bs, rc, this, IDC_TRC_BTN_EXPORT);
+    m_lblSummary.Create(TR("No trace received. Enable trace, then fire a single shot."),
                         WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE | SS_ENDELLIPSIS, rc, this, IDC_TRC_LBL_SUMMARY);
 
     m_list.Create(WS_CHILD | WS_VISIBLE | WS_BORDER | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS,
@@ -194,18 +195,19 @@ int TraceTab::OnCreate(LPCREATESTRUCT lpcs)
     const int S = static_cast<int>(Dpi::Of(m_hWnd));
     auto sc = [&](int px) { return ::MulDiv(px, S, 96); };
     m_list.InsertColumn(0, _T("#"),        LVCFMT_RIGHT, sc(44));
-    m_list.InsertColumn(1, _T("t, us"),    LVCFMT_RIGHT, sc(90));
-    m_list.InsertColumn(2, _T("dt, us"),   LVCFMT_RIGHT, sc(80));
-    m_list.InsertColumn(3, _T("tick, ms"), LVCFMT_RIGHT, sc(80));
-    m_list.InsertColumn(4, _T("ctx"),      LVCFMT_LEFT,  sc(46));
-    m_list.InsertColumn(5, _T("event"),    LVCFMT_LEFT,  sc(130));
-    m_list.InsertColumn(6, _T("details"),  LVCFMT_LEFT,  sc(700));
+    m_list.InsertColumn(1, TR("t, us"),    LVCFMT_RIGHT, sc(90));
+    m_list.InsertColumn(2, TR("dt, us"),   LVCFMT_RIGHT, sc(80));
+    m_list.InsertColumn(3, TR("tick, ms"), LVCFMT_RIGHT, sc(80));
+    m_list.InsertColumn(4, TR("ctx"),      LVCFMT_LEFT,  sc(46));
+    m_list.InsertColumn(5, TR("event"),    LVCFMT_LEFT,  sc(130));
+    m_list.InsertColumn(6, TR("details"),  LVCFMT_LEFT,  sc(700));
 
     CWnd* kids[] = { &m_chkTrace, &m_btnShot, &m_btnGet, &m_btnClear, &m_btnExport, &m_lblSummary, &m_list };
     for (auto* c : kids) c->SetFont(&m_font);
 
     SetConnected(false);
     ApplyTheme();
+    m_tips.Attach(this);
     return 0;
 }
 
@@ -284,8 +286,8 @@ void TraceTab::SetDeviceTraceState(bool enabled, bool available)
     m_traceAvail = available;
     if (m_chkTrace.GetSafeHwnd()) {
         m_chkTrace.SetCheck(enabled ? BST_CHECKED : BST_UNCHECKED);
-        m_chkTrace.SetWindowText(available ? _T("Trace enabled (MCU test mode)")
-                                           : _T("Trace not compiled into firmware"));
+        m_chkTrace.SetWindowText(available ? TR("Trace enabled (MCU test mode)")
+                                           : TR("Trace not compiled into firmware"));
     }
     SetConnected(m_connected);
 }
@@ -310,7 +312,7 @@ void TraceTab::OnClear()
 {
     m_records.clear();
     m_list.DeleteAllItems();
-    m_lblSummary.SetWindowText(_T("Cleared."));
+    m_lblSummary.SetWindowText(TR("Cleared."));
 }
 
 // ---------------------------------------------------------------------------
@@ -361,16 +363,16 @@ void TraceTab::Rebuild()
 
 void TraceTab::OnExport()
 {
-    if (m_records.empty()) { AfxMessageBox(_T("No trace to export.")); return; }
+    if (m_records.empty()) { AfxMessageBox(TR("No trace to export.")); return; }
     CString defName;
     defName.Format(_T("trace_%u.csv"), m_hdr.timestamp_ms);
     CFileDialog dlg(FALSE, _T("csv"), defName, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,
-                    _T("CSV files (*.csv)|*.csv|All files (*.*)|*.*||"), this);
+                    TR("CSV files (*.csv)|*.csv|All files (*.*)|*.*||"), this);
     if (dlg.DoModal() != IDOK) return;
 
     CStdioFile fp;
     if (!fp.Open(dlg.GetPathName(), CFile::modeCreate | CFile::modeWrite | CFile::typeText)) {
-        AfxMessageBox(_T("Cannot create file."));
+        AfxMessageBox(TR("Cannot create file."));
         return;
     }
     CString line;
@@ -392,4 +394,10 @@ void TraceTab::OnExport()
         prev = r.t_us;
     }
     fp.Close();
+}
+
+BOOL TraceTab::PreTranslateMessage(MSG* pMsg)
+{
+    m_tips.Relay(pMsg);
+    return CWnd::PreTranslateMessage(pMsg);
 }

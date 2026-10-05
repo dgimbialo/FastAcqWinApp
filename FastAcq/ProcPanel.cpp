@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "Lang.h"
 #include "ProcPanel.h"
 #include "AppMessages.h"
 #include "Dpi.h"
@@ -48,71 +49,71 @@ int ProcPanel::OnCreate(LPCREATESTRUCT lpcs)
     const DWORD cs  = WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL;
     CRect rc(0, 0, 100, 22);
 
-    m_hdrProc.Create(_T("Processing"), ss, rc, this);
-    m_lblSource.Create(_T("Spectrum source"), ss, rc, this);
-    m_rdoSrcRaw.Create(_T("RAW on PC"), WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON | WS_GROUP, rc, this, IDC_RDO_SRC_RAW);
-    m_rdoSrcMcu.Create(_T("MCU FFT"), WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON, rc, this, IDC_RDO_SRC_MCU);
+    m_hdrProc.Create(TR("Processing"), ss, rc, this);
+    m_lblSource.Create(TR("Spectrum source"), ss, rc, this);
+    m_rdoSrcRaw.Create(TR("RAW on PC"), WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON | WS_GROUP, rc, this, IDC_RDO_SRC_RAW);
+    m_rdoSrcMcu.Create(TR("MCU FFT"), WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON, rc, this, IDC_RDO_SRC_MCU);
     m_rdoSrcRaw.SetCheck(BST_CHECKED);
-    m_lblGuard.Create(_T("Ramp guard, % each end"), ss, rc, this); m_edtGuard.Create(esf, rc, this, IDC_EDT_GUARD);
-    m_lblDetrend.Create(_T("Detrend"), ss, rc, this);             m_chkDetrend.Create(_T("Remove linear trend"), chk, rc, this, IDC_CHK_DETREND);
-    m_lblDecim.Create(_T("Decimation"), ss, rc, this);
+    m_lblGuard.Create(TR("Ramp guard, % each end"), ss, rc, this); m_edtGuard.Create(esf, rc, this, IDC_EDT_GUARD);
+    m_lblDetrend.Create(TR("Detrend"), ss, rc, this);             m_chkDetrend.Create(TR("Remove linear trend"), chk, rc, this, IDC_CHK_DETREND);
+    m_lblDecim.Create(TR("Decimation"), ss, rc, this);
     m_cmbDecim.Create(cs, rc, this, IDC_CMB_DECIM);
-    m_cmbDecim.AddString(_T("Auto"));
+    m_cmbDecim.AddString(TR("Auto"));
     for (int d = 1; d <= 512; d *= 2) { CString s; s.Format(_T("x%d"), d); m_cmbDecim.AddString(s); }
-    m_lblMaxRange.Create(_T("Range of interest, m"), ss, rc, this); m_edtMaxRange.Create(esf, rc, this, IDC_EDT_MAXRANGE);
-    m_lblWindow.Create(_T("Window"), ss, rc, this);
+    m_lblMaxRange.Create(TR("Range of interest, m"), ss, rc, this); m_edtMaxRange.Create(esf, rc, this, IDC_EDT_MAXRANGE);
+    m_lblWindow.Create(TR("Window"), ss, rc, this);
     m_cmbWindow.Create(cs, rc, this, IDC_CMB_WINDOW);
     for (int i = 0; i < static_cast<int>(dsp::WindowType::Count); ++i)
         m_cmbWindow.AddString(CString(dsp::WindowName(static_cast<dsp::WindowType>(i))));
-    m_lblKaiser.Create(_T("Kaiser beta"), ss, rc, this);          m_edtKaiser.Create(esf, rc, this, IDC_EDT_KAISER);
-    m_lblZeroPad.Create(_T("Zero padding"), ss, rc, this);
+    m_lblKaiser.Create(TR("Kaiser beta"), ss, rc, this);          m_edtKaiser.Create(esf, rc, this, IDC_EDT_KAISER);
+    m_lblZeroPad.Create(TR("Zero padding"), ss, rc, this);
     m_cmbZeroPad.Create(cs, rc, this, IDC_CMB_ZEROPAD);
     for (int z = 1; z <= 8; z *= 2) { CString s; s.Format(_T("x%d"), z); m_cmbZeroPad.AddString(s); }
-    m_lblRangeGain.Create(_T("Range gain"), ss, rc, this);
+    m_lblRangeGain.Create(TR("Range gain"), ss, rc, this);
     m_cmbRangeGain.Create(cs, rc, this, IDC_CMB_RANGEGAIN);
-    m_cmbRangeGain.AddString(_T("Off")); m_cmbRangeGain.AddString(_T("20 dB/dec (R^2)")); m_cmbRangeGain.AddString(_T("40 dB/dec (R^4)"));
-    m_lblFwGeom.Create(_T("Chirp split"), ss, rc, this);          m_chkFwGeom.Create(_T("From frame header"), chk, rc, this, IDC_CHK_FW_GEOM);
-    m_lblTone.Create(_T("Tone estimate"), ss, rc, this);          m_chkTone.Create(_T("Precise (double FFT)"), chk, rc, this, IDC_CHK_TONE);
+    m_cmbRangeGain.AddString(TR("Off")); m_cmbRangeGain.AddString(TR("20 dB/dec (R^2)")); m_cmbRangeGain.AddString(TR("40 dB/dec (R^4)"));
+    m_lblFwGeom.Create(TR("Chirp split"), ss, rc, this);          m_chkFwGeom.Create(TR("From frame header"), chk, rc, this, IDC_CHK_FW_GEOM);
+    m_lblTone.Create(TR("Tone estimate"), ss, rc, this);          m_chkTone.Create(TR("Precise (double FFT)"), chk, rc, this, IDC_CHK_TONE);
 
-    m_hdrDetect.Create(_T("Detection"), ss, rc, this);
-    m_lblDetector.Create(_T("Detector"), ss, rc, this);
+    m_hdrDetect.Create(TR("Detection"), ss, rc, this);
+    m_lblDetector.Create(TR("Detector"), ss, rc, this);
     m_cmbDetector.Create(cs, rc, this, IDC_CMB_DETECTOR);
     for (int i = 0; i < static_cast<int>(dsp::DetectorType::Count); ++i)
         m_cmbDetector.AddString(CString(dsp::DetectorName(static_cast<dsp::DetectorType>(i))));
-    m_lblThresh.Create(_T("Threshold above noise, dB"), ss, rc, this); m_edtThresh.Create(esf, rc, this, IDC_EDT_THRESH);
-    m_lblPfa.Create(_T("CFAR false-alarm prob."), ss, rc, this);
+    m_lblThresh.Create(TR("Threshold above noise, dB"), ss, rc, this); m_edtThresh.Create(esf, rc, this, IDC_EDT_THRESH);
+    m_lblPfa.Create(TR("CFAR false-alarm prob."), ss, rc, this);
     m_cmbPfa.Create(cs, rc, this, IDC_CMB_PFA);
-    m_cmbPfa.AddString(_T("0.01  (1 in 100)"));
-    m_cmbPfa.AddString(_T("0.001  (1 in 1000)"));
-    m_cmbPfa.AddString(_T("0.0001  (1 in 10 000)"));
-    m_cmbPfa.AddString(_T("0.00001  (1 in 100 000)"));
-    m_cmbPfa.AddString(_T("0.000001  (1 in 1 000 000)"));
-    m_lblCfarGuard.Create(_T("CFAR guard cells"), ss, rc, this);  m_edtCfarGuard.Create(es, rc, this, IDC_EDT_CFAR_GUARD);
-    m_lblCfarTrain.Create(_T("CFAR training cells"), ss, rc, this); m_edtCfarTrain.Create(es, rc, this, IDC_EDT_CFAR_TRAIN);
-    m_lblInterp.Create(_T("Peak interpolation"), ss, rc, this);
+    m_cmbPfa.AddString(TR("0.01  (1 in 100)"));
+    m_cmbPfa.AddString(TR("0.001  (1 in 1000)"));
+    m_cmbPfa.AddString(TR("0.0001  (1 in 10 000)"));
+    m_cmbPfa.AddString(TR("0.00001  (1 in 100 000)"));
+    m_cmbPfa.AddString(TR("0.000001  (1 in 1 000 000)"));
+    m_lblCfarGuard.Create(TR("CFAR guard cells"), ss, rc, this);  m_edtCfarGuard.Create(es, rc, this, IDC_EDT_CFAR_GUARD);
+    m_lblCfarTrain.Create(TR("CFAR training cells"), ss, rc, this); m_edtCfarTrain.Create(es, rc, this, IDC_EDT_CFAR_TRAIN);
+    m_lblInterp.Create(TR("Peak interpolation"), ss, rc, this);
     m_cmbInterp.Create(cs, rc, this, IDC_CMB_INTERP);
     for (int i = 0; i < static_cast<int>(dsp::PeakInterp::Count); ++i)
         m_cmbInterp.AddString(CString(dsp::PeakInterpName(static_cast<dsp::PeakInterp>(i))));
-    m_lblMaxPeaks.Create(_T("Max targets"), ss, rc, this);        m_edtMaxPeaks.Create(es, rc, this, IDC_EDT_MAXPEAKS);
-    m_lblMti.Create(_T("Doppler"), ss, rc, this);                 m_chkMti.Create(_T("MTI (subtract mean)"), chk, rc, this, IDC_CHK_MTI);
-    m_lblTrack.Create(_T("Tracking"), ss, rc, this);              m_chkTrack.Create(_T("Stable target IDs"), chk, rc, this, IDC_CHK_TRACK);
+    m_lblMaxPeaks.Create(TR("Max targets"), ss, rc, this);        m_edtMaxPeaks.Create(es, rc, this, IDC_EDT_MAXPEAKS);
+    m_lblMti.Create(TR("Doppler"), ss, rc, this);                 m_chkMti.Create(TR("MTI (subtract mean)"), chk, rc, this, IDC_CHK_MTI);
+    m_lblTrack.Create(TR("Tracking"), ss, rc, this);              m_chkTrack.Create(TR("Stable target IDs"), chk, rc, this, IDC_CHK_TRACK);
 
-    m_hdrReject.Create(_T("Rejection"), ss, rc, this);
-    m_lblHarm.Create(_T("Harmonics"), ss, rc, this);              m_chkHarm.Create(_T("Drop 2f, 3f.. of a stronger peak"), chk, rc, this, IDC_CHK_HARMONICS);
-    m_lblHarmDrop.Create(_T("Harmonic weaker by, dB"), ss, rc, this); m_edtHarmDrop.Create(esf, rc, this, IDC_EDT_HARM_DROP);
-    m_lblMinSnr.Create(_T("Min SNR, dB (0 = off)"), ss, rc, this); m_edtMinSnr.Create(esf, rc, this, IDC_EDT_MIN_SNR);
-    m_lblConfirm.Create(_T("Confirm after N frames"), ss, rc, this); m_edtConfirm.Create(es, rc, this, IDC_EDT_CONFIRM);
-    m_lblSpurs.Create(_T("Spur mask Hz:halfwidth,..."), ss, rc, this); m_edtSpurs.Create(esf, rc, this, IDC_EDT_SPURS);
-    m_btnLearn.Create(_T("Learn spurs"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, rc, this, IDC_BTN_LEARN_SPURS);
-    m_btnClearSpurs.Create(_T("Clear"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, rc, this, IDC_BTN_CLEAR_SPURS);
+    m_hdrReject.Create(TR("Rejection"), ss, rc, this);
+    m_lblHarm.Create(TR("Harmonics"), ss, rc, this);              m_chkHarm.Create(TR("Drop 2f, 3f.. of a stronger peak"), chk, rc, this, IDC_CHK_HARMONICS);
+    m_lblHarmDrop.Create(TR("Harmonic weaker by, dB"), ss, rc, this); m_edtHarmDrop.Create(esf, rc, this, IDC_EDT_HARM_DROP);
+    m_lblMinSnr.Create(TR("Min SNR, dB (0 = off)"), ss, rc, this); m_edtMinSnr.Create(esf, rc, this, IDC_EDT_MIN_SNR);
+    m_lblConfirm.Create(TR("Confirm after N frames"), ss, rc, this); m_edtConfirm.Create(es, rc, this, IDC_EDT_CONFIRM);
+    m_lblSpurs.Create(TR("Spur mask Hz:halfwidth,..."), ss, rc, this); m_edtSpurs.Create(esf, rc, this, IDC_EDT_SPURS);
+    m_btnLearn.Create(TR("Learn spurs"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, rc, this, IDC_BTN_LEARN_SPURS);
+    m_btnClearSpurs.Create(TR("Clear"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, rc, this, IDC_BTN_CLEAR_SPURS);
 
-    m_hdrDisplay.Create(_T("Display"), ss, rc, this);
-    m_lblDbTop.Create(_T("dB axis top"), ss, rc, this);           m_edtDbTop.Create(esf, rc, this, IDC_EDT_DBTOP);
-    m_lblDbBottom.Create(_T("dB axis bottom"), ss, rc, this);     m_edtDbBottom.Create(esf, rc, this, IDC_EDT_DBBOTTOM);
-    m_lblWfRows.Create(_T("Waterfall rows"), ss, rc, this);       m_edtWfRows.Create(es, rc, this, IDC_EDT_WF_ROWS);
-    m_lblAdcBits.Create(_T("ADC bits"), ss, rc, this);            m_edtAdcBits.Create(es, rc, this, IDC_EDT_ADCBITS);
-    m_lblVref.Create(_T("ADC full scale, V"), ss, rc, this);      m_edtVref.Create(esf, rc, this, IDC_EDT_VREF);
-    m_btnDefaults.Create(_T("Defaults"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, rc, this, IDC_BTN_DEFAULTS);
+    m_hdrDisplay.Create(TR("Display"), ss, rc, this);
+    m_lblDbTop.Create(TR("dB axis top"), ss, rc, this);           m_edtDbTop.Create(esf, rc, this, IDC_EDT_DBTOP);
+    m_lblDbBottom.Create(TR("dB axis bottom"), ss, rc, this);     m_edtDbBottom.Create(esf, rc, this, IDC_EDT_DBBOTTOM);
+    m_lblWfRows.Create(TR("Waterfall rows"), ss, rc, this);       m_edtWfRows.Create(es, rc, this, IDC_EDT_WF_ROWS);
+    m_lblAdcBits.Create(TR("ADC bits"), ss, rc, this);            m_edtAdcBits.Create(es, rc, this, IDC_EDT_ADCBITS);
+    m_lblVref.Create(TR("ADC full scale, V"), ss, rc, this);      m_edtVref.Create(esf, rc, this, IDC_EDT_VREF);
+    m_btnDefaults.Create(TR("Defaults"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, rc, this, IDC_BTN_DEFAULTS);
 
     CWnd* pw = GetWindow(GW_CHILD);
     while (pw) { pw->SetFont(&m_font); pw = pw->GetWindow(GW_HWNDNEXT); }
@@ -120,6 +121,7 @@ int ProcPanel::OnCreate(LPCREATESTRUCT lpcs)
 
     AppSettings defaults;
     ApplySettings(defaults);
+    m_tips.Attach(this);
     return 0;
 }
 
@@ -417,4 +419,10 @@ HBRUSH ProcPanel::OnCtlColor(CDC* pDC, CWnd*, UINT nCtlColor)
     pDC->SetTextColor(Theme::Get().text);
     pDC->SetBkColor(Theme::Get().plot);
     return Theme::FieldBrush();
+}
+
+BOOL ProcPanel::PreTranslateMessage(MSG* pMsg)
+{
+    m_tips.Relay(pMsg);
+    return CWnd::PreTranslateMessage(pMsg);
 }

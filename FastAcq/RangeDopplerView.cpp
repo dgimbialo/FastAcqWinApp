@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "Lang.h"
 #include "RangeDopplerView.h"
 #include "ColorMap.h"
 #include "resource.h"
@@ -89,16 +90,16 @@ void RangeDopplerView::Render(CDC& dc, const CRect& rc)
     {
         CFont* pOld = dc.SelectObject(&m_fontTitle);
         dc.SetTextColor(th.textHdr);
-        dc.TextOut(L.title.left + S(6), L.title.top + S(3), _T("Range - Doppler"));
+        dc.TextOut(L.title.left + S(6), L.title.top + S(3), TR("Range - Doppler"));
         dc.SelectObject(&m_fontAxis);
         dc.SetTextColor(th.textDim);
         CString info;
         if (HasData()) {
             const dsp::RangeDopplerMap& rd = m_res->rd;
-            info.Format(_T("%d chirps   %d x %d   v bin %.3f m/s   v max %.2f m/s"),
+            info.Format(TR("%d chirps   %d x %d   v bin %.3f m/s   v max %.2f m/s"),
                         m_res->chirps, rd.nRange, rd.nDoppler, rd.velBinMps, rd.velMaxMps);
         } else {
-            info = _T("needs chirps per frame > 1 (burst)");
+            info = TR("needs chirps per frame > 1 (burst)");
         }
         CRect ir(L.title.left + S(130), L.title.top, L.title.right - S(4), L.title.bottom);
         dc.DrawText(info, ir, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
@@ -206,7 +207,7 @@ void RangeDopplerView::OnPlotRButtonUp(CPoint pt, UINT)
 {
     CMenu menu;
     menu.CreatePopupMenu();
-    menu.AppendMenu(MF_STRING, ID_PLOT_COPY_IMAGE, _T("Copy image"));
+    menu.AppendMenu(MF_STRING, ID_PLOT_COPY_IMAGE, TR("Copy image"));
     CPoint sp = pt; ClientToScreen(&sp);
     int cmd = menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD, sp.x, sp.y, this);
     if (cmd == ID_PLOT_COPY_IMAGE) CopyImageToClipboard();

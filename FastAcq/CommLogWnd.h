@@ -5,6 +5,7 @@
 //
 
 #include "pch.h"
+#include "Tips.h"
 #include "AppMessages.h"
 #include "AppSettings.h"
 
@@ -17,6 +18,8 @@ public:
     void ApplySettings(const AppSettings& s);
     void ReadFooter(AppSettings& s) const;
     void ApplyTheme();
+
+    BOOL PreTranslateMessage(MSG* pMsg) override;
 
 protected:
     afx_msg int    OnCreate(LPCREATESTRUCT lpcs);
@@ -60,4 +63,5 @@ private:
     bool     m_pending{false};
     bool     m_autoScroll{true};
     int      m_filter{0};
+    FieldTips m_tips;
 };

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "Lang.h"
 #include "ScopeTab.h"
 #include "AppMessages.h"
 #include "Dpi.h"
@@ -35,19 +36,20 @@ int ScopeTab::OnCreate(LPCREATESTRUCT lpcs)
 
     m_frame.CreateView(this, IDC_WAVE_FRAME);
     m_ramp.CreateView(this, IDC_WAVE_RAMP);
-    m_frame.SetTitle(_T("Frame (all chirps)"));
-    m_ramp.SetTitle(_T("Ramp detail"));
+    m_frame.SetTitle(TR("Frame (all chirps)"));
+    m_ramp.SetTitle(TR("Ramp detail"));
 
     CRect rc(0, 0, 10, 10);
-    m_chkDots.Create(_T("Dots"), WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, rc, this, IDC_CHK_DOTS);
-    m_rdoVolts.Create(_T("Volts"), WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON | WS_GROUP, rc, this, IDC_RDO_VOLTS);
-    m_rdoCodes.Create(_T("ADC codes"), WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON, rc, this, IDC_RDO_CODES);
+    m_chkDots.Create(TR("Dots"), WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, rc, this, IDC_CHK_DOTS);
+    m_rdoVolts.Create(TR("Volts"), WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON | WS_GROUP, rc, this, IDC_RDO_VOLTS);
+    m_rdoCodes.Create(TR("ADC codes"), WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON, rc, this, IDC_RDO_CODES);
     m_rdoVolts.SetCheck(BST_CHECKED);
-    m_lblRamp.Create(_T("Ramp:"), WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE, rc, this);
+    m_lblRamp.Create(TR("Ramp:"), WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE, rc, this);
     m_cmbRamp.Create(WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL, rc, this, IDC_CMB_RAMP_SEL);
     m_lblInfo.Create(_T(""), WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE | SS_ENDELLIPSIS, rc, this, IDC_LBL_SCOPE_INFO);
     CWnd* kids[] = { &m_chkDots, &m_rdoVolts, &m_rdoCodes, &m_lblRamp, &m_cmbRamp, &m_lblInfo };
     for (auto* k : kids) k->SetFont(&m_font);
+    m_tips.Attach(this);
     return 0;
 }
 
@@ -105,7 +107,7 @@ void ScopeTab::RebuildRampCombo()
     for (size_t i : m_rampSegIdx) {
         const dsp::Segment& sg = m_res->segments[i];
         CString s;
-        s.Format(_T("%s #%d"), sg.kind == dsp::Segment::Up ? _T("UP") : _T("DOWN"), sg.chirp);
+        s.Format(_T("%s #%d"), sg.kind == dsp::Segment::Up ? TR("UP") : TR("DOWN"), sg.chirp);
         m_cmbRamp.AddString(s);
     }
     if (m_cmbRamp.GetCount() > 0)
@@ -131,13 +133,13 @@ std::vector<CString> ScopeTab::SegmentLabels() const
         CString s;
         const double dur = fs > 0.0 ? sg.length / fs : 0.0;
         if (sg.kind == dsp::Segment::Guard) {
-            s.Format(_T("guard %zu smp"), sg.length);
+            s.Format(TR("guard %zu smp"), sg.length);
         } else {
             const double f = toneOf(sg.kind);
-            s.Format(_T("%s #%d: %zu smp, %s"), sg.kind == dsp::Segment::Up ? _T("UP") : _T("DOWN"), sg.chirp,
+            s.Format(TR("%s #%d: %zu smp, %s"), sg.kind == dsp::Segment::Up ? TR("UP") : TR("DOWN"), sg.chirp,
                      sg.length, WaveformView::FormatTime(dur).GetString());
             if (f > 0.0 && dur > 0.0) {
-                CString c; c.Format(_T(", %.1f cycles of %s"), f * dur, WaveformView::FormatFreq(f).GetString());
+                CString c; c.Format(TR(", %.1f cycles of %s"), f * dur, WaveformView::FormatFreq(f).GetString());
                 s += c;
             }
         }
@@ -171,16 +173,16 @@ void ScopeTab::UpdateRampView()
     m_ramp.SetSegments(m_res->segments);
     m_ramp.SetSegmentLabels(SegmentLabels());
     CString t;
-    t.Format(_T("Ramp detail: %s #%d  (%zu samples in the ramp"), sg.kind == dsp::Segment::Up ? _T("UP") : _T("DOWN"), sg.chirp, sg.length);
+    t.Format(TR("Ramp detail: %s #%d  (%zu samples in the ramp"), sg.kind == dsp::Segment::Up ? TR("UP") : TR("DOWN"), sg.chirp, sg.length);
     {
         const dsp::RampSpectrum& sp = (sg.kind == dsp::Segment::Down) ? m_res->down : m_res->up;
         const double f = (sp.tone.valid && sp.tone.freqHz > 0.0) ? sp.tone.freqHz : (sp.valid && !sp.peaks.empty() ? sp.peaks[0].freqHz : 0.0);
         if (m_res->fsHz > 0.0) {
             const double dur = sg.length / m_res->fsHz;
             CString c; c.Format(_T(", %s"), WaveformView::FormatTime(dur).GetString()); t += c;
-            if (f > 0.0) { c.Format(_T(", %.1f beat cycles of %s"), f * dur, WaveformView::FormatFreq(f).GetString()); t += c; }
+            if (f > 0.0) { c.Format(TR(", %.1f beat cycles of %s"), f * dur, WaveformView::FormatFreq(f).GetString()); t += c; }
         }
-        if (end - start > sg.length) { CString c; c.Format(_T(", +%zu guard"), end - start - sg.length); t += c; }
+        if (end - start > sg.length) { CString c; c.Format(TR(", +%zu guard"), end - start - sg.length); t += c; }
         t += _T(")");
     }
     m_ramp.SetTitle(t);
@@ -200,7 +202,7 @@ void ScopeTab::ShowFrame(ChirpFramePtr f, std::shared_ptr<const dsp::FrameResult
     if (m_res) { m_frame.SetSegments(m_res->segments); m_frame.SetSegmentLabels(SegmentLabels()); }
     else m_frame.SetSegments({});
     CString title;
-    title.Format(_T("Frame %u  (%zu samples, %d chirps)"), m_f->header.frame_id, m_f->raw.size(), m_res ? m_res->chirps : 1);
+    title.Format(TR("Frame %u  (%zu samples, %d chirps)"), m_f->header.frame_id, m_f->raw.size(), m_res ? m_res->chirps : 1);
     if (m_res && !m_res->segments.empty()) {
         // How much of the frame the chirps cover; the rest is captured after
         // the last chirp and takes part in no spectrum.
@@ -210,9 +212,9 @@ void ScopeTab::ShowFrame(ChirpFramePtr f, std::shared_ptr<const dsp::FrameResult
             if (sg.kind == dsp::Segment::Up) up += sg.length; else if (sg.kind == dsp::Segment::Down) dn += sg.length;
         }
         CString c;
-        c.Format(_T("  UP %zu + DOWN %zu smp"), up, dn);
+        c.Format(TR("  UP %zu + DOWN %zu smp"), up, dn);
         title += c;
-        if (used < m_f->raw.size()) { c.Format(_T(", %zu after the last chirp (unused)"), m_f->raw.size() - used); title += c; }
+        if (used < m_f->raw.size()) { c.Format(TR(", %zu after the last chirp (unused)"), m_f->raw.size() - used); title += c; }
     }
     m_frame.SetTitle(title);
 
@@ -229,13 +231,13 @@ void ScopeTab::ShowFrame(ChirpFramePtr f, std::shared_ptr<const dsp::FrameResult
             if (m_res->targets[0].paired) { CString v; v.Format(_T("  v = %+.2f m/s"), m_res->targets[0].velocityMps); info += v; }
         }
         if (m_res->up.tone.valid) {
-            CString s; s.Format(_T("   tone UP %.1f Hz"), m_res->up.tone.freqHz); info += s;
-            if (m_res->down.tone.valid) { CString t; t.Format(_T(" / DOWN %.1f Hz"), m_res->down.tone.freqHz); info += t; }
+            CString s; s.Format(TR("   tone UP %.1f Hz"), m_res->up.tone.freqHz); info += s;
+            if (m_res->down.tone.valid) { CString t; t.Format(TR(" / DOWN %.1f Hz"), m_res->down.tone.freqHz); info += t; }
         }
-        if (m_res->mcuPeakHz > 0.0) { CString s; s.Format(_T("   MCU peak %.1f Hz"), m_res->mcuPeakHz); info += s; }
-        CString d; d.Format(_T("   decim x%d, fs_eff %s, ramp %s%s"), m_res->decimation,
+        if (m_res->mcuPeakHz > 0.0) { CString s; s.Format(TR("   MCU peak %.1f Hz"), m_res->mcuPeakHz); info += s; }
+        CString d; d.Format(TR("   decim x%d, fs_eff %s, ramp %s%s"), m_res->decimation,
                             WaveformView::FormatFreq(m_res->up.fsEffHz).GetString(), WaveformView::FormatTime(m_res->rampSec).GetString(),
-                            m_res->geometryFromHeader ? _T(" (hdr)") : _T(""));
+                            m_res->geometryFromHeader ? TR(" (hdr)") : _T(""));
         info += d;
     }
     m_frame.SetInfo(info);
@@ -347,4 +349,10 @@ BOOL ScopeTab::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT msg)
     CPoint pt; ::GetCursorPos(&pt); ScreenToClient(&pt);
     if (HitSplitter(pt)) { ::SetCursor(::LoadCursor(nullptr, IDC_SIZENS)); return TRUE; }
     return CWnd::OnSetCursor(pWnd, nHitTest, msg);
+}
+
+BOOL ScopeTab::PreTranslateMessage(MSG* pMsg)
+{
+    m_tips.Relay(pMsg);
+    return CWnd::PreTranslateMessage(pMsg);
 }

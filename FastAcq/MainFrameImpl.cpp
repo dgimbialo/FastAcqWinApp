@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "Lang.h"
 #include "MainFrame.h"
 #include "AppMessages.h"
 #include "Core/Export.h"
@@ -104,6 +105,7 @@ std::filesystem::path ToPath(const CString& s)
 CMainFrame::CMainFrame()
 {
     m_settings.Load(AppSettings::DefaultPath());
+    Lang::Set(static_cast<Lang::Id>(m_settings.language));
     m_settings.ApplyVcoToRadar();
     if (m_settings.chirpsFromBurst) m_settings.dsp.chirpsInFrame = (std::max)(1, m_settings.acq.burst);
     Theme::SetDark(m_settings.display.darkTheme);
@@ -142,11 +144,12 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpcs)
     Dpi::MakeFont(m_tabFont, m_hWnd, 9);
     m_tab.SetFont(&m_tabFont);
     TCITEM ti{}; ti.mask = TCIF_TEXT;
-    ti.pszText = const_cast<LPTSTR>(_T("Radar"));          m_tab.InsertItem(0, &ti);
-    ti.pszText = const_cast<LPTSTR>(_T("Scope"));          m_tab.InsertItem(1, &ti);
-    ti.pszText = const_cast<LPTSTR>(_T("Communication"));  m_tab.InsertItem(2, &ti);
-    ti.pszText = const_cast<LPTSTR>(_T("Settings"));       m_tab.InsertItem(3, &ti);
-    ti.pszText = const_cast<LPTSTR>(_T("Trace"));          m_tab.InsertItem(4, &ti);
+    const CString tabNames[] = { TR("Radar"), TR("Scope"), TR("Communication"), TR("Settings"), TR("Trace") };
+    for (int i = 0; i < 5; ++i) {
+        ti.pszText = const_cast<LPTSTR>(tabNames[i].GetString());
+        m_tab.InsertItem(i, &ti);
+    }
+    if (CMenu* menu = GetMenu()) { Lang::TranslateMenu(menu); DrawMenuBar(); }
 
     m_radarTab.CreateTab(&m_tab, IDC_TAB_RADAR);
     m_scopeTab.CreateTab(&m_tab, IDC_TAB_SCOPE);
@@ -351,11 +354,11 @@ LRESULT CMainFrame::OnFrameReady(WPARAM wp, LPARAM)
 
     if (m_recording && !m_replayActive) {
         if (!m_recorder.Write(*f)) {
-            m_logTab.AppendLine(LOG_ERR, _T("Recording: write failed, stopping"));
+            m_logTab.AppendLine(LOG_ERR, TR("Recording: write failed, stopping"));
             StopRecording();
         } else if (m_recorder.FramesWritten() % 10 == 1) {
             CString info;
-            info.Format(_T("REC %s  %llu frames  %.1f MB"), m_recordPath.GetString(),
+            info.Format(TR("REC %s  %llu frames  %.1f MB"), m_recordPath.GetString(),
                         static_cast<unsigned long long>(m_recorder.FramesWritten()), m_recorder.BytesWritten() / 1e6);
             m_cmd.SetRecording(true, info);
         }
@@ -479,9 +482,9 @@ LRESULT CMainFrame::OnCmdConnect(WPARAM, LPARAM)
     if (Connected()) return 0;   // already open: the toggle button sends DISCONNECT
     if (m_replayActive) CloseReplay();
     CString port = m_cmd.GetSelectedPort();
-    if (port.IsEmpty()) { AfxMessageBox(_T("Select a COM port first.")); return 0; }
+    if (port.IsEmpty()) { AfxMessageBox(TR("Select a COM port first.")); return 0; }
     if (!m_serial->Open(port)) {
-        CString err; err.Format(_T("Failed to open %s"), port.GetString());
+        CString err; err.Format(TR("Failed to open %s"), port.GetString());
         AfxMessageBox(err);
         return 0;
     }
@@ -652,7 +655,7 @@ LRESULT CMainFrame::OnServiceFrame(WPARAM wp, LPARAM lp)
         line.Format(_T("ACK cmd=0x%02X status=%s applied=%u"), h.fft_size, st, h.actual_samples);
         if (h.fft_peak_bin != ACK_OK) {
             m_logTab.AppendLine(LOG_ERR, line);
-            m_lastWarn.Format(_T("MCU rejected command 0x%02X: %s"), h.fft_size, st);
+            m_lastWarn.Format(TR("MCU rejected command 0x%02X: %s"), h.fft_size, st);
             m_lastWarnTick = ::GetTickCount();
         }
         break;
@@ -660,7 +663,7 @@ LRESULT CMainFrame::OnServiceFrame(WPARAM wp, LPARAM lp)
 
     case SVC_FRAME_TRACE:
         m_traceTab.ShowTrace(*f);
-        line.Format(_T("TRACE %u records, %u dropped (see Trace tab)"), h.actual_samples, h.fft_peak_bin);
+        line.Format(TR("TRACE %u records, %u dropped (see Trace tab)"), h.actual_samples, h.fft_peak_bin);
         break;
 
     default:
@@ -766,35 +769,35 @@ void CMainFrame::UpdateStatusBar()
     if (!m_status.GetSafeHwnd()) return;
     CString s;
     if (m_replayActive)
-        s.Format(_T("Replay %s  (%zu / %zu)"), m_replayName.GetString(), m_replayIndex + 1, m_replay.Count());
+        s.Format(TR("Replay %s  (%zu / %zu)"), m_replayName.GetString(), m_replayIndex + 1, m_replay.Count());
     else if (m_connected)
-        s.Format(_T("Connected %s  %s%s"), m_portName.GetString(), m_running ? _T("RUNNING") : _T("idle"),
-                 m_live ? _T("") : _T("  [HOLD]"));
+        s.Format(TR("Connected %s  %s%s"), m_portName.GetString(), m_running ? TR("RUNNING") : TR("idle"),
+                 m_live ? CString() : TR("  [HOLD]"));
     else
-        s = _T("Disconnected");
+        s = TR("Disconnected");
     if (m_recording) s += _T("  \u25CF REC");
     if (!m_lastWarn.IsEmpty() && ::GetTickCount() - m_lastWarnTick < 6000) s += _T("  |  ") + m_lastWarn;
     m_status.SetPaneText(0, s);
-    m_status.SetPaneText(1, m_mcuStatus.IsEmpty() ? CString(_T("MCU: -")) : m_mcuStatus);
+    m_status.SetPaneText(1, m_mcuStatus.IsEmpty() ? CString(TR("MCU: -")) : m_mcuStatus);
 
     CString rate;
-    rate.Format(_T("Fs %.4f MS/s  %zu smp  %.1f fps  %.2f MB/s  RTT %lu ms"),
+    rate.Format(TR("Fs %.4f MS/s  %zu smp  %.1f fps  %.2f MB/s  RTT %lu ms"),
                 (m_obsFs > 0.0 ? m_obsFs * m_settings.FsFactor() : m_settings.sampleRateCalHz) / 1e6, m_obsSamples,
                 m_link.framesPerSec, m_link.bytesPerSec / 1e6, m_lastRttMs);
     m_status.SetPaneText(2, rate);
 
     CString link;
-    link.Format(_T("lost %llu  CRC %llu  hdr %llu"),
+    link.Format(TR("lost %llu  CRC %llu  hdr %llu"),
                 static_cast<unsigned long long>(m_link.framesLost),
                 static_cast<unsigned long long>(m_link.framesBadCrc),
                 static_cast<unsigned long long>(m_link.framesBadHeader));
     m_status.SetPaneText(3, link);
 
-    CString dspTxt; dspTxt.Format(_T("DSP %.1f ms"), m_lastDspMs);
+    CString dspTxt; dspTxt.Format(TR("DSP %.1f ms"), m_lastDspMs);
     m_status.SetPaneText(4, dspTxt);
 
     CString buf;
-    buf.Format(_T("buf %zu/%zu  %.0f MB"), m_store.Size(), m_store.Capacity(), m_store.Bytes() / 1e6);
+    buf.Format(TR("buf %zu/%zu  %.0f MB"), m_store.Size(), m_store.Capacity(), m_store.Bytes() / 1e6);
     m_status.SetPaneText(5, buf);
 }
 
@@ -821,22 +824,22 @@ LRESULT CMainFrame::OnCmdSaveFrame(WPARAM, LPARAM) { OnFileSaveFrame(); return 0
 void CMainFrame::OnFileSaveFrame()
 {
     ChirpFramePtr f = CurrentFrame();
-    if (!f) { AfxMessageBox(_T("No frame to save.")); return; }
+    if (!f) { AfxMessageBox(TR("No frame to save.")); return; }
     CString defName; defName.Format(_T("chirp_%u.csv"), f->header.frame_id);
     CFileDialog dlg(FALSE, _T("csv"), defName, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,
-                    _T("CSV files (*.csv)|*.csv|All files (*.*)|*.*||"), this);
+                    TR("CSV files (*.csv)|*.csv|All files (*.*)|*.*||"), this);
     if (!m_settings.lastDir.IsEmpty()) dlg.m_ofn.lpstrInitialDir = m_settings.lastDir;
     if (dlg.DoModal() != IDOK) return;
     std::string err;
-    if (!core::WriteFrameCsv(ToPath(dlg.GetPathName()), *f, &err)) AfxMessageBox(_T("Save failed."));
+    if (!core::WriteFrameCsv(ToPath(dlg.GetPathName()), *f, &err)) AfxMessageBox(TR("Save failed."));
     m_settings.lastDir = dlg.GetPathName().Left(dlg.GetPathName().ReverseFind(_T('\\')));
 }
 
 void CMainFrame::OnFileExportTargets()
 {
-    if (m_store.Size() == 0) { AfxMessageBox(_T("No frames in the buffer.")); return; }
+    if (m_store.Size() == 0) { AfxMessageBox(TR("No frames in the buffer.")); return; }
     CFileDialog dlg(FALSE, _T("csv"), DefaultFileName(_T("targets"), _T("csv")), OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,
-                    _T("CSV files (*.csv)|*.csv|All files (*.*)|*.*||"), this);
+                    TR("CSV files (*.csv)|*.csv|All files (*.*)|*.*||"), this);
     if (!m_settings.lastDir.IsEmpty()) dlg.m_ofn.lpstrInitialDir = m_settings.lastDir;
     if (dlg.DoModal() != IDOK) return;
     ExportTargetsCsv(dlg.GetPathName());
@@ -851,7 +854,7 @@ void CMainFrame::ExportTargetsCsv(const CString& path)
     local.SetFallbackSampleRate(static_cast<double>(m_settings.sampleRateCalHz));
     local.SetSampleRateScale(m_settings.FsFactor());
     CStdioFile f;
-    if (!f.Open(path, CFile::modeCreate | CFile::modeWrite | CFile::typeText)) { AfxMessageBox(_T("Cannot create file.")); return; }
+    if (!f.Open(path, CFile::modeCreate | CFile::modeWrite | CFile::typeText)) { AfxMessageBox(TR("Cannot create file.")); return; }
     f.WriteString(TargetListCtrl::CsvHeader());
     CWaitCursor wait;
     const uint64_t first = m_store.FirstSeq();
@@ -870,10 +873,10 @@ void CMainFrame::ExportTargetsCsv(const CString& path)
 void CMainFrame::OnFileExportWav()
 {
     ChirpFramePtr fr = CurrentFrame();
-    if (!fr || fr->raw.empty()) { AfxMessageBox(_T("No raw samples in the current frame.")); return; }
+    if (!fr || fr->raw.empty()) { AfxMessageBox(TR("No raw samples in the current frame.")); return; }
     CString defName; defName.Format(_T("if_frame_%u.wav"), fr->header.frame_id);
     CFileDialog dlg(FALSE, _T("wav"), defName, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,
-                    _T("WAV files (*.wav)|*.wav|All files (*.*)|*.*||"), this);
+                    TR("WAV files (*.wav)|*.wav|All files (*.*)|*.*||"), this);
     if (!m_settings.lastDir.IsEmpty()) dlg.m_ofn.lpstrInitialDir = m_settings.lastDir;
     if (dlg.DoModal() != IDOK) return;
     ExportWav(dlg.GetPathName());
@@ -888,16 +891,16 @@ void CMainFrame::ExportWav(const CString& path)
                       : m_settings.sampleRateCalHz;
     std::string err;
     if (!core::WriteWav16FromCodes(ToPath(path), fr->raw.data(), fr->raw.size(), fs, &err))
-        AfxMessageBox(_T("WAV export failed."));
+        AfxMessageBox(TR("WAV export failed."));
 }
 
 void CMainFrame::OnFileScreenshot()
 {
     CFileDialog dlg(FALSE, _T("png"), DefaultFileName(_T("fastacq"), _T("png")), OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,
-                    _T("PNG images (*.png)|*.png||"), this);
+                    TR("PNG images (*.png)|*.png||"), this);
     if (!m_settings.lastDir.IsEmpty()) dlg.m_ofn.lpstrInitialDir = m_settings.lastDir;
     if (dlg.DoModal() != IDOK) return;
-    if (!SaveWindowPng(m_hWnd, dlg.GetPathName())) AfxMessageBox(_T("Screenshot failed."));
+    if (!SaveWindowPng(m_hWnd, dlg.GetPathName())) AfxMessageBox(TR("Screenshot failed."));
 }
 
 void CMainFrame::OnFileExit() { PostMessage(WM_CLOSE); }
@@ -912,22 +915,22 @@ void CMainFrame::OnFileRecord()
 
 void CMainFrame::StartRecording()
 {
-    if (m_replayActive) { AfxMessageBox(_T("Close the replay before recording.")); return; }
+    if (m_replayActive) { AfxMessageBox(TR("Close the replay before recording.")); return; }
     CFileDialog dlg(FALSE, _T("facq"), DefaultFileName(_T("session"), _T("facq")), OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,
-                    _T("FastAcq sessions (*.facq)|*.facq|All files (*.*)|*.*||"), this);
+                    TR("FastAcq sessions (*.facq)|*.facq|All files (*.*)|*.*||"), this);
     if (!m_settings.lastDir.IsEmpty()) dlg.m_ofn.lpstrInitialDir = m_settings.lastDir;
     if (dlg.DoModal() != IDOK) return;
     const CString path = dlg.GetPathName();
     const uint32_t fs = m_obsFs > 0.0 ? static_cast<uint32_t>(m_obsFs) : m_settings.sampleRateCalHz;
     if (!m_recorder.Open(ToPath(path), fs, UnixNowMs(), "FastAcq session")) {
-        AfxMessageBox(_T("Cannot create the session file."));
+        AfxMessageBox(TR("Cannot create the session file."));
         return;
     }
     m_recording  = true;
     m_recordPath = path.Mid(path.ReverseFind(_T('\\')) + 1);
     m_settings.lastDir = path.Left(path.ReverseFind(_T('\\')));
     m_cmd.SetRecording(true, _T("REC ") + m_recordPath);
-    m_logTab.AppendLine(LOG_INFO, _T("Recording started: ") + path);
+    m_logTab.AppendLine(LOG_INFO, TR("Recording started: ") + path);
     UpdateStatusBar();
 }
 
@@ -938,7 +941,7 @@ void CMainFrame::StopRecording()
     m_recorder.Close();
     m_recording = false;
     m_cmd.SetRecording(false, _T(""));
-    CString msg; msg.Format(_T("Recording stopped: %llu frames"), static_cast<unsigned long long>(n));
+    CString msg; msg.Format(TR("Recording stopped: %llu frames"), static_cast<unsigned long long>(n));
     m_logTab.AppendLine(LOG_INFO, msg);
     UpdateStatusBar();
 }
@@ -948,10 +951,10 @@ LRESULT CMainFrame::OnCmdOpenReplay(WPARAM, LPARAM) { OnFileOpenReplay(); return
 void CMainFrame::OnFileOpenReplay()
 {
     CFileDialog dlg(TRUE, _T("facq"), nullptr, OFN_HIDEREADONLY | OFN_FILEMUSTEXIST,
-                    _T("FastAcq sessions (*.facq)|*.facq|All files (*.*)|*.*||"), this);
+                    TR("FastAcq sessions (*.facq)|*.facq|All files (*.*)|*.*||"), this);
     if (!m_settings.lastDir.IsEmpty()) dlg.m_ofn.lpstrInitialDir = m_settings.lastDir;
     if (dlg.DoModal() != IDOK) return;
-    if (!OpenReplay(dlg.GetPathName())) AfxMessageBox(_T("Cannot open the session file."));
+    if (!OpenReplay(dlg.GetPathName())) AfxMessageBox(TR("Cannot open the session file."));
 }
 
 void CMainFrame::OnFileCloseReplay() { CloseReplay(); }
@@ -972,7 +975,7 @@ bool CMainFrame::OpenReplay(const CString& path)
     m_settings.lastDir = path.Left(path.ReverseFind(_T('\\')));
     m_cmd.SetReplay(true, m_replayName, static_cast<int>(m_replay.Count()));
     RelayoutClient();
-    CString msg; msg.Format(_T("Replay opened: %s (%zu frames, Fs %u Hz)"), path.GetString(), m_replay.Count(), m_replay.Header().sampleRateHz);
+    CString msg; msg.Format(TR("Replay opened: %s (%zu frames, Fs %u Hz)"), path.GetString(), m_replay.Count(), m_replay.Header().sampleRateHz);
     m_logTab.AppendLine(LOG_INFO, msg);
     SetLive(true);
     ReplayShow(0, false);
@@ -1080,25 +1083,25 @@ void CMainFrame::OnAcqStatus()   { OnCmdGetStatus(0, 0); }
 
 void CMainFrame::OnHelpAbout()
 {
-    AfxMessageBox(_T("FastAcq 2.0\n\nFMCW radar IF-signal analyzer for the STM32H7 Fast Acquisition Device.\n")
-                  _T("C++17 / MFC / GDI, no third-party dependencies.\n\nMIT License."), MB_ICONINFORMATION);
+    AfxMessageBox(TR("FastAcq 2.0\n\nFMCW radar IF-signal analyzer for the STM32H7 Fast Acquisition Device.\n") +
+                  TR("C++17 / MFC / GDI, no third-party dependencies.\n\nMIT License."), MB_ICONINFORMATION);
 }
 
 void CMainFrame::OnHelpKeys()
 {
     AfxMessageBox(
-        _T("Space\tStart / Stop acquisition\n")
-        _T("T\tTrigger a single capture\n")
-        _T("H\tHold / Live display\n")
-        _T("R\tStart / stop recording\n")
-        _T("F5\tConnect / disconnect\n")
-        _T("Ctrl+O\tOpen replay\n")
-        _T("Ctrl+S\tSave frame as CSV\n")
-        _T("F12\tSave screenshot (PNG)\n")
-        _T("Ctrl+1..5\tSwitch tab\n")
-        _T("PgUp / PgDn, Ctrl+Left / Right\tPrevious / next frame\n\n")
-        _T("In plots: wheel = zoom at cursor, Shift+wheel = pan, drag = pan, double-click = reset,\n")
-        _T("click = marker A, Shift+click = marker B, Esc = clear markers, Home = reset zoom, A = autoscale dB."),
+        TR("Space\tStart / Stop acquisition\n") +
+        TR("T\tTrigger a single capture\n") +
+        TR("H\tHold / Live display\n") +
+        TR("R\tStart / stop recording\n") +
+        TR("F5\tConnect / disconnect\n") +
+        TR("Ctrl+O\tOpen replay\n") +
+        TR("Ctrl+S\tSave frame as CSV\n") +
+        TR("F12\tSave screenshot (PNG)\n") +
+        TR("Ctrl+1..5\tSwitch tab\n") +
+        TR("PgUp / PgDn, Ctrl+Left / Right\tPrevious / next frame\n\n") +
+        TR("In plots: wheel = zoom at cursor, Shift+wheel = pan, drag = pan, double-click = reset,\n") +
+        TR("click = marker A, Shift+click = marker B, Esc = clear markers, Home = reset zoom, A = autoscale dB."),
         MB_ICONINFORMATION);
 }
 

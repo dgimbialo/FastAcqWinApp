@@ -7,6 +7,7 @@
 //
 
 #include "pch.h"
+#include "Tips.h"
 #include "ChirpStore.h"
 #include "TraceDefs.h"
 
@@ -27,6 +28,8 @@ public:
     void SetDeviceTraceState(bool enabled, bool available);
     bool IsTraceRequested() const;
     void ApplyTheme();
+
+    BOOL PreTranslateMessage(MSG* pMsg) override;
 
 protected:
     afx_msg int    OnCreate(LPCREATESTRUCT lpcs);
@@ -59,4 +62,5 @@ private:
     FrameHeader              m_hdr{};
     bool                     m_connected{false};
     bool                     m_traceAvail{true};
+    FieldTips m_tips;
 };

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "Lang.h"
 #include "WaterfallView.h"
 #include "AppMessages.h"
 #include "ColorMap.h"
@@ -268,11 +269,11 @@ void WaterfallView::Render(CDC& dc, const CRect& rc)
     {
         CFont* pOld = dc.SelectObject(&m_fontTitle);
         dc.SetTextColor(th.textHdr);
-        dc.TextOut(L.title.left + S(6), L.title.top + S(3), m_title.IsEmpty() ? CString(_T("Waterfall (range - time)")) : m_title);
+        dc.TextOut(L.title.left + S(6), L.title.top + S(3), m_title.IsEmpty() ? CString(TR("Waterfall (range - time)")) : m_title);
         dc.SelectObject(&m_fontAxis);
         dc.SetTextColor(th.textDim);
         CString info;
-        info.Format(_T("%zu rows   palette %s"), m_rows.size(), ColorMap::Name(static_cast<Palette>(m_disp.palette)));
+        info.Format(TR("%zu rows   palette %s"), m_rows.size(), ColorMap::Name(static_cast<Palette>(m_disp.palette)));
         CRect ir(L.title.left + S(180), L.title.top, L.title.right - S(4), L.title.bottom);
         dc.DrawText(info, ir, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
         dc.SelectObject(pOld);
@@ -438,11 +439,11 @@ void WaterfallView::OnPlotRButtonUp(CPoint pt, UINT)
 {
     CMenu menu;
     menu.CreatePopupMenu();
-    menu.AppendMenu(MF_STRING, ID_PLOT_RESET_ZOOM,    _T("Reset zoom"));
-    menu.AppendMenu(MF_STRING, ID_PLOT_AUTOSCALE,     _T("Autoscale colours"));
-    menu.AppendMenu(MF_STRING, ID_PLOT_CLEAR_HISTORY, _T("Clear history"));
+    menu.AppendMenu(MF_STRING, ID_PLOT_RESET_ZOOM,    TR("Reset zoom"));
+    menu.AppendMenu(MF_STRING, ID_PLOT_AUTOSCALE,     TR("Autoscale colours"));
+    menu.AppendMenu(MF_STRING, ID_PLOT_CLEAR_HISTORY, TR("Clear history"));
     menu.AppendMenu(MF_SEPARATOR);
-    menu.AppendMenu(MF_STRING, ID_PLOT_COPY_IMAGE,    _T("Copy image"));
+    menu.AppendMenu(MF_STRING, ID_PLOT_COPY_IMAGE,    TR("Copy image"));
     CPoint sp = pt; ClientToScreen(&sp);
     int cmd = menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD, sp.x, sp.y, this);
     switch (cmd) {

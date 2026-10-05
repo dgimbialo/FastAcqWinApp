@@ -166,6 +166,8 @@ bool AppSettings::Load(const CString& path)
     chirpsFromBurst = ini.GetBool(_T("App"), _T("ChirpsFromBurst"), chirpsFromBurst);
     verboseLog      = ini.GetBool(_T("App"), _T("VerboseLog"), verboseLog);
     autoConnect     = ini.GetBool(_T("App"), _T("AutoConnect"), autoConnect);
+    language        = ini.GetInt(_T("App"), _T("Language"), language);
+    if (language < 0 || language > 1) language = 0;
     logAutoScroll   = ini.GetBool(_T("App"), _T("LogAutoScroll"), logAutoScroll);
     lastPort        = ini.GetStr(_T("App"), _T("LastPort"), lastPort);
     lastDir         = ini.GetStr(_T("App"), _T("LastDir"), lastDir);
@@ -271,6 +273,7 @@ bool AppSettings::Save(const CString& path) const
     ini.SetBool(_T("App"), _T("ChirpsFromBurst"), chirpsFromBurst);
     ini.SetBool(_T("App"), _T("VerboseLog"),      verboseLog);
     ini.SetBool(_T("App"), _T("AutoConnect"),     autoConnect);
+    ini.SetInt(_T("App"), _T("Language"),         language);
     ini.SetBool(_T("App"), _T("LogAutoScroll"),   logAutoScroll);
     ini.Set(_T("App"), _T("LastPort"),            lastPort);
     ini.Set(_T("App"), _T("LastDir"),             lastDir);

@@ -5,6 +5,7 @@
 //
 
 #include "pch.h"
+#include "Tips.h"
 #include "AppSettings.h"
 #include "ChirpStore.h"
 #include "Dsp/RadarDsp.h"
@@ -22,6 +23,8 @@ public:
     void ResetZoom();
     void ClearCursors();
     void ApplyTheme();
+
+    BOOL PreTranslateMessage(MSG* pMsg) override;
 
 protected:
     afx_msg int    OnCreate(LPCREATESTRUCT lpcs);
@@ -64,4 +67,5 @@ private:
     bool  m_dragging{false};
     CRect m_rcSplit;
     bool  m_suppress{false};
+    FieldTips m_tips;
 };

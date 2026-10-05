@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "Lang.h"
 #include "SettingsTab.h"
 #include "AppMessages.h"
 #include "Dpi.h"
@@ -26,6 +27,7 @@ BEGIN_MESSAGE_MAP(SettingsTab, CWnd)
     ON_EN_CHANGE(IDC_EDT_RISE,         &SettingsTab::OnRampChanged)
     ON_EN_CHANGE(IDC_EDT_FALL,         &SettingsTab::OnRampChanged)
     ON_CBN_SELCHANGE(IDC_CMB_MODE,     &SettingsTab::OnModeSelChanged)
+    ON_CBN_SELCHANGE(IDC_CMB_LANG,     &SettingsTab::OnLangChanged)
     ON_BN_CLICKED(IDC_CHK_VCO,         &SettingsTab::OnAutoApply)
     ON_CONTROL_RANGE(EN_KILLFOCUS, IDC_EDT_VTUNE_LO, IDC_EDT_VCO_CURVE, &SettingsTab::OnEditKillFocus)
     ON_CONTROL_RANGE(EN_CHANGE, IDC_EDT_SAMPLES, IDC_EDT_BURST, &SettingsTab::OnPreviewInput)
@@ -64,74 +66,77 @@ int SettingsTab::OnCreate(LPCREATESTRUCT lpcs)
     CRect rc(0, 0, 100, 22);
 
     // --- MCU acquisition
-    m_hdrMcu.Create(_T("MCU acquisition"), ss, rc, this);
-    m_lblMode.Create(_T("Mode"), ss, rc, this);
+    m_hdrMcu.Create(TR("MCU acquisition"), ss, rc, this);
+    m_lblMode.Create(TR("Mode"), ss, rc, this);
     m_cmbMode.Create(cs, rc, this, IDC_CMB_MODE);
-    m_cmbMode.AddString(_T("Idle")); m_cmbMode.AddString(_T("Continuous")); m_cmbMode.AddString(_T("Single"));
+    m_cmbMode.AddString(TR("Idle")); m_cmbMode.AddString(TR("Continuous")); m_cmbMode.AddString(TR("Single"));
     m_cmbMode.SetCurSel(1);
-    m_btnApplyMode.Create(_T("Apply"), bs, rc, this, IDC_BTN_APPLY_MODE);
-    m_lblFreq.Create(_T("Chirp freq, Hz (100..24000)"), ss, rc, this);
+    m_btnApplyMode.Create(TR("Apply"), bs, rc, this, IDC_BTN_APPLY_MODE);
+    m_lblFreq.Create(TR("Chirp freq, Hz (100..24000)"), ss, rc, this);
     m_edtFreq.Create(es, rc, this, IDC_EDT_FREQ);
-    m_btnSetFreq.Create(_T("Set"), bs, rc, this, IDC_BTN_SET_FREQ);
-    m_lblSamples.Create(_T("Samples (0 = auto)"), ss, rc, this);
+    m_btnSetFreq.Create(TR("Set"), bs, rc, this, IDC_BTN_SET_FREQ);
+    m_lblSamples.Create(TR("Samples (0 = auto)"), ss, rc, this);
     m_edtSamples.Create(es, rc, this, IDC_EDT_SAMPLES);
-    m_btnSetSamples.Create(_T("Set"), bs, rc, this, IDC_BTN_SET_SAMPLES);
-    m_lblInterval.Create(_T("Interval, ms"), ss, rc, this);
+    m_btnSetSamples.Create(TR("Set"), bs, rc, this, IDC_BTN_SET_SAMPLES);
+    m_lblInterval.Create(TR("Interval, ms"), ss, rc, this);
     m_edtInterval.Create(es, rc, this, IDC_EDT_INTERVAL);
-    m_btnApplyInterval.Create(_T("Set"), bs, rc, this, IDC_BTN_APPLY_INT);
-    m_lblAmplitude.Create(_T("Chirp amplitude, DAC"), ss, rc, this);
+    m_btnApplyInterval.Create(TR("Set"), bs, rc, this, IDC_BTN_APPLY_INT);
+    m_lblAmplitude.Create(TR("Chirp amplitude, DAC"), ss, rc, this);
     m_edtAmplitude.Create(es, rc, this, IDC_EDT_AMPLITUDE);
-    m_btnSetAmp.Create(_T("Set"), bs, rc, this, IDC_BTN_SET_AMP);
-    m_lblOffset.Create(_T("Chirp offset (base), DAC"), ss, rc, this);
+    m_btnSetAmp.Create(TR("Set"), bs, rc, this, IDC_BTN_SET_AMP);
+    m_lblOffset.Create(TR("Chirp offset (base), DAC"), ss, rc, this);
     m_edtOffset.Create(es, rc, this, IDC_EDT_OFFSET);
-    m_btnSetOffset.Create(_T("Set"), bs, rc, this, IDC_BTN_SET_OFFSET);
-    m_lblBurst.Create(_T("Chirps per capture"), ss, rc, this);
+    m_btnSetOffset.Create(TR("Set"), bs, rc, this, IDC_BTN_SET_OFFSET);
+    m_lblBurst.Create(TR("Chirps per capture"), ss, rc, this);
     m_edtBurst.Create(es, rc, this, IDC_EDT_BURST);
-    m_btnSetBurst.Create(_T("Set"), bs, rc, this, IDC_BTN_SET_BURST);
-    m_lblRamp.Create(_T("Ramp rise / fall, us"), ss, rc, this);
+    m_btnSetBurst.Create(TR("Set"), bs, rc, this, IDC_BTN_SET_BURST);
+    m_lblRamp.Create(TR("Ramp rise / fall, us"), ss, rc, this);
     m_edtRise.Create(es, rc, this, IDC_EDT_RISE);
     m_edtFall.Create(es, rc, this, IDC_EDT_FALL);
-    m_btnSetRamp.Create(_T("Set ramp"), bs, rc, this, IDC_BTN_SET_RAMP);
-    m_lblData.Create(_T("Frame content"), ss, rc, this);
-    m_chkRaw.Create(_T("Raw"), chk, rc, this, IDC_CHK_RAW);
-    m_chkFft.Create(_T("FFT"), chk, rc, this, IDC_CHK_FFT);
-    m_btnApplyData.Create(_T("Set"), bs, rc, this, IDC_BTN_APPLY_DATA);
-    m_btnPing.Create(_T("Ping"), bs, rc, this, IDC_BTN_PING);
-    m_btnGetStatus.Create(_T("Get status"), bs, rc, this, IDC_BTN_GET_STATUS);
-    m_btnSendAll.Create(_T("Send all"), bs, rc, this, IDC_BTN_SEND_ALL);
+    m_btnSetRamp.Create(TR("Set ramp"), bs, rc, this, IDC_BTN_SET_RAMP);
+    m_lblData.Create(TR("Frame content"), ss, rc, this);
+    m_chkRaw.Create(TR("Raw"), chk, rc, this, IDC_CHK_RAW);
+    m_chkFft.Create(TR("FFT"), chk, rc, this, IDC_CHK_FFT);
+    m_btnApplyData.Create(TR("Set"), bs, rc, this, IDC_BTN_APPLY_DATA);
+    m_btnPing.Create(TR("Ping"), bs, rc, this, IDC_BTN_PING);
+    m_btnGetStatus.Create(TR("Get status"), bs, rc, this, IDC_BTN_GET_STATUS);
+    m_btnSendAll.Create(TR("Send all"), bs, rc, this, IDC_BTN_SEND_ALL);
 
     // --- Radar
-    m_hdrRadar.Create(_T("Radar geometry"), ss, rc, this);
-    m_lblVco.Create(_T("VCO (HMC431)"), ss, rc, this);
-    m_chkVco.Create(_T("f0 / B from tuning curve"), chk, rc, this, IDC_CHK_VCO);
-    m_lblVtune.Create(_T("Vtune at DAC 0 / 4095, V"), ss, rc, this);
+    m_hdrRadar.Create(TR("Radar geometry"), ss, rc, this);
+    m_lblVco.Create(TR("VCO (HMC431)"), ss, rc, this);
+    m_chkVco.Create(TR("f0 / B from tuning curve"), chk, rc, this, IDC_CHK_VCO);
+    m_lblVtune.Create(TR("Vtune at DAC 0 / 4095, V"), ss, rc, this);
     m_edtVtuneLo.Create(esf, rc, this, IDC_EDT_VTUNE_LO);
     m_edtVtuneHi.Create(esf, rc, this, IDC_EDT_VTUNE_HI);
-    m_lblCurve.Create(_T("Tuning curve V:GHz,..."), ss, rc, this);
+    m_lblCurve.Create(TR("Tuning curve V:GHz,..."), ss, rc, this);
     m_edtCurve.Create(esf, rc, this, IDC_EDT_VCO_CURVE);
-    m_lblF0.Create(_T("Carrier f0 (sweep centre), GHz"), ss, rc, this);          m_edtF0.Create(esf, rc, this, IDC_EDT_F0);
-    m_lblBw.Create(_T("Sweep bandwidth B, MHz"), ss, rc, this);   m_edtBw.Create(esf, rc, this, IDC_EDT_BW);
-    m_lblTramp.Create(_T("Ramp time, ms (0 = auto)"), ss, rc, this); m_edtTramp.Create(esf, rc, this, IDC_EDT_TRAMP);
-    m_lblRoff.Create(_T("Range offset, m"), ss, rc, this);        m_edtRoff.Create(esf, rc, this, IDC_EDT_ROFFSET);
-    m_lblShape.Create(_T("Modulation"), ss, rc, this);
+    m_lblF0.Create(TR("Carrier f0 (sweep centre), GHz"), ss, rc, this);          m_edtF0.Create(esf, rc, this, IDC_EDT_F0);
+    m_lblBw.Create(TR("Sweep bandwidth B, MHz"), ss, rc, this);   m_edtBw.Create(esf, rc, this, IDC_EDT_BW);
+    m_lblTramp.Create(TR("Ramp time, ms (0 = auto)"), ss, rc, this); m_edtTramp.Create(esf, rc, this, IDC_EDT_TRAMP);
+    m_lblRoff.Create(TR("Range offset, m"), ss, rc, this);        m_edtRoff.Create(esf, rc, this, IDC_EDT_ROFFSET);
+    m_lblShape.Create(TR("Modulation"), ss, rc, this);
     m_cmbShape.Create(cs, rc, this, IDC_CMB_SHAPE);
     for (int i = 0; i < static_cast<int>(dsp::RampShape::Count); ++i)
         m_cmbShape.AddString(CString(dsp::RampShapeName(static_cast<dsp::RampShape>(i))));
-    m_lblChirps.Create(_T("Chirps per frame"), ss, rc, this);
-    m_chkChirpsAuto.Create(_T("= burst"), chk, rc, this, IDC_CHK_CHIRPS_AUTO);
+    m_lblChirps.Create(TR("Chirps per frame"), ss, rc, this);
+    m_chkChirpsAuto.Create(TR("= burst"), chk, rc, this, IDC_CHK_CHIRPS_AUTO);
     m_edtChirps.Create(es, rc, this, IDC_EDT_CHIRPS);
-    m_lblPairV.Create(_T("UP/DOWN pair gate, m/s"), ss, rc, this); m_edtPairV.Create(esf, rc, this, IDC_EDT_PAIR_V);
+    m_lblPairV.Create(TR("UP/DOWN pair gate, m/s"), ss, rc, this); m_edtPairV.Create(esf, rc, this, IDC_EDT_PAIR_V);
 
     // --- Application
-    m_hdrDisplay.Create(_T("Application"), ss, rc, this);
-    m_lblDark.Create(_T("Theme"), ss, rc, this);                  m_chkDark.Create(_T("Dark"), chk, rc, this, IDC_CHK_DARK);
-    m_lblFsCal.Create(_T("Fallback Fs, Hz"), ss, rc, this);       m_edtFsCal.Create(es, rc, this, IDC_EDT_FSCAL);
-    m_lblPpm.Create(_T("ADC clock corr., ppm"), ss, rc, this);     m_edtPpm.Create(esf, rc, this, IDC_EDT_PPM);
-    m_btnApplyPpm.Create(_T("Apply"), bs, rc, this, IDC_BTN_APPLY_PPM);
-    m_lblVerbose.Create(_T("Log"), ss, rc, this);                 m_chkVerbose.Create(_T("Per-frame RX lines"), chk, rc, this, IDC_CHK_VERBOSE);
-    m_lblAutoConn.Create(_T("Start-up"), ss, rc, this);           m_chkAutoConnect.Create(_T("Auto-connect"), chk, rc, this, IDC_CHK_AUTOCONNECT);
+    m_hdrDisplay.Create(TR("Application"), ss, rc, this);
+    m_lblDark.Create(TR("Theme"), ss, rc, this);                  m_chkDark.Create(TR("Dark"), chk, rc, this, IDC_CHK_DARK);
+    m_lblLang.Create(TR("Language"), ss, rc, this);
+    m_cmbLang.Create(cs, rc, this, IDC_CMB_LANG);
+    for (int i = 0; i < static_cast<int>(Lang::Id::Count); ++i) m_cmbLang.AddString(Lang::Name(static_cast<Lang::Id>(i)));
+    m_lblFsCal.Create(TR("Fallback Fs, Hz"), ss, rc, this);       m_edtFsCal.Create(es, rc, this, IDC_EDT_FSCAL);
+    m_lblPpm.Create(TR("ADC clock corr., ppm"), ss, rc, this);     m_edtPpm.Create(esf, rc, this, IDC_EDT_PPM);
+    m_btnApplyPpm.Create(TR("Apply"), bs, rc, this, IDC_BTN_APPLY_PPM);
+    m_lblVerbose.Create(TR("Log"), ss, rc, this);                 m_chkVerbose.Create(TR("Per-frame RX lines"), chk, rc, this, IDC_CHK_VERBOSE);
+    m_lblAutoConn.Create(TR("Start-up"), ss, rc, this);           m_chkAutoConnect.Create(TR("Auto-connect"), chk, rc, this, IDC_CHK_AUTOCONNECT);
 
-    m_hdrDerived.Create(_T("Derived values"), ss, rc, this);
+    m_hdrDerived.Create(TR("Derived values"), ss, rc, this);
     m_lblDerived.Create(_T(""), WS_CHILD | WS_VISIBLE | SS_LEFT, rc, this, IDC_LBL_DERIVED);
     m_preview.CreateCtrl(this, IDC_CHIRP_PREVIEW);
 
@@ -144,7 +149,23 @@ int SettingsTab::OnCreate(LPCREATESTRUCT lpcs)
     AppSettings defaults;
     ApplySettings(defaults);
     SetConnected(false);
+    m_tips.Attach(this);
     return 0;
+}
+
+BOOL SettingsTab::PreTranslateMessage(MSG* pMsg)
+{
+    m_tips.Relay(pMsg);
+    return CWnd::PreTranslateMessage(pMsg);
+}
+
+void SettingsTab::OnLangChanged()
+{
+    if (m_suppress) return;
+    const int sel = m_cmbLang.GetCurSel();
+    if (sel >= 0 && sel != m_last.language)
+        AfxMessageBox(TR("The language changes after the application is restarted."), MB_ICONINFORMATION);
+    NotifyChanged();
 }
 
 void SettingsTab::ApplyTheme()
@@ -215,6 +236,7 @@ void SettingsTab::ApplySettings(const AppSettings& s)
     SetDouble(m_edtPairV, s.radar.pairMaxVelocityMps, _T("%.1f"));
 
     m_chkDark.SetCheck(s.display.darkTheme ? BST_CHECKED : BST_UNCHECKED);
+    m_cmbLang.SetCurSel(s.language);
     SetInt(m_edtFsCal, s.sampleRateCalHz);
     SetDouble(m_edtPpm, s.fsPpm, _T("%.3f"));
     m_chkVerbose.SetCheck(s.verboseLog ? BST_CHECKED : BST_UNCHECKED);
@@ -259,6 +281,7 @@ void SettingsTab::ReadInto(AppSettings& s) const
     s.dsp.chirpsInFrame = s.chirpsFromBurst ? s.acq.burst : (std::max)(1, GetInt(m_edtChirps, 1));
 
     s.display.darkTheme = m_chkDark.GetCheck() == BST_CHECKED;
+    if (m_cmbLang.GetCurSel() >= 0) s.language = m_cmbLang.GetCurSel();
     int fs = GetInt(m_edtFsCal, 60058600);
     s.sampleRateCalHz   = fs > 1000 ? static_cast<uint32_t>(fs) : 60058600u;
     s.fsPpm             = GetFsPpm();
@@ -293,33 +316,33 @@ void SettingsTab::RefreshDerived()
     {
         const core::VcoSweep sw = s.vco.SweepFor(s.acq.offset, s.acq.amplitude);
         if (sw.valid) {
-            line.Format(_T("VCO: DAC %d..%d = Vtune %.2f..%.2f V -> %.4f..%.4f GHz, B %.1f MHz, %.0f..%.0f MHz/V, nonlin. %.1f%%%s\r\n"),
+            line.Format(TR("VCO: DAC %d..%d = Vtune %.2f..%.2f V -> %.4f..%.4f GHz, B %.1f MHz, %.0f..%.0f MHz/V, nonlin. %.1f%%%s\r\n"),
                         s.acq.offset, (std::min)(4095, s.acq.offset + s.acq.amplitude), sw.vLowV, sw.vHighV, sw.fStartHz / 1e9, sw.fStopHz / 1e9, sw.bandwidthHz / 1e6,
                         sw.sensMinHzPerV / 1e6, sw.sensMaxHzPerV / 1e6, sw.nonlinearityPct,
-                        sw.outOfTable ? _T(" [Vtune outside the curve table!]") : _T(""));
+                        sw.outOfTable ? TR(" [Vtune outside the curve table!]") : CString());
             t += line;
         } else {
-            t += _T("VCO: tuning curve invalid (need >= 2 points V:GHz)\r\n");
+            t += TR("VCO: tuning curve invalid (need >= 2 points V:GHz)\r\n");
         }
     }
-    line.Format(_T("Ramp %.4f ms, period %.4f ms\r\n"), d.rampSec * 1e3, d.periodSec * 1e3); t += line;
-    line.Format(_T("%zu samples/ramp, %zu used\r\n"), d.samplesPerRamp, d.samplesUsed); t += line;
-    line.Format(_T("Decimation x%d: Fs_eff %.1f kHz, FFT %zu\r\n"), d.decimation, d.fsEffHz / 1e3, d.fftSize); t += line;
-    line.Format(_T("Bin %.1f Hz"), d.binHz); t += line;
-    if (d.rangeBinM > 0.0) { line.Format(_T(" = %.3f m"), d.rangeBinM); t += line; }
+    line.Format(TR("Ramp %.4f ms, period %.4f ms\r\n"), d.rampSec * 1e3, d.periodSec * 1e3); t += line;
+    line.Format(TR("%zu samples/ramp, %zu used\r\n"), d.samplesPerRamp, d.samplesUsed); t += line;
+    line.Format(TR("Decimation x%d: Fs_eff %.1f kHz, FFT %zu\r\n"), d.decimation, d.fsEffHz / 1e3, d.fftSize); t += line;
+    line.Format(TR("Bin %.1f Hz"), d.binHz); t += line;
+    if (d.rangeBinM > 0.0) { line.Format(TR(" = %.3f m"), d.rangeBinM); t += line; }
     t += _T("\r\n");
     if (d.rangeResM > 0.0) {
-        line.Format(_T("Range res. c/2B %.3f m (eff. %.3f m), R_max %.1f m\r\n"), d.rangeResM, d.rangeResEffM, d.rangeMaxM); t += line;
-        line.Format(_T("Beat %.1f Hz per metre\r\n"), d.beatPerMeterHz); t += line;
+        line.Format(TR("Range res. c/2B %.3f m (eff. %.3f m), R_max %.1f m\r\n"), d.rangeResM, d.rangeResEffM, d.rangeMaxM); t += line;
+        line.Format(TR("Beat %.1f Hz per metre\r\n"), d.beatPerMeterHz); t += line;
     } else {
-        t += _T("Range axis: set bandwidth B > 0\r\n");
+        t += TR("Range axis: set bandwidth B > 0\r\n");
     }
     if (d.velResMps > 0.0) {
-        line.Format(_T("Velocity res. %.3f m/s (burst %d), max +/- %.2f m/s\r\n"), d.velResMps, (std::max)(1, s.dsp.chirpsInFrame), d.velMaxMps); t += line;
+        line.Format(TR("Velocity res. %.3f m/s (burst %d), max +/- %.2f m/s\r\n"), d.velResMps, (std::max)(1, s.dsp.chirpsInFrame), d.velMaxMps); t += line;
     }
-    line.Format(_T("USB %.2f MB/s at %d ms (FS CDC limit ~0.8 MB/s)"), d.usbMBps, s.acq.intervalMs); t += line;
+    line.Format(TR("USB %.2f MB/s at %d ms (FS CDC limit ~0.8 MB/s)"), d.usbMBps, s.acq.intervalMs); t += line;
     if (s.fsPpm != 0.0) {
-        line.Format(_T("\r\nADC clock %+.3f ppm: %.6f -> %.6f MS/s"), s.fsPpm,
+        line.Format(TR("\r\nADC clock %+.3f ppm: %.6f -> %.6f MS/s"), s.fsPpm,
                     fs / 1e6, fs * (1.0 + s.fsPpm * 1e-6) / 1e6);
         t += line;
     }
@@ -624,6 +647,7 @@ void SettingsTab::Relayout()
     int yD = wide ? sc(10) : y0;
     header(m_hdrDisplay, colD, yD);
     row(colD, yD, m_lblDark, m_chkDark, nullptr, 0, sc(150));
+    row(colD, yD, m_lblLang, m_cmbLang, nullptr, sc(120), ctlW + btnW + pad);
     row(colD, yD, m_lblFsCal, m_edtFsCal);
     row(colD, yD, m_lblPpm, m_edtPpm, &m_btnApplyPpm);
     row(colD, yD, m_lblVerbose, m_chkVerbose, nullptr, 0, sc(150));

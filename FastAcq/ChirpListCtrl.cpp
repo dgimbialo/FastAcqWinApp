@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "Lang.h"
 #include "ChirpListCtrl.h"
 #include "AppMessages.h"
 #include "Dpi.h"
@@ -12,9 +13,9 @@ void ChirpListCtrl::InitColumns()
 {
     SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
     InsertColumn(0, _T("ID"),      LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 52));
-    InsertColumn(1, _T("t, ms"),   LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 64));
-    InsertColumn(2, _T("R, m"),    LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 58));
-    InsertColumn(3, _T("v, m/s"),  LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 56));
+    InsertColumn(1, TR("t, ms"),   LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 64));
+    InsertColumn(2, TR("R, m"),    LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 58));
+    InsertColumn(3, TR("v, m/s"),  LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 56));
     InsertColumn(4, _T("SNR"),     LVCFMT_RIGHT, Dpi::Scale(m_hWnd, 44));
     ApplyTheme();
 }

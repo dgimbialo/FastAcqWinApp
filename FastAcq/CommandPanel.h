@@ -6,6 +6,7 @@
 //
 
 #include "pch.h"
+#include "Tips.h"
 
 class CommandPanel : public CWnd {
 public:
@@ -25,6 +26,8 @@ public:
     CString GetSelectedPort() const;
     bool ReplayActive() const { return m_replay; }
     void ApplyTheme();
+
+    BOOL PreTranslateMessage(MSG* pMsg) override;
 
 protected:
     afx_msg int    OnCreate(LPCREATESTRUCT lpcs);
@@ -76,4 +79,5 @@ private:
     bool    m_replay{false};
     bool    m_playing{false};
     int     m_rpCount{0};
+    FieldTips m_tips;
 };

@@ -9,6 +9,7 @@
 #include "pch.h"
 #include "AppSettings.h"
 #include "ChirpPreview.h"
+#include "Tips.h"
 
 class SettingsTab : public CWnd {
 public:
@@ -20,6 +21,7 @@ public:
     void SetObserved(double fsHz, size_t samplesPerFrame, size_t mcuFftSize);
     void RefreshDerived();
     void ApplyTheme();
+    BOOL PreTranslateMessage(MSG* pMsg) override;
 
     // MCU values as currently typed (used by Start / Send all).
     uint16_t GetFreqHz() const;
@@ -53,6 +55,7 @@ protected:
     afx_msg void   OnRampChanged();               // mirror rise/fall -> frequency
     afx_msg void   OnPreviewInput(UINT id);       // any chirp parameter typed: refresh the preview
     afx_msg void   OnModeSelChanged();
+    afx_msg void   OnLangChanged();
     afx_msg void   OnPing();
     afx_msg void   OnGetStatus();
     afx_msg void   OnSendAll();
@@ -99,12 +102,14 @@ private:
     // --- Application
     CStatic m_hdrDisplay;
     CStatic m_lblDark;      CButton m_chkDark;
+    CStatic m_lblLang;      CComboBox m_cmbLang;
     CStatic m_lblFsCal;     CEdit m_edtFsCal;
     CStatic m_lblPpm;       CEdit m_edtPpm;           CButton m_btnApplyPpm;
     CStatic m_lblVerbose;   CButton m_chkVerbose;
     CStatic m_lblAutoConn;  CButton m_chkAutoConnect;
     CStatic m_hdrDerived;   CStatic m_lblDerived;
     ChirpPreviewCtrl m_preview;
+    FieldTips m_tips;
 
     CFont   m_font;
     CFont   m_hdrFont;

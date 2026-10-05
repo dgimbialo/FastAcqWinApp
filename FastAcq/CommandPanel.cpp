@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "Lang.h"
 #include "CommandPanel.h"
 #include "AppMessages.h"
 #include "Dpi.h"
@@ -54,37 +55,39 @@ int CommandPanel::OnCreate(LPCREATESTRUCT lpcs)
     CRect rc(0, 0, 100, 22);
 
     m_cmbCom.Create(cs, rc, this, IDC_CMB_COM);
-    m_btnConnect.Create(_T("Connect"),       bs, rc, this, IDC_BTN_CONNECT);
-    m_btnStart.Create(_T("Start"),           bs, rc, this, IDC_BTN_START);
-    m_btnStop.Create(_T("Stop"),             bs, rc, this, IDC_BTN_STOP);
-    m_btnTrigger.Create(_T("Trigger"),       bs, rc, this, IDC_BTN_TRIGGER);
-    m_btnAbort.Create(_T("Abort"),           bs, rc, this, IDC_BTN_ABORT);
-    m_btnHold.Create(_T("Hold"),             bs, rc, this, IDC_BTN_HOLD);
+    m_btnConnect.Create(TR("Connect"),       bs, rc, this, IDC_BTN_CONNECT);
+    m_btnStart.Create(TR("Start"),           bs, rc, this, IDC_BTN_START);
+    m_btnStop.Create(TR("Stop"),             bs, rc, this, IDC_BTN_STOP);
+    m_btnTrigger.Create(TR("Trigger"),       bs, rc, this, IDC_BTN_TRIGGER);
+    m_btnAbort.Create(TR("Abort"),           bs, rc, this, IDC_BTN_ABORT);
+    m_btnHold.Create(TR("Hold"),             bs, rc, this, IDC_BTN_HOLD);
     m_btnRecord.Create(_T("\u25CF Record"),  bs, rc, this, IDC_BTN_RECORD);
-    m_btnOpen.Create(_T("Open..."),          bs, rc, this, IDC_BTN_OPEN_REPLAY);
-    m_btnSaveFrame.Create(_T("Save frame"),  bs, rc, this, IDC_BTN_SAVE_FRAME);
-    m_btnClear.Create(_T("Clear"),           bs, rc, this, IDC_BTN_CLEAR);
+    m_btnOpen.Create(TR("Open..."),          bs, rc, this, IDC_BTN_OPEN_REPLAY);
+    m_btnSaveFrame.Create(TR("Save frame"),  bs, rc, this, IDC_BTN_SAVE_FRAME);
+    m_btnClear.Create(TR("Clear"),           bs, rc, this, IDC_BTN_CLEAR);
     m_lblRec.Create(_T(""), WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE | SS_ENDELLIPSIS, rc, this);
 
     const DWORD ss = WS_CHILD | SS_LEFT | SS_CENTERIMAGE | SS_ENDELLIPSIS;
     m_lblRpName.Create(_T(""), ss, rc, this, IDC_LBL_RP_INFO);
     m_btnRpFirst.Create(_T("|<"),   WS_CHILD | BS_PUSHBUTTON, rc, this, IDC_BTN_RP_FIRST);
     m_btnRpPrev.Create(_T("<"),     WS_CHILD | BS_PUSHBUTTON, rc, this, IDC_BTN_RP_PREV);
-    m_btnRpPlay.Create(_T("Play"),  WS_CHILD | BS_PUSHBUTTON, rc, this, IDC_BTN_RP_PLAY);
+    m_btnRpPlay.Create(TR("Play"),  WS_CHILD | BS_PUSHBUTTON, rc, this, IDC_BTN_RP_PLAY);
     m_btnRpNext.Create(_T(">"),     WS_CHILD | BS_PUSHBUTTON, rc, this, IDC_BTN_RP_NEXT);
     m_btnRpLast.Create(_T(">|"),    WS_CHILD | BS_PUSHBUTTON, rc, this, IDC_BTN_RP_LAST);
     m_sldRp.Create(WS_CHILD | TBS_HORZ | TBS_NOTICKS, rc, this, IDC_SLD_RP_POS);
     m_cmbRpSpeed.Create(WS_CHILD | CBS_DROPDOWNLIST | WS_VSCROLL, rc, this, IDC_CMB_RP_SPEED);
-    for (LPCTSTR s : { _T("x0.25"), _T("x0.5"), _T("x1"), _T("x2"), _T("x4"), _T("x8"), _T("max") }) m_cmbRpSpeed.AddString(s);
+    const CString speeds[] = { _T("x0.25"), _T("x0.5"), _T("x1"), _T("x2"), _T("x4"), _T("x8"), TR("max") };
+    for (const CString& s : speeds) m_cmbRpSpeed.AddString(s);
     m_cmbRpSpeed.SetCurSel(2);
     m_lblRpInfo.Create(_T(""), ss, rc, this);
-    m_btnRpClose.Create(_T("Close"), WS_CHILD | BS_PUSHBUTTON, rc, this, IDC_BTN_RP_CLOSE);
+    m_btnRpClose.Create(TR("Close"), WS_CHILD | BS_PUSHBUTTON, rc, this, IDC_BTN_RP_CLOSE);
 
     CWnd* pw = GetWindow(GW_CHILD);
     while (pw) { pw->SetFont(&m_font); pw = pw->GetWindow(GW_HWNDNEXT); }
 
     SetConnected(false);
     SetHold(false);
+    m_tips.Attach(this);
     return 0;
 }
 
@@ -175,7 +178,7 @@ HBRUSH CommandPanel::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 void CommandPanel::SetConnected(bool c)
 {
     m_connected = c;
-    if (m_btnConnect.GetSafeHwnd()) m_btnConnect.SetWindowText(c ? _T("Disconnect") : _T("Connect"));
+    if (m_btnConnect.GetSafeHwnd()) m_btnConnect.SetWindowText(c ? TR("Disconnect") : TR("Connect"));
     m_btnStart.EnableWindow(c);
     m_btnStop.EnableWindow(c);
     m_btnTrigger.EnableWindow(c);
@@ -211,7 +214,7 @@ void CommandPanel::SetReplay(bool active, const CString& name, int count)
         m_sldRp.SetRange(0, count > 0 ? count - 1 : 0, TRUE);
         m_sldRp.SetPos(0);
     }
-    m_btnOpen.SetWindowText(active ? _T("Replay") : _T("Open..."));
+    m_btnOpen.SetWindowText(active ? TR("Replay") : TR("Open..."));
     Relayout();
     if (changed && GetParent()) GetParent()->PostMessage(WM_SIZE);
 }
@@ -220,7 +223,7 @@ void CommandPanel::SetReplayPos(int index, bool playing, const CString& info)
 {
     m_playing = playing;
     if (m_sldRp.GetSafeHwnd() && m_sldRp.GetPos() != index) m_sldRp.SetPos(index);
-    if (m_btnRpPlay.GetSafeHwnd()) m_btnRpPlay.SetWindowText(playing ? _T("Pause") : _T("Play"));
+    if (m_btnRpPlay.GetSafeHwnd()) m_btnRpPlay.SetWindowText(playing ? TR("Pause") : TR("Play"));
     if (m_lblRpInfo.GetSafeHwnd()) m_lblRpInfo.SetWindowText(info);
 }
 
@@ -294,4 +297,10 @@ void CommandPanel::OnComDropDown()
     if (CWnd* p = GetParent())
         if (::IsWindow(p->GetSafeHwnd()))
             p->SendMessage(WM_APP_REFRESH_PORTS);
+}
+
+BOOL CommandPanel::PreTranslateMessage(MSG* pMsg)
+{
+    m_tips.Relay(pMsg);
+    return CWnd::PreTranslateMessage(pMsg);
 }

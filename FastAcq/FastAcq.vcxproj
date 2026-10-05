@@ -99,6 +99,7 @@
     <ClInclude Include="CommandPanel.h" />
     <ClInclude Include="Dpi.h" />
     <ClInclude Include="DspWorker.h" />
+    <ClInclude Include="Lang.h" />
     <ClInclude Include="MainFrame.h" />
     <ClInclude Include="PlotWnd.h" />
     <ClInclude Include="ProcPanel.h" />
@@ -113,6 +114,7 @@
     <ClInclude Include="SettingsTab.h" />
     <ClInclude Include="TargetListCtrl.h" />
     <ClInclude Include="Theme.h" />
+    <ClInclude Include="Tips.h" />
     <ClInclude Include="TraceDefs.h" />
     <ClInclude Include="TraceTab.h" />
     <ClInclude Include="WaterfallView.h" />
@@ -144,6 +146,7 @@
     <ClCompile Include="CommandPanel.cpp" />
     <ClCompile Include="DspWorker.cpp" />
     <ClCompile Include="FastAcqApp.cpp" />
+    <ClCompile Include="Lang.cpp" />
     <ClCompile Include="MainFrameImpl.cpp" />
     <ClCompile Include="PlotWnd.cpp" />
     <ClCompile Include="ProcPanel.cpp" />

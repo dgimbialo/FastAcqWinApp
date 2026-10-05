@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "Lang.h"
 #include "ChirpPreview.h"
 #include "Dpi.h"
 #include "Theme.h"
@@ -118,13 +119,13 @@ void ChirpPreviewCtrl::Render(CDC& dc, const CRect& full)
 
     CFont* of = dc.SelectObject(&m_boldFont);
     dc.SetTextColor(cText);
-    dc.TextOut(full.left + sc(10), full.top + sc(6), _T("Chirp preview (what the MCU will generate)"));
+    dc.TextOut(full.left + sc(10), full.top + sc(6), TR("Chirp preview (what the MCU will generate)"));
 
     if (!m_g.valid) {
         dc.SelectObject(&m_font);
         dc.SetTextColor(th.warn);
         dc.TextOut(full.left + sc(10), full.top + sc(30),
-                   _T("Parameters out of range: frequency 100..24000 Hz, period 41.7 us .. 10 ms."));
+                   TR("Parameters out of range: frequency 100..24000 Hz, period 41.7 us .. 10 ms."));
         dc.SelectObject(of);
         return;
     }
@@ -190,9 +191,9 @@ void ChirpPreviewCtrl::Render(CDC& dc, const CRect& full)
         else         l.Format(_T("%.2f V"), vtuneOf(c));
         dc.DrawText(l, CRect(plot.right + sc(5), y - sc(7), full.right - sc(4), y + sc(7)), DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
-    dc.DrawText(_T("DAC code"), CRect(full.left + sc(4), plot.top - sc(18), plot.left - sc(5), plot.top - sc(4)),
+    dc.DrawText(TR("DAC code"), CRect(full.left + sc(4), plot.top - sc(18), plot.left - sc(5), plot.top - sc(4)),
                 DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
-    dc.DrawText(haveVco ? _T("Vtune  /  VCO out") : _T("Vtune"),
+    dc.DrawText(haveVco ? TR("Vtune  /  VCO out") : TR("Vtune"),
                 CRect(plot.right + sc(5), plot.top - sc(18), full.right - sc(4), plot.top - sc(4)),
                 DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
@@ -226,12 +227,12 @@ void ChirpPreviewCtrl::Render(CDC& dc, const CRect& full)
         dc.SelectObject(op);
         CString a;
         if (haveVco)
-            a.Format(_T("DAC %.0f..%.0f (offset %u + A %u): Vtune %.2f..%.2f V = %.3f..%.3f GHz (B %.0f MHz)"),
+            a.Format(TR("DAC %.0f..%.0f (offset %u + A %u): Vtune %.2f..%.2f V = %.3f..%.3f GHz (B %.0f MHz)"),
                      base, top, m_p.offset, m_p.amplitude,
                      vtuneOf(base), vtuneOf(top), m_vco.FreqHz(vtuneOf(base)) / 1e9, m_vco.FreqHz(vtuneOf(top)) / 1e9,
                      std::fabs(m_vco.FreqHz(vtuneOf(top)) - m_vco.FreqHz(vtuneOf(base))) / 1e6);
         else
-            a.Format(_T("DAC %.0f..%.0f (offset %u + A %u): Vtune %.2f..%.2f V"), base, top, m_p.offset, m_p.amplitude,
+            a.Format(TR("DAC %.0f..%.0f (offset %u + A %u): Vtune %.2f..%.2f V"), base, top, m_p.offset, m_p.amplitude,
                      vtuneOf(base), vtuneOf(top));
         dc.SetTextColor(cDim);
         dc.SelectObject(&m_font);
@@ -248,21 +249,21 @@ void ChirpPreviewCtrl::Render(CDC& dc, const CRect& full)
         DimLine(dc, xr0, xr1, y, cDim, sc(5));
         DimLine(dc, xr1, xf1, y, cDim, sc(5));
         dc.SetTextColor(cDim);
-        dc.DrawText(_T("rise ") + FmtUs(m_g.riseUs), CRect(xr0, y + sc(3), xr1, y + sc(17)), DT_CENTER | DT_SINGLELINE | DT_NOCLIP);
-        dc.DrawText(_T("fall ") + FmtUs(m_g.fallUs), CRect(xr1, y + sc(3), xf1, y + sc(17)), DT_CENTER | DT_SINGLELINE | DT_NOCLIP);
+        dc.DrawText(TR("rise ") + FmtUs(m_g.riseUs), CRect(xr0, y + sc(3), xr1, y + sc(17)), DT_CENTER | DT_SINGLELINE | DT_NOCLIP);
+        dc.DrawText(TR("fall ") + FmtUs(m_g.fallUs), CRect(xr1, y + sc(3), xf1, y + sc(17)), DT_CENTER | DT_SINGLELINE | DT_NOCLIP);
         if (shown > 1) {
             dc.SetTextColor(cChirp);
-            CString b; b.Format(_T("burst x%u%s"), m_p.burst, m_p.burst > shown ? _T(" (first 4 drawn)") : _T(""));
+            CString b; b.Format(TR("burst x%u%s"), m_p.burst, m_p.burst > shown ? TR(" (first 4 drawn)") : _T(""));
             dc.DrawText(b, CRect(xf1, y + sc(3), chirpsEnd, y + sc(17)), DT_CENTER | DT_SINGLELINE | DT_NOCLIP);
         }
         CString gap;
-        if (m_p.mode == 1)      gap.Format(_T("interval %u ms"), m_p.intervalMs);
-        else if (m_p.mode == 2) gap = _T("wait TRIGGER");
-        else                    gap = _T("IDLE: trigger only");
+        if (m_p.mode == 1)      gap.Format(TR("interval %u ms"), m_p.intervalMs);
+        else if (m_p.mode == 2) gap = TR("wait TRIGGER");
+        else                    gap = TR("IDLE: trigger only");
         dc.SetTextColor(cMuted);
         dc.DrawText(gap, CRect(breakX - sc(70), y + sc(3), breakX + sc(70), y + sc(17)), DT_CENTER | DT_SINGLELINE | DT_NOCLIP);
         dc.SetTextColor(cNext);
-        dc.DrawText(_T("next cycle"), CRect(nextX0, plot.top + sc(2), plot.right, plot.top + sc(16)),
+        dc.DrawText(TR("next cycle"), CRect(nextX0, plot.top + sc(2), plot.right, plot.top + sc(16)),
                     DT_RIGHT | DT_SINGLELINE | DT_NOCLIP);
     }
     // Dimension row 2: period / frequency across one chirp
@@ -271,8 +272,8 @@ void ChirpPreviewCtrl::Render(CDC& dc, const CRect& full)
         int xr0 = X(0), xf1 = X(m_g.periodUs);
         DimLine(dc, xr0, xf1, y, cChirp, sc(5));
         CString s;
-        s.Format(_T("T = %s   f = %.3f Hz   (%s)"), FmtUs(m_g.periodUs).GetString(), m_g.freqHz,
-                 m_g.rampMode ? _T("ramp mode: rise/fall") : _T("freq mode: symmetric"));
+        s.Format(TR("T = %s   f = %.3f Hz   (%s)"), FmtUs(m_g.periodUs).GetString(), m_g.freqHz,
+                 m_g.rampMode ? TR("ramp mode: rise/fall") : TR("freq mode: symmetric"));
         dc.SetTextColor(cChirp);
         dc.DrawText(s, CRect(xr0, y + sc(3), (std::max)(xf1, xr0 + sc(320)), y + sc(17)), DT_CENTER | DT_SINGLELINE | DT_NOCLIP);
     }
@@ -282,11 +283,11 @@ void ChirpPreviewCtrl::Render(CDC& dc, const CRect& full)
     {
         const uint32_t burst = (std::max)(1u, m_p.burst);
         CString s;
-        s.Format(_T("ADC @ %.0f MS/s: chirp = rise %u + fall %u = %u samples (%s)"),
+        s.Format(TR("ADC @ %.0f MS/s: chirp = rise %u + fall %u = %u samples (%s)"),
                  core::kChirpAdcHz / 1e6, m_g.riseSamples, m_g.samplesPerChirp - m_g.riseSamples,
                  m_g.samplesPerChirp, FmtUs(m_g.periodUs).GetString());
         if (burst > 1) {
-            CString b; b.Format(_T(";  burst x%u = %llu samples (%s)"), burst,
+            CString b; b.Format(TR(";  burst x%u = %llu samples (%s)"), burst,
                                 static_cast<unsigned long long>(m_g.burstSamplesNeeded), FmtUs(m_g.burstUs).GetString());
             s += b;
         }
@@ -296,18 +297,18 @@ void ChirpPreviewCtrl::Render(CDC& dc, const CRect& full)
 
         const uint32_t maxCapture = (core::kChirpCaptureMax / core::kChirpDmaChunk) * core::kChirpDmaChunk;
         if (m_g.fitsInCapture) {
-            s.Format(_T("OK: fits in ONE capture window of %u samples (%s, %u DMA chunks x %u) = %.1f chirps; MCU buffer %u samples (%s), %.0f%% used"),
+            s.Format(TR("OK: fits in ONE capture window of %u samples (%s, %u DMA chunks x %u) = %.1f chirps; MCU buffer %u samples (%s), %.0f%% used"),
                      m_g.captureTarget, FmtUs(m_g.captureUs).GetString(), m_g.chunks, core::kChirpDmaChunk,
                      m_g.chirpsCaptured, maxCapture, FmtUs(maxCapture * 1e6 / core::kChirpAdcHz).GetString(),
                      100.0 * static_cast<double>(m_g.burstSamplesNeeded) / maxCapture);
             dc.SetTextColor(th.ok);
         } else if (m_g.clippedByOverride) {
-            s.Format(_T("DOES NOT FIT: samples override %u cuts the burst to %u samples (%s) = %.2f chirps of %u; set samples to 0 (auto) or >= %llu"),
+            s.Format(TR("DOES NOT FIT: samples override %u cuts the burst to %u samples (%s) = %.2f chirps of %u; set samples to 0 (auto) or >= %llu"),
                      m_p.samplesOvr, m_g.captureTarget, FmtUs(m_g.captureUs).GetString(), m_g.chirpsCaptured, burst,
                      static_cast<unsigned long long>(m_g.burstSamplesNeeded));
             dc.SetTextColor(th.danger);
         } else {
-            s.Format(_T("DOES NOT FIT: burst needs %llu samples (%s), MCU capture holds %u (%s) = %.2f chirps of %u; reduce burst or shorten the chirp"),
+            s.Format(TR("DOES NOT FIT: burst needs %llu samples (%s), MCU capture holds %u (%s) = %.2f chirps of %u; reduce burst or shorten the chirp"),
                      static_cast<unsigned long long>(m_g.burstSamplesNeeded), FmtUs(m_g.burstUs).GetString(),
                      m_g.captureTarget, FmtUs(m_g.captureUs).GetString(), m_g.chirpsCaptured, burst);
             dc.SetTextColor(th.danger);

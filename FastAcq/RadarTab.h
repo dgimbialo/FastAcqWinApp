@@ -7,6 +7,7 @@
 //
 
 #include "pch.h"
+#include "Tips.h"
 #include "AppSettings.h"
 #include "Dsp/RadarDsp.h"
 #include "ProcPanel.h"
@@ -30,6 +31,8 @@ public:
     void GetSplits(float& a, float& b) const { a = m_split1; b = m_split2; }
     std::shared_ptr<const dsp::FrameResult> CurrentResult() const { return m_res; }
     void ApplyTheme();
+
+    BOOL PreTranslateMessage(MSG* pMsg) override;
 
 protected:
     afx_msg int    OnCreate(LPCREATESTRUCT lpcs);
@@ -85,4 +88,5 @@ private:
     bool  m_showRd{true};
     bool  m_rdVisible{false};
     bool  m_suppress{false};
+    FieldTips m_tips;
 };

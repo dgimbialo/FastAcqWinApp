@@ -71,6 +71,7 @@ struct AppSettings {
     bool     chirpsFromBurst{true};       // dsp.chirpsInFrame follows the MCU burst setting
     bool     verboseLog{false};           // per-frame RX lines in the communication log
     bool     autoConnect{true};           // connect to the first FastAcq port at start-up
+    int      language{0};                 // Lang::Id (0 English, 1 Ukrainian), applied at start-up
     bool     logAutoScroll{true};
     CString  lastPort;
     CString  lastDir;
