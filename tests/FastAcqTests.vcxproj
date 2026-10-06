@@ -64,6 +64,7 @@
     <ClCompile Include="..\FastAcq\Core\Export.cpp" />
     <ClCompile Include="..\FastAcq\Core\SessionFile.cpp" />
     <ClCompile Include="..\FastAcq\Core\VcoCurve.cpp" />
+    <ClCompile Include="..\FastAcq\Core\RadarPlanner.cpp" />
     <ClCompile Include="..\FastAcq\Dsp\Cfar.cpp" />
     <ClCompile Include="..\FastAcq\Dsp\Decimator.cpp" />
     <ClCompile Include="..\FastAcq\Dsp\FftPlan.cpp" />
