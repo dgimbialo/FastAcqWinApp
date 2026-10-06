@@ -9,6 +9,7 @@
 #include "pch.h"
 #include "AppSettings.h"
 #include "ChirpPreview.h"
+#include "Core/RadarPlanner.h"
 #include "Tips.h"
 
 class SettingsTab : public CWnd {
@@ -62,6 +63,10 @@ protected:
     afx_msg void   OnAutoApply();                 // combos / checkboxes / radios
     afx_msg void   OnAutoApplyRange(UINT id);
     afx_msg void   OnEditKillFocus(UINT id);
+    afx_msg void   OnPlanInput(UINT id);          // calculator field typed
+    afx_msg void   OnPlanAuto();
+    afx_msg void   OnPlanCalc();
+    afx_msg void   OnPlanApply();
     DECLARE_MESSAGE_MAP()
 
 private:
@@ -70,6 +75,9 @@ private:
     void NotifyChanged();
     void UpdatePreview();
     void UpdateVcoDerived(AppSettings& s);   // f0 / B from the curve into the read-only fields
+    void RunPlan();                          // calculator inputs -> m_plan + read-out
+    void ApplyPlan();                        // m_plan -> MCU / radar fields, then notify
+    CString FormatPlan(const core::PlanInput& in, const core::PlanResult& r) const;
     static int    GetInt(const CEdit& e, int def);
     static double GetDouble(const CEdit& e, double def);
     static void   SetInt(CEdit& e, long long v);
@@ -107,6 +115,17 @@ private:
     CStatic m_lblPpm;       CEdit m_edtPpm;           CButton m_btnApplyPpm;
     CStatic m_lblVerbose;   CButton m_chkVerbose;
     CStatic m_lblAutoConn;  CButton m_chkAutoConnect;
+    // --- Parameter calculator
+    CStatic m_hdrPlan;
+    CStatic m_lblPlanRange; CEdit m_edtPlanRmin;  CEdit m_edtPlanRmax;
+    CStatic m_lblPlanBeat;  CEdit m_edtPlanFbMin; CEdit m_edtPlanFbMax;
+    CStatic m_lblPlanVel;   CEdit m_edtPlanVmin;  CEdit m_edtPlanVmax;
+    CStatic m_lblPlanVtune; CEdit m_edtPlanVlo;   CEdit m_edtPlanVhi;
+    CButton m_chkPlanAuto;  CButton m_btnPlanCalc; CButton m_btnPlanApply;
+    CStatic m_lblPlan;
+    core::PlanResult m_plan;
+    mutable bool m_planPending{false};       // ReadInto also carries the plan's processing settings
+    core::PlanResult m_planApplied;
     CStatic m_hdrDerived;   CStatic m_lblDerived;
     ChirpPreviewCtrl m_preview;
     FieldTips m_tips;

@@ -8,7 +8,7 @@ SRC := test_main.cpp \
        ../FastAcq/Dsp/Cfar.cpp ../FastAcq/Dsp/PeakFinder.cpp ../FastAcq/Dsp/RadarDsp.cpp \
        ../FastAcq/Dsp/ToneEstimator.cpp ../FastAcq/Dsp/Rejection.cpp \
        ../FastAcq/Core/SessionFile.cpp ../FastAcq/Core/Export.cpp ../FastAcq/Core/ChirpGeometry.cpp \
-       ../FastAcq/Core/VcoCurve.cpp
+       ../FastAcq/Core/VcoCurve.cpp ../FastAcq/Core/RadarPlanner.cpp
 
 fastacq_tests: $(SRC)
 	$(CXX) $(CXXFLAGS) -o $@ $(SRC)

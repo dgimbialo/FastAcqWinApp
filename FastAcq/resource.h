@@ -154,6 +154,19 @@
 #define IDC_EDT_OFFSET       1282
 #define IDC_BTN_SET_OFFSET   1283
 #define IDC_CMB_LANG         1284
+// Parameter calculator (Settings tab)
+#define IDC_EDT_PLAN_RMIN    1285
+#define IDC_EDT_PLAN_RMAX    1286
+#define IDC_EDT_PLAN_FBMIN   1287
+#define IDC_EDT_PLAN_FBMAX   1288
+#define IDC_EDT_PLAN_VMIN    1289
+#define IDC_EDT_PLAN_VMAX    1290
+#define IDC_EDT_PLAN_VLO     1291
+#define IDC_EDT_PLAN_VHI     1292
+#define IDC_CHK_PLAN_AUTO    1293
+#define IDC_BTN_PLAN_CALC    1294
+#define IDC_BTN_PLAN_APPLY   1295
+#define IDC_LBL_PLAN         1296
 
 // Radar tab (1300..1399)
 #define IDC_RP_VIEW          1300

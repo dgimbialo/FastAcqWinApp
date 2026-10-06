@@ -16,6 +16,7 @@
 #include "Core/Export.h"
 #include "Core/SessionFile.h"
 #include "Core/VcoCurve.h"
+#include "Core/RadarPlanner.h"
 #include "TraceDefs.h"
 
 #include <chrono>
@@ -774,6 +775,93 @@ static void TestVcoCurve()
 }
 
 // ---------------------------------------------------------------------------
+static void TestRadarPlanner()
+{
+    std::puts("RadarPlanner");
+    using namespace core;
+    PlanInput in;
+    in.curve = VcoCurve::Hmc431Typical();
+    in.rMinM = 0.5; in.rMaxM = 5.0;
+    in.fbMinHz = 2000.0; in.fbMaxHz = 500e3;
+    in.vMinMps = 0.2; in.vMaxMps = 5.0;
+    in.vLowV = 2.0; in.vHighV = 10.0;
+    in.fsHz = 60e6; in.guardPct = 5.0; in.intervalMs = 5;
+    PlanResult r = PlanRadar(in);
+    CHECK(r.valid);
+    // DAC window: 2..10 V of 0..10 V -> codes 819..4095.
+    CHECK(r.dacOffset == 819 && r.dacOffset + r.dacAmplitude == 4095);
+    CHECK_NEAR(r.fStartHz, in.curve.FreqHz(r.vLowV), 1.0);
+    CHECK_NEAR(r.fStopHz, 6.285e9, 1.0);
+    CHECK(r.bandwidthHz > 650e6 && r.bandwidthHz < 750e6);
+    // The beat band of [rMin, rMax] lies inside [fbMin, fbMax] with equal
+    // relative margins; the beat scales linearly with range.
+    CHECK(r.fbAtRMinHz >= in.fbMinHz * 0.99 && r.fbAtRMaxHz <= in.fbMaxHz * 1.01);
+    CHECK_NEAR(r.fbAtRMinHz / in.fbMinHz, in.fbMaxHz / r.fbAtRMaxHz, 0.05);
+    CHECK_NEAR(r.fbAtRMinHz, r.fbAtRMaxHz / 10.0, 1.0);
+    CHECK(r.chirpFreqHz >= kChirpFreqMinHz && r.chirpFreqHz <= kChirpFreqMaxHz);
+    CHECK_NEAR(r.rampSec, 1.0 / (2.0 * r.chirpFreqHz), 1e-12);
+    CHECK_NEAR(r.beatPerMeterHz, 2.0 * r.bandwidthHz / (299792458.0 * r.rampSec), 1e-6);
+    CHECK_NEAR(r.rangeResM, 299792458.0 / (2.0 * r.bandwidthHz), 1e-9);
+    CHECK(r.rangeMaxM >= in.rMaxM);                                // the decimated band still covers rMax
+    CHECK(r.fsEffHz / 2.0 >= 1.25 * r.fbAtRMaxHz);                 // 25 % margin kept
+    CHECK((r.decimation & (r.decimation - 1)) == 0);               // power of two
+    CHECK(r.samplesUsed >= 64);
+    // Velocity: a 0.2 m/s step is below what one 10.65 ms capture can resolve
+    // (lambda / (2 * capture time) ~ 2.4 m/s): the burst fills the capture
+    // and the shortfall is reported.
+    CHECK(r.velStepPairMps > in.vMinMps);
+    CHECK(r.burst > 1 && r.geometry.valid && r.geometry.fitsInCapture);
+    CHECK(r.Has(PlanNote::BurstLimitedByCapture) && r.Has(PlanNote::VelocityStepNotReached));
+    CHECK_NEAR(r.velStepDopplerMps, (299792458.0 / r.f0Hz) / (2.0 * r.burst * 2.0 * r.rampSec), 1e-9);
+    CHECK(r.velStepDopplerMps > 2.0 && r.velStepDopplerMps < 3.0);
+    CHECK(!r.Has(PlanNote::BeatBandConflict) && !r.Has(PlanNote::VtuneClamped));
+    CHECK_NEAR(r.rangeOfInterestM, 6.0, 1e-9);
+    CHECK_NEAR(r.pairGateMps, 7.5, 1e-9);
+    std::printf("  room plan: chirp %u Hz, DAC %d+%d, B %.0f MHz, fb %.0f..%.0f Hz, dec x%d, burst %u, dv %.3f m/s\n",
+                r.chirpFreqHz, r.dacOffset, r.dacAmplitude, r.bandwidthHz / 1e6, r.fbAtRMinHz, r.fbAtRMaxHz,
+                r.decimation, r.burst, r.velStepDopplerMps);
+
+    // A reachable velocity step: the burst is sized for it and fits the capture.
+    PlanInput v3 = in; v3.vMinMps = 3.0;
+    PlanResult r3 = PlanRadar(v3);
+    CHECK(r3.valid && r3.burst > 1 && r3.geometry.fitsInCapture);
+    CHECK(r3.velStepDopplerMps <= 3.0 * 1.01);
+    CHECK(!r3.Has(PlanNote::BurstLimitedByCapture) && !r3.Has(PlanNote::VelocityStepNotReached));
+    CHECK(r3.chirpFreqHz == r.chirpFreqHz);                        // velocity never changes the ramp
+
+    // fbMin = 0: only the ceiling counts, the farthest target sits at fbMax.
+    PlanInput top = in; top.fbMinHz = 0.0;
+    PlanResult rt = PlanRadar(top);
+    CHECK(rt.valid && rt.fbAtRMaxHz > 0.98 * top.fbMaxHz && rt.fbAtRMaxHz < 1.02 * top.fbMaxHz);
+
+    // Conflicting beat band: fbMin/rMin > fbMax/rMax -> flagged, slope still from fbMax.
+    PlanInput c = in; c.fbMinHz = 200e3;
+    PlanResult rc = PlanRadar(c);
+    CHECK(rc.valid && rc.Has(PlanNote::BeatBandConflict));
+    CHECK(rc.fbAtRMinHz < c.fbMinHz);
+
+    // Long range + low beat -> ramp longer than the MCU allows: clamped to 100 Hz.
+    PlanInput lr = in; lr.rMaxM = 3000.0; lr.fbMaxHz = 20e3;
+    PlanResult rl = PlanRadar(lr);
+    CHECK(rl.valid && rl.Has(PlanNote::ChirpFreqClampedLow) && rl.chirpFreqHz == kChirpFreqMinHz);
+
+    // Tiny window beyond the DAC range is clamped; a window above the curve is flagged.
+    PlanInput w = in; w.vLowV = -1.0; w.vHighV = 12.0;
+    PlanResult rw = PlanRadar(w);
+    CHECK(rw.valid && rw.Has(PlanNote::VtuneClamped) && rw.dacOffset == 0 && rw.dacAmplitude == 4095);
+
+    // Fast target at short range: Doppler above the nearest beat tone is flagged.
+    PlanInput fast = in; fast.vMaxMps = 300.0;
+    CHECK(PlanRadar(fast).Has(PlanNote::DopplerExceedsBeatAtRmin));
+
+    // Invalid inputs.
+    PlanInput bad = in; bad.rMinM = 5.0; bad.rMaxM = 1.0;
+    CHECK(!PlanRadar(bad).valid);
+    bad = in; bad.curve = VcoCurve();
+    CHECK(!PlanRadar(bad).valid);
+}
+
+// ---------------------------------------------------------------------------
 static void TestGoSoCfarAndRejection()
 {
     std::puts("GO/SO-CFAR + rejection");
@@ -1064,6 +1152,7 @@ int main()
     TestParserV2();
     TestChirpGeometry();
     TestVcoCurve();
+    TestRadarPlanner();
     TestGoSoCfarAndRejection();
     TestToneEstimator();
     TestFirmwareGeometry();

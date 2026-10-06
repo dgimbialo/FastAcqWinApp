@@ -39,6 +39,10 @@ BEGIN_MESSAGE_MAP(SettingsTab, CWnd)
     ON_CONTROL_RANGE(BN_CLICKED,    IDC_CHK_DARK, IDC_CHK_AUTOCONNECT, &SettingsTab::OnAutoApplyRange)
     ON_CONTROL_RANGE(EN_KILLFOCUS,  IDC_EDT_FREQ, IDC_EDT_PAIR_V, &SettingsTab::OnEditKillFocus)
     ON_CONTROL_RANGE(EN_KILLFOCUS,  IDC_EDT_FSCAL, IDC_EDT_FSCAL, &SettingsTab::OnEditKillFocus)
+    ON_CONTROL_RANGE(EN_CHANGE,     IDC_EDT_PLAN_RMIN, IDC_EDT_PLAN_VHI, &SettingsTab::OnPlanInput)
+    ON_BN_CLICKED(IDC_CHK_PLAN_AUTO,   &SettingsTab::OnPlanAuto)
+    ON_BN_CLICKED(IDC_BTN_PLAN_CALC,   &SettingsTab::OnPlanCalc)
+    ON_BN_CLICKED(IDC_BTN_PLAN_APPLY,  &SettingsTab::OnPlanApply)
 END_MESSAGE_MAP()
 
 // ON_CONTROL_RANGE handlers take the control id.
@@ -136,6 +140,28 @@ int SettingsTab::OnCreate(LPCREATESTRUCT lpcs)
     m_lblVerbose.Create(TR("Log"), ss, rc, this);                 m_chkVerbose.Create(TR("Per-frame RX lines"), chk, rc, this, IDC_CHK_VERBOSE);
     m_lblAutoConn.Create(TR("Start-up"), ss, rc, this);           m_chkAutoConnect.Create(TR("Auto-connect"), chk, rc, this, IDC_CHK_AUTOCONNECT);
 
+    // --- Parameter calculator: requirements in, MCU / processing settings out.
+    m_hdrPlan.Create(TR("Parameter calculator"), ss, rc, this);
+    m_lblPlanRange.Create(TR("Range min / max, m"), ss, rc, this);
+    m_edtPlanRmin.Create(esf, rc, this, IDC_EDT_PLAN_RMIN);     m_edtPlanRmax.Create(esf, rc, this, IDC_EDT_PLAN_RMAX);
+    m_lblPlanBeat.Create(TR("Beat tone min / max, Hz"), ss, rc, this);
+    m_edtPlanFbMin.Create(esf, rc, this, IDC_EDT_PLAN_FBMIN);   m_edtPlanFbMax.Create(esf, rc, this, IDC_EDT_PLAN_FBMAX);
+    m_lblPlanVel.Create(TR("Velocity step / max, m/s"), ss, rc, this);
+    m_edtPlanVmin.Create(esf, rc, this, IDC_EDT_PLAN_VMIN);     m_edtPlanVmax.Create(esf, rc, this, IDC_EDT_PLAN_VMAX);
+    m_lblPlanVtune.Create(TR("Chirp Vtune low / high, V"), ss, rc, this);
+    m_edtPlanVlo.Create(esf, rc, this, IDC_EDT_PLAN_VLO);       m_edtPlanVhi.Create(esf, rc, this, IDC_EDT_PLAN_VHI);
+    m_chkPlanAuto.Create(TR("Recalculate as I type"), chk, rc, this, IDC_CHK_PLAN_AUTO);
+    m_chkPlanAuto.SetCheck(BST_CHECKED);
+    m_btnPlanCalc.Create(TR("Calculate"), bs, rc, this, IDC_BTN_PLAN_CALC);
+    m_btnPlanApply.Create(TR("Apply to settings"), bs, rc, this, IDC_BTN_PLAN_APPLY);
+    m_lblPlan.Create(_T(""), WS_CHILD | WS_VISIBLE | SS_LEFT, rc, this, IDC_LBL_PLAN);
+    m_suppress = true;
+    SetDouble(m_edtPlanRmin, 0.5, _T("%.2f"));   SetDouble(m_edtPlanRmax, 5.0, _T("%.1f"));
+    SetDouble(m_edtPlanFbMin, 2000.0, _T("%.0f")); SetDouble(m_edtPlanFbMax, 500000.0, _T("%.0f"));
+    SetDouble(m_edtPlanVmin, 0.5, _T("%.2f"));   SetDouble(m_edtPlanVmax, 5.0, _T("%.1f"));
+    SetDouble(m_edtPlanVlo, 2.0, _T("%.2f"));    SetDouble(m_edtPlanVhi, 10.0, _T("%.2f"));
+    m_suppress = false;
+
     m_hdrDerived.Create(TR("Derived values"), ss, rc, this);
     m_lblDerived.Create(_T(""), WS_CHILD | WS_VISIBLE | SS_LEFT, rc, this, IDC_LBL_DERIVED);
     m_preview.CreateCtrl(this, IDC_CHIRP_PREVIEW);
@@ -143,7 +169,7 @@ int SettingsTab::OnCreate(LPCREATESTRUCT lpcs)
     // Fonts.
     CWnd* pw = GetWindow(GW_CHILD);
     while (pw) { pw->SetFont(&m_font); pw = pw->GetWindow(GW_HWNDNEXT); }
-    for (CStatic* h : { &m_hdrMcu, &m_hdrRadar, &m_hdrDisplay, &m_hdrDerived })
+    for (CStatic* h : { &m_hdrMcu, &m_hdrRadar, &m_hdrDisplay, &m_hdrDerived, &m_hdrPlan })
         h->SetFont(&m_hdrFont);
 
     AppSettings defaults;
@@ -243,10 +269,12 @@ void SettingsTab::ApplySettings(const AppSettings& s)
     m_chkAutoConnect.SetCheck(s.autoConnect ? BST_CHECKED : BST_UNCHECKED);
 
     m_suppress = false;
+    m_planPending = false;       // the settings now carry whatever the plan wrote
     // The preview must see the loaded values too (not only after the user
     // touches a field); the derived read-out takes its sample count from it.
     UpdatePreview();
     RefreshDerived();
+    RunPlan();
 }
 
 void SettingsTab::ReadInto(AppSettings& s) const
@@ -291,6 +319,13 @@ void SettingsTab::ReadInto(AppSettings& s) const
     s.verboseLog        = m_chkVerbose.GetCheck() == BST_CHECKED;
     s.autoConnect       = m_chkAutoConnect.GetCheck() == BST_CHECKED;
 
+    // "Apply to settings" of the calculator also sets the display range and
+    // the decimation, which live on the Radar tab; they ride along here until
+    // the main frame hands the merged settings back (ApplySettings).
+    if (m_planPending && m_planApplied.valid) {
+        s.dsp.maxRangeM  = m_planApplied.rangeOfInterestM;
+        s.dsp.decimation = m_planApplied.decimation;
+    }
 }
 
 void SettingsTab::SetObserved(double fsHz, size_t samplesPerFrame, size_t mcuFftSize)
@@ -604,6 +639,141 @@ void SettingsTab::OnAutoApply()
 void SettingsTab::OnEditKillFocus(UINT) { NotifyChanged(); }
 
 // ---------------------------------------------------------------------------
+// Parameter calculator.
+void SettingsTab::OnPlanInput(UINT) { if (!m_suppress && m_chkPlanAuto.GetCheck() == BST_CHECKED) RunPlan(); }
+void SettingsTab::OnPlanAuto()      { if (m_chkPlanAuto.GetCheck() == BST_CHECKED) RunPlan(); }
+void SettingsTab::OnPlanCalc()      { RunPlan(); }
+void SettingsTab::OnPlanApply()     { ApplyPlan(); }
+
+void SettingsTab::RunPlan()
+{
+    if (!m_lblPlan.GetSafeHwnd()) return;
+    AppSettings s = m_last; ReadInto(s);
+    core::PlanInput in;
+    in.rMinM   = GetDouble(m_edtPlanRmin, 0.5);
+    in.rMaxM   = GetDouble(m_edtPlanRmax, 5.0);
+    in.fbMinHz = GetDouble(m_edtPlanFbMin, 2000.0);
+    in.fbMaxHz = GetDouble(m_edtPlanFbMax, 500000.0);
+    in.vMinMps = GetDouble(m_edtPlanVmin, 0.5);
+    in.vMaxMps = GetDouble(m_edtPlanVmax, 5.0);
+    in.vLowV   = GetDouble(m_edtPlanVlo, 2.0);
+    in.vHighV  = GetDouble(m_edtPlanVhi, 10.0);
+    in.vtuneAtDac0V    = s.vco.vtuneAtDac0V;
+    in.vtuneAtDacFullV = s.vco.vtuneAtDacFullV;
+    in.curve     = s.vco.Curve();
+    in.fsHz      = (m_obsFs > 0.0) ? m_obsFs : static_cast<double>(s.sampleRateCalHz);
+    in.guardPct  = s.dsp.guardPct;
+    in.intervalMs = static_cast<uint32_t>((std::max)(0, s.acq.intervalMs));
+    m_plan = core::PlanRadar(in);
+    m_btnPlanApply.EnableWindow(m_plan.valid);
+
+    CString prev; m_lblPlan.GetWindowText(prev);
+    const CString t = FormatPlan(in, m_plan);
+    int nPrev = 0, nNew = 0;
+    for (int i = 0; i < prev.GetLength(); ++i) if (prev[i] == _T('\n')) ++nPrev;
+    for (int i = 0; i < t.GetLength(); ++i) if (t[i] == _T('\n')) ++nNew;
+    m_lblPlan.SetWindowText(t);
+    if (nPrev != nNew) Relayout();
+}
+
+CString SettingsTab::FormatPlan(const core::PlanInput& in, const core::PlanResult& r) const
+{
+    CString t, line;
+    const CString ind = _T("      ");
+    if (!r.valid) {
+        t = TR("Enter R,min < R,max, a beat ceiling > 0 and a valid tuning curve.");
+        return t;
+    }
+    t += TR("Chirp") + _T("\r\n");
+    line.Format(TR("DAC %d..%d (base %d + amplitude %d) = Vtune %.2f..%.2f V"), r.dacOffset, r.dacOffset + r.dacAmplitude,
+                r.dacOffset, r.dacAmplitude, r.vLowV, r.vHighV);
+    t += ind + line + _T("\r\n");
+    line.Format(TR("sweep %.4f..%.4f GHz, B = %.1f MHz, nonlinearity %.1f%%"), r.fStartHz / 1e9, r.fStopHz / 1e9,
+                r.bandwidthHz / 1e6, r.nonlinearityPct);
+    t += ind + line + _T("\r\n");
+    line.Format(TR("ramp %.4f ms = %u Hz (triangle), slope %.3f MHz/us"), r.rampSec * 1e3, r.chirpFreqHz, r.slopeHzPerS / 1e12);
+    t += ind + line + _T("\r\n");
+
+    t += _T("\r\n") + TR("Range") + _T("\r\n");
+    line.Format(TR("beat %.0f Hz at %.2f m .. %.0f Hz at %.2f m (%.1f Hz per metre)"), r.fbAtRMinHz, in.rMinM, r.fbAtRMaxHz, in.rMaxM, r.beatPerMeterHz);
+    t += ind + line + _T("\r\n");
+    line.Format(TR("range step %.3f m; decimation x%d (effective Fs %.1f kHz) reaches %.1f m, %zu samples per ramp"),
+                r.rangeResM, r.decimation, r.fsEffHz / 1e3, r.rangeMaxM, r.samplesUsed);
+    t += ind + line + _T("\r\n");
+
+    t += _T("\r\n") + TR("Velocity") + _T("\r\n");
+    line.Format(TR("UP/DOWN pair: step %.2f m/s, pairing holds up to %.1f m/s for a target at %.2f m"),
+                r.velStepPairMps, r.velMaxPairMps, in.rMinM);
+    t += ind + line + _T("\r\n");
+    line.Format(TR("burst %u chirps: Doppler step %.3f m/s, unambiguous +/- %.2f m/s"), r.burst, r.velStepDopplerMps, r.velMaxDopplerMps);
+    t += ind + line + _T("\r\n");
+
+    t += _T("\r\n") + TR("Capture") + _T("\r\n");
+    if (r.geometry.valid) {
+        line.Format(r.geometry.fitsInCapture ? TR("%llu samples per capture (%.2f ms) fit the MCU window; %.1f frames/s at %u ms pause")
+                                             : TR("%llu samples per capture (%.2f ms) DO NOT fit the MCU window"),
+                    static_cast<unsigned long long>(r.geometry.burstSamplesNeeded), r.geometry.burstUs / 1e3, r.frameRateHz, in.intervalMs);
+        t += ind + line + _T("\r\n");
+    }
+    for (core::PlanNote n : r.notes) {
+        switch (n) {
+        case core::PlanNote::VtuneClamped:
+            line.Format(TR("Vtune window limited to what the DAC produces: %.2f..%.2f V"), r.vLowV, r.vHighV); break;
+        case core::PlanNote::VtuneOutsideCurve:
+            line = TR("Vtune window leaves the tuning-curve table (frequencies extrapolated)"); break;
+        case core::PlanNote::BeatBandConflict:
+            line = TR("f,min at R,min and f,max at R,max cannot both hold (their ratio is fixed by R,min/R,max); the band is placed as close as possible"); break;
+        case core::PlanNote::ChirpFreqClampedLow:
+            line = TR("ramp limited by the MCU minimum of 100 Hz: the beat tones are higher than asked"); break;
+        case core::PlanNote::ChirpFreqClampedHigh:
+            line = TR("ramp limited by the MCU maximum of 24 kHz: the beat tones are lower than asked"); break;
+        case core::PlanNote::DopplerExceedsBeatAtRmin:
+            line.Format(TR("at %.1f m/s the Doppler shift exceeds the beat tone of the nearest target: UP/DOWN pairing fails there (raise f,min or R,min)"), in.vMaxMps); break;
+        case core::PlanNote::BurstLimitedByCapture:
+            line.Format(TR("burst limited by the MCU capture window to %u chirps"), r.burst); break;
+        case core::PlanNote::VelocityStepNotReached:
+            line.Format(TR("velocity step %.2f m/s asked, %.2f m/s reachable (one capture lasts at most %.1f ms)"), in.vMinMps,
+                        (std::min)(r.velStepPairMps, r.velStepDopplerMps),
+                        static_cast<double>((core::kChirpCaptureMax / core::kChirpDmaChunk) * core::kChirpDmaChunk) / in.fsHz * 1e3); break;
+        case core::PlanNote::SweepNonlinear:
+            line.Format(TR("sweep nonlinearity %.1f%%: a Vtune window above 2 V gives a straighter chirp"), r.nonlinearityPct); break;
+        default: line.Empty(); break;
+        }
+        if (!line.IsEmpty()) t += _T("! ") + line + _T("\r\n");
+    }
+    t += _T("\r\n") + TR("'Apply to settings' fills the MCU and radar fields (chirp rate, DAC window, burst, pair gate, display range, decimation); 'Send all' then programs the device.");
+    return t;
+}
+
+void SettingsTab::ApplyPlan()
+{
+    if (!m_plan.valid) return;
+    const core::PlanResult& r = m_plan;
+    m_suppress = true;
+    m_rampMode = false;
+    SetInt(m_edtFreq, r.chirpFreqHz);
+    const int half = static_cast<int>(500000.0 / r.chirpFreqHz + 0.5);
+    SetInt(m_edtRise, half);
+    SetInt(m_edtFall, half);
+    SetInt(m_edtSamples, 0);
+    SetInt(m_edtAmplitude, r.dacAmplitude);
+    SetInt(m_edtOffset, r.dacOffset);
+    SetInt(m_edtBurst, r.burst);
+    m_chkVco.SetCheck(BST_CHECKED);
+    m_edtF0.SetReadOnly(TRUE);
+    m_edtBw.SetReadOnly(TRUE);
+    SetDouble(m_edtTramp, 0.0, _T("%.4f"));
+    m_cmbShape.SetCurSel(static_cast<int>(dsp::RampShape::Triangle));
+    m_chkChirpsAuto.SetCheck(BST_CHECKED);
+    SetInt(m_edtChirps, r.burst);
+    SetDouble(m_edtPairV, r.pairGateMps, _T("%.1f"));
+    m_suppress = false;
+    m_planApplied = r;
+    m_planPending = true;
+    NotifyChanged();
+}
+
+// ---------------------------------------------------------------------------
 void SettingsTab::OnSize(UINT, int, int) { Relayout(); }
 
 void SettingsTab::Relayout()
@@ -619,10 +789,11 @@ void SettingsTab::Relayout()
     for (CWnd* c = GetWindow(GW_CHILD); c; c = c->GetWindow(GW_HWNDNEXT)) {
         TCHAR cls[32]{}; ::GetClassName(c->GetSafeHwnd(), cls, 31);
         if (_tcsicmp(cls, _T("Static")) == 0) {
-            if (c == &m_lblDerived || c == &m_hdrMcu || c == &m_hdrRadar || c == &m_hdrDisplay || c == &m_hdrDerived) continue;
+            if (c == &m_lblDerived || c == &m_lblPlan || c == &m_hdrMcu || c == &m_hdrRadar || c == &m_hdrDisplay ||
+                c == &m_hdrDerived || c == &m_hdrPlan) continue;
             lblW = (std::max)(lblW, Dpi::FitWidth(*c, 0));
         } else if (_tcsicmp(cls, _T("Button")) == 0 && (::GetWindowLong(c->GetSafeHwnd(), GWL_STYLE) & BS_TYPEMASK) == BS_PUSHBUTTON) {
-            if (c == &m_btnPing || c == &m_btnGetStatus || c == &m_btnSendAll) continue;
+            if (c == &m_btnPing || c == &m_btnGetStatus || c == &m_btnSendAll || c == &m_btnPlanCalc || c == &m_btnPlanApply) continue;
             btnW = (std::max)(btnW, Dpi::FitWidth(*c, 0));
         }
     }
@@ -725,43 +896,60 @@ void SettingsTab::Relayout()
     }
     row(col1, y1, m_lblPairV, m_edtPairV);
     const int yRadarEnd = y1;
-    int derivedW;
-    if (wide) {
-        yD += sc(6);
-        header(m_hdrDerived, colD, yD);
-        derivedW = rc.Width() - colX[colD] - sc(10);
-        y1 = yD;
-    } else {
-        y1 += sc(6);
-        header(m_hdrDerived, col1, y1);
-        derivedW = narrow ? rc.Width() - colX[col1] - sc(10) : colW + sc(10);
-    }
-    const int colDer = wide ? colD : col1;
-    // The read-out grows with its text so the chirp preview below never
-    // covers the last block.
-    int derivedLines = 1;
+
+    // Calculator, then the derived read-out: under the Application column on
+    // a wide window (that is where the free space is), else under the radar
+    // column. Both read-outs grow with their text.
+    const int colP = wide ? colD : col1;
+    int yP = (wide ? yD : y1) + sc(6);
+    const int blockW = (wide || narrow) ? rc.Width() - colX[colP] - sc(10) : colW + sc(10);
+    const int pairW = ctlW + btnW + pad;                  // two half-width edits
+    auto row2 = [&](CStatic& lbl, CEdit& a, CEdit& b) {
+        const int x = colX[colP];
+        lbl.MoveWindow(x, yP, lblW, h);
+        a.MoveWindow(x + lblW + pad, yP, (pairW - pad) / 2, h);
+        b.MoveWindow(x + lblW + pad + (pairW - pad) / 2 + pad, yP, pairW - (pairW - pad) / 2 - pad, h);
+        yP += rowH;
+    };
+    auto textH = [&](CStatic& l) {
+        CString t; l.GetWindowText(t);
+        int n = 1;
+        for (int i = 0; i < t.GetLength(); ++i) if (t[i] == _T('\n')) ++n;
+        return n * Dpi::LineHeight(l) + sc(8);
+    };
+    header(m_hdrPlan, colP, yP);
+    row2(m_lblPlanRange, m_edtPlanRmin, m_edtPlanRmax);
+    row2(m_lblPlanBeat, m_edtPlanFbMin, m_edtPlanFbMax);
+    row2(m_lblPlanVel, m_edtPlanVmin, m_edtPlanVmax);
+    row2(m_lblPlanVtune, m_edtPlanVlo, m_edtPlanVhi);
     {
-        CString t; m_lblDerived.GetWindowText(t);
-        for (int i = 0; i < t.GetLength(); ++i) if (t[i] == _T('\n')) ++derivedLines;
+        const int x = colX[colP];
+        const int wAuto = Dpi::FitWidth(m_chkPlanAuto, sc(80)), wCalc = Dpi::FitWidth(m_btnPlanCalc, sc(90)),
+                  wApply = Dpi::FitWidth(m_btnPlanApply, sc(140));
+        m_chkPlanAuto.MoveWindow(x, yP, wAuto, h);
+        m_btnPlanCalc.MoveWindow(x + wAuto + pad, yP, wCalc, h);
+        m_btnPlanApply.MoveWindow(x + wAuto + pad + wCalc + pad, yP, wApply, h);
+        yP += rowH;
     }
-    const int derivedH = derivedLines * Dpi::LineHeight(m_lblDerived) + sc(8);
-    m_lblDerived.MoveWindow(colX[colDer], y1, derivedW, derivedH);
-    y1 += derivedH + sc(6);
-    if (wide) { yD = y1; y1 = yRadarEnd + sc(6); }
+    const int planH = textH(m_lblPlan);
+    m_lblPlan.MoveWindow(colX[colP], yP, blockW, planH);
+    yP += planH + sc(6);
+    header(m_hdrDerived, colP, yP);
+    const int derivedH = textH(m_lblDerived);
+    m_lblDerived.MoveWindow(colX[colP], yP, blockW, derivedH);
+    yP += derivedH + sc(6);
+    if (wide) yD = yP; else y1 = yP;
 
     const int y2 = narrow ? (std::max)(y0, yD) : sc(10);
-    (void)y2;
 
     if (m_preview.GetSafeHwnd()) {
         CRect pr;
         if (narrow) {
-            const int top = (std::max)(y0, y2) + sc(6);
+            const int top = (std::max)((std::max)(y0, y2), y1) + sc(6);
             pr.SetRect(colX[0], top, rc.Width() - sc(10), (std::max)(top + sc(260), rc.Height() - sc(10)));
-        } else if (wide) {
-            const int top = (std::max)(yMcuEnd, y1) + sc(4);
-            pr.SetRect(colX[0], top, colX[1] + colW + sc(10), (std::max)(top + sc(300), rc.Height() - sc(10)));
         } else {
-            pr.SetRect(colX[col1], y1, colX[col1] + derivedW, (std::max)(y1 + sc(260), rc.Height() - sc(10)));
+            const int top = (std::max)(yMcuEnd, yRadarEnd) + sc(4);
+            pr.SetRect(colX[0], top, colX[1] + colW + sc(10), (std::max)(top + sc(300), rc.Height() - sc(10)));
         }
         m_preview.MoveWindow(pr);
     }

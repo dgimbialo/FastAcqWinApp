@@ -125,6 +125,7 @@
     <ClInclude Include="Core\Export.h" />
     <ClInclude Include="Core\SessionFile.h" />
     <ClInclude Include="Core\VcoCurve.h" />
+    <ClInclude Include="Core\RadarPlanner.h" />
     <ClInclude Include="Dsp\Cfar.h" />
     <ClInclude Include="Dsp\Decimator.h" />
     <ClInclude Include="Dsp\FftPlan.h" />
@@ -178,6 +179,9 @@
       <FloatingPointModel Condition="'$(Configuration)'=='Release'">Fast</FloatingPointModel>
     </ClCompile>
     <ClCompile Include="Core\VcoCurve.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Core\RadarPlanner.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Core\SessionFile.cpp">
