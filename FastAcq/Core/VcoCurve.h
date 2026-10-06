@@ -20,10 +20,14 @@ struct VcoPoint {
 
 class VcoCurve {
 public:
-    // Typical tuning curve of the Analog Devices HMC431 (5.5..6.1 GHz,
-    // Vtune 0..10 V). Approximate values read from the datasheet plot;
-    // replace them with the measured ones for the actual part.
+    // Typical tuning curve of the Analog Devices HMC431 at 25 C, read from
+    // the datasheet plot: about 5.09 GHz at Vtune = 0 V to about 6.29 GHz
+    // at 10 V (the specification table only guarantees 5.5..6.1 GHz).
+    // Replace it with measured values for the actual part.
     static VcoCurve Hmc431Typical();
+    // Text form of the curve an earlier version shipped as "typical" (it
+    // started at 5.5 GHz for 0 V, which the datasheet plot does not show).
+    static const char* LegacyTypicalText();
 
     // "0:5.50,1:5.59,2:5.67" -> points (Vtune in volts, frequency in GHz).
     // Separators: ',' ';' or whitespace between points, ':' or '=' inside.

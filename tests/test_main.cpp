@@ -732,12 +732,16 @@ static void TestVcoCurve()
     std::puts("VcoCurve");
     core::VcoCurve c = core::VcoCurve::Hmc431Typical();
     CHECK(c.Valid() && c.Size() == 11);
-    CHECK_NEAR(c.FreqHz(0.0), 5.50e9, 1.0);
-    CHECK_NEAR(c.FreqHz(10.0), 6.10e9, 1.0);
-    CHECK_NEAR(c.FreqHz(0.5), 5.545e9, 1.0);                 // interpolation
-    CHECK_NEAR(c.FreqHz(11.0), 6.14e9, 1.0);                 // extrapolation with the last segment
-    CHECK_NEAR(c.SensitivityHzPerV(0.5), 90e6, 1.0);
-    CHECK_NEAR(c.SensitivityHzPerV(9.5), 40e6, 1.0);
+    CHECK_NEAR(c.FreqHz(0.0), 5.085e9, 1.0);                 // datasheet plot: ~5.09 GHz at 0 V
+    CHECK_NEAR(c.FreqHz(10.0), 6.285e9, 1.0);
+    CHECK_NEAR(c.FreqHz(0.5), 5.2475e9, 1.0);                // interpolation
+    CHECK_NEAR(c.FreqHz(11.0), 6.35e9, 1.0);                 // extrapolation with the last segment
+    CHECK_NEAR(c.SensitivityHzPerV(0.5), 325e6, 1.0);        // steep end of the curve
+    CHECK_NEAR(c.SensitivityHzPerV(9.5), 65e6, 1.0);         // gentle end
+    // The guaranteed 5.5..6.1 GHz band sits inside the typical curve.
+    CHECK(c.FreqHz(1.6) > 5.49e9 && c.FreqHz(1.6) < 5.52e9);
+    CHECK(c.FreqHz(7.4) > 6.09e9 && c.FreqHz(7.4) < 6.12e9);
+    CHECK(std::string(core::VcoCurve::LegacyTypicalText()).rfind("0:5.5000,", 0) == 0);
 
     // Round trip through the text form, unsorted input, separators.
     core::VcoCurve p;
@@ -751,18 +755,18 @@ static void TestVcoCurve()
     CHECK(!q.Parse("1:5.5"));                                // one point is not a curve
     CHECK(!q.Parse("1:5.5,1:5.6"));                          // duplicate voltage collapses to one point
 
-    // Sweep: DAC 0..4095 -> 0..10 V -> full band; half amplitude -> 0..5 V.
+    // Sweep: DAC 0..4095 -> 0..10 V -> full plot range; half amplitude -> 0..5 V.
     core::VcoSweep s = core::ComputeVcoSweep(c, 0.0, 10.0);
     CHECK(s.valid && !s.outOfTable);
-    CHECK_NEAR(s.fStartHz, 5.50e9, 1.0);
-    CHECK_NEAR(s.fStopHz, 6.10e9, 1.0);
-    CHECK_NEAR(s.f0Hz, 5.80e9, 1.0);
-    CHECK_NEAR(s.bandwidthHz, 600e6, 1.0);
-    CHECK_NEAR(s.sensMinHzPerV, 40e6, 1.0);
-    CHECK_NEAR(s.sensMaxHzPerV, 90e6, 1.0);
-    CHECK(s.nonlinearityPct > 5.0 && s.nonlinearityPct < 20.0);
+    CHECK_NEAR(s.fStartHz, 5.085e9, 1.0);
+    CHECK_NEAR(s.fStopHz, 6.285e9, 1.0);
+    CHECK_NEAR(s.f0Hz, 5.685e9, 1.0);
+    CHECK_NEAR(s.bandwidthHz, 1200e6, 1.0);
+    CHECK_NEAR(s.sensMinHzPerV, 65e6, 1.0);
+    CHECK_NEAR(s.sensMaxHzPerV, 325e6, 1.0);
+    CHECK(s.nonlinearityPct > 5.0 && s.nonlinearityPct < 60.0);
     s = core::ComputeVcoSweep(c, 0.0, 5.0);
-    CHECK_NEAR(s.bandwidthHz, 360e6, 1.0);
+    CHECK_NEAR(s.bandwidthHz, 820e6, 1.0);
     s = core::ComputeVcoSweep(c, 2.0, 12.0);                 // bias 2 V, beyond the table
     CHECK(s.valid && s.outOfTable);
     CHECK(!core::ComputeVcoSweep(c, 5.0, 5.0).valid);

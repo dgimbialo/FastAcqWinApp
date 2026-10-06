@@ -9,16 +9,26 @@ namespace core {
 
 VcoCurve VcoCurve::Hmc431Typical()
 {
-    // Approximate typical curve of the HMC431 (sensitivity falls from about
-    // 90 MHz/V at low Vtune to about 40 MHz/V at 10 V).
+    // Read from the datasheet plots "Frequency vs. Tuning Voltage, T = 25 C"
+    // and "Sensitivity vs. Tuning Voltage, Vcc = +3 V" (HMC431LP4): the
+    // oscillator starts at about 5.09 GHz with Vtune = 0 V and reaches about
+    // 6.29 GHz at 10 V; the sensitivity falls from ~450 MHz/V near 0 V to
+    // ~60 MHz/V at 10 V, so the curve is steep below 2 V and gentle above.
+    // The guaranteed band in the specification table (5.5..6.1 GHz) is the
+    // part of this curve from about 1.6 V to about 7.4 V.
     static const double kPts[][2] = {
-        { 0.0, 5.50e9 }, { 1.0, 5.59e9 }, { 2.0, 5.67e9 }, { 3.0, 5.74e9 }, { 4.0, 5.80e9 },
-        { 5.0, 5.86e9 }, { 6.0, 5.91e9 }, { 7.0, 5.96e9 }, { 8.0, 6.01e9 }, { 9.0, 6.06e9 },
-        { 10.0, 6.10e9 },
+        { 0.0, 5.085e9 }, { 1.0, 5.410e9 }, { 2.0, 5.585e9 }, { 3.0, 5.715e9 }, { 4.0, 5.815e9 },
+        { 5.0, 5.905e9 }, { 6.0, 5.990e9 }, { 7.0, 6.070e9 }, { 8.0, 6.150e9 }, { 9.0, 6.220e9 },
+        { 10.0, 6.285e9 },
     };
     VcoCurve c;
     for (const auto& p : kPts) c.m_pts.push_back({ p[0], p[1] });
     return c;
+}
+
+const char* VcoCurve::LegacyTypicalText()
+{
+    return "0:5.5000,1:5.5900,2:5.6700,3:5.7400,4:5.8000,5:5.8600,6:5.9100,7:5.9600,8:6.0100,9:6.0600,10:6.1000";
 }
 
 void VcoCurve::SetPoints(std::vector<VcoPoint> pts)

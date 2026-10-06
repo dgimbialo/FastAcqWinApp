@@ -112,6 +112,7 @@ bool AppSettings::Load(const CString& path)
     vco.vtuneAtDac0V    = ini.GetDouble(_T("Vco"), _T("VtuneAtDac0V"), vco.vtuneAtDac0V);
     vco.vtuneAtDacFullV = ini.GetDouble(_T("Vco"), _T("VtuneAtDacFullV"), vco.vtuneAtDacFullV);
     vco.curveText       = std::string(CStringA(ini.GetStr(_T("Vco"), _T("Curve"), _T(""))));
+    if (vco.curveText == core::VcoCurve::LegacyTypicalText()) vco.curveText.clear();   // old default -> corrected typical
     if (!(vco.vtuneAtDacFullV > vco.vtuneAtDac0V)) { vco.vtuneAtDac0V = 0.0; vco.vtuneAtDacFullV = 10.0; }
 
     dsp.chirpsInFrame   = ini.GetInt(_T("Dsp"), _T("ChirpsInFrame"), dsp.chirpsInFrame);
