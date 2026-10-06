@@ -243,6 +243,9 @@ void SettingsTab::ApplySettings(const AppSettings& s)
     m_chkAutoConnect.SetCheck(s.autoConnect ? BST_CHECKED : BST_UNCHECKED);
 
     m_suppress = false;
+    // The preview must see the loaded values too (not only after the user
+    // touches a field); the derived read-out takes its sample count from it.
+    UpdatePreview();
     RefreshDerived();
 }
 
