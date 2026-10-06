@@ -32,8 +32,10 @@ struct PlanInput {
     double fbMaxHz{500000.0};   // the beat tone of the farthest target must not exceed this
     double vMinMps{0.2};        // finest velocity step wanted
     double vMaxMps{5.0};        // highest |v| to handle
-    double vLowV{0.0};          // chirp tuning-voltage window (base .. top)
+    double vLowV{0.0};          // chirp tuning-voltage window (base .. top), or its limits when autoVtune
     double vHighV{10.0};
+    bool   autoVtune{true};     // pick the widest window inside [vLowV, vHighV] whose sweep
+    double maxNonlinearityPct{5.0}; // nonlinearity stays within this (the HMC431 is steep below ~2 V)
     // Hardware context.
     double   vtuneAtDac0V{0.0};
     double   vtuneAtDacFullV{10.0};
@@ -45,6 +47,7 @@ struct PlanInput {
 
 enum class PlanNote {
     VtuneClamped = 0,        // the window was limited to what the DAC can produce
+    VtuneAutoNarrowed,       // the automatic window is narrower than the limits (linearity)
     VtuneOutsideCurve,       // the window leaves the tabulated curve (extrapolated)
     BeatBandConflict,        // fbMin / rMin > fbMax / rMax: both cannot hold at once
     ChirpFreqClampedLow,     // the ramp would be longer than the MCU allows (< 100 Hz)

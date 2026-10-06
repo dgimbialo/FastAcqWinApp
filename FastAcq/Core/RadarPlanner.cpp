@@ -27,9 +27,23 @@ PlanResult PlanRadar(const PlanInput& in)
         return r;
 
     // 1. Tuning-voltage window -> DAC codes (what the MCU can actually produce).
-    const double lo = std::clamp(in.vLowV, in.vtuneAtDac0V, in.vtuneAtDacFullV);
-    const double hi = std::clamp(in.vHighV, in.vtuneAtDac0V, in.vtuneAtDacFullV);
-    if (std::fabs(lo - in.vLowV) > 1e-9 || std::fabs(hi - in.vHighV) > 1e-9) r.notes.push_back(PlanNote::VtuneClamped);
+    double lo = std::clamp(std::min(in.vLowV, in.vHighV), in.vtuneAtDac0V, in.vtuneAtDacFullV);
+    const double hi = std::clamp(std::max(in.vLowV, in.vHighV), in.vtuneAtDac0V, in.vtuneAtDacFullV);
+    if (std::fabs(lo - std::min(in.vLowV, in.vHighV)) > 1e-9 || std::fabs(hi - std::max(in.vLowV, in.vHighV)) > 1e-9)
+        r.notes.push_back(PlanNote::VtuneClamped);
+    if (in.autoVtune && hi - lo > 0.1) {
+        // Widest window inside the limits with acceptable sweep nonlinearity:
+        // the top stays (the curve is flattest there), the bottom moves up
+        // in 50 mV steps until the chord fits, never below a 0.5 V window.
+        const double step = 0.05, minWin = 0.5;
+        double l = lo;
+        while (hi - l > minWin) {
+            const VcoSweep t = ComputeVcoSweep(in.curve, l, hi);
+            if (!t.valid || t.nonlinearityPct <= in.maxNonlinearityPct) break;
+            l += step;
+        }
+        if (l > lo + 1e-9) { lo = l; r.notes.push_back(PlanNote::VtuneAutoNarrowed); }
+    }
     int off = DacOfVtune(std::min(lo, hi), in.vtuneAtDac0V, in.vtuneAtDacFullV);
     int top = DacOfVtune(std::max(lo, hi), in.vtuneAtDac0V, in.vtuneAtDacFullV);
     if (top <= off) { if (off >= kDacMax) off = kDacMax - 1; top = off + 1; }

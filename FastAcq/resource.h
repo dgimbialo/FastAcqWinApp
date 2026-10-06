@@ -167,6 +167,7 @@
 #define IDC_BTN_PLAN_CALC    1294
 #define IDC_BTN_PLAN_APPLY   1295
 #define IDC_LBL_PLAN         1296
+#define IDC_CHK_PLAN_AUTOV   1297
 
 // Radar tab (1300..1399)
 #define IDC_RP_VIEW          1300

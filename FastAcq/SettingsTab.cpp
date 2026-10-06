@@ -41,6 +41,7 @@ BEGIN_MESSAGE_MAP(SettingsTab, CWnd)
     ON_CONTROL_RANGE(EN_KILLFOCUS,  IDC_EDT_FSCAL, IDC_EDT_FSCAL, &SettingsTab::OnEditKillFocus)
     ON_CONTROL_RANGE(EN_CHANGE,     IDC_EDT_PLAN_RMIN, IDC_EDT_PLAN_VHI, &SettingsTab::OnPlanInput)
     ON_BN_CLICKED(IDC_CHK_PLAN_AUTO,   &SettingsTab::OnPlanAuto)
+    ON_BN_CLICKED(IDC_CHK_PLAN_AUTOV,  &SettingsTab::OnPlanCalc)
     ON_BN_CLICKED(IDC_BTN_PLAN_CALC,   &SettingsTab::OnPlanCalc)
     ON_BN_CLICKED(IDC_BTN_PLAN_APPLY,  &SettingsTab::OnPlanApply)
 END_MESSAGE_MAP()
@@ -150,6 +151,8 @@ int SettingsTab::OnCreate(LPCREATESTRUCT lpcs)
     m_edtPlanVmin.Create(esf, rc, this, IDC_EDT_PLAN_VMIN);     m_edtPlanVmax.Create(esf, rc, this, IDC_EDT_PLAN_VMAX);
     m_lblPlanVtune.Create(TR("Chirp Vtune low / high, V"), ss, rc, this);
     m_edtPlanVlo.Create(esf, rc, this, IDC_EDT_PLAN_VLO);       m_edtPlanVhi.Create(esf, rc, this, IDC_EDT_PLAN_VHI);
+    m_chkPlanAutoV.Create(TR("pick the widest linear window inside"), chk, rc, this, IDC_CHK_PLAN_AUTOV);
+    m_chkPlanAutoV.SetCheck(BST_CHECKED);
     m_chkPlanAuto.Create(TR("Recalculate as I type"), chk, rc, this, IDC_CHK_PLAN_AUTO);
     m_chkPlanAuto.SetCheck(BST_CHECKED);
     m_btnPlanCalc.Create(TR("Calculate"), bs, rc, this, IDC_BTN_PLAN_CALC);
@@ -159,7 +162,7 @@ int SettingsTab::OnCreate(LPCREATESTRUCT lpcs)
     SetDouble(m_edtPlanRmin, 0.5, _T("%.2f"));   SetDouble(m_edtPlanRmax, 5.0, _T("%.1f"));
     SetDouble(m_edtPlanFbMin, 2000.0, _T("%.0f")); SetDouble(m_edtPlanFbMax, 500000.0, _T("%.0f"));
     SetDouble(m_edtPlanVmin, 0.5, _T("%.2f"));   SetDouble(m_edtPlanVmax, 5.0, _T("%.1f"));
-    SetDouble(m_edtPlanVlo, 2.0, _T("%.2f"));    SetDouble(m_edtPlanVhi, 10.0, _T("%.2f"));
+    SetDouble(m_edtPlanVlo, 0.0, _T("%.2f"));    SetDouble(m_edtPlanVhi, 10.0, _T("%.2f"));
     m_suppress = false;
 
     m_hdrDerived.Create(TR("Derived values"), ss, rc, this);
@@ -397,12 +400,19 @@ void SettingsTab::RefreshDerived()
         line.Format(TR("\r\n%sADC clock %+.3f ppm: %.6f -> %.6f MS/s"), ind.GetString(), s.fsPpm, fs / 1e6, fs * (1.0 + s.fsPpm * 1e-6) / 1e6);
         t += line;
     }
-    CString prev; m_lblDerived.GetWindowText(prev);
-    int nPrev = 0, nNew = 0;
-    for (int i = 0; i < prev.GetLength(); ++i) if (prev[i] == _T('\n')) ++nPrev;
-    for (int i = 0; i < t.GetLength(); ++i) if (t[i] == _T('\n')) ++nNew;
     m_lblDerived.SetWindowText(t);
-    if (nPrev != nNew) Relayout();   // the read-out height follows its line count
+    if (ReadoutNeedsRelayout(m_lblDerived)) Relayout();   // the read-out height follows its text
+}
+
+// A read-out static is sized to its (wrapped) text by Relayout; after new
+// text, true when the current height no longer matches.
+bool SettingsTab::ReadoutNeedsRelayout(CStatic& l) const
+{
+    if (!l.GetSafeHwnd()) return false;
+    CRect r; l.GetWindowRect(&r);
+    const int S = static_cast<int>(Dpi::Of(m_hWnd));
+    const int want = Dpi::WrappedTextHeight(l, r.Width()) + ::MulDiv(8, S, 96);
+    return want != r.Height();
 }
 
 void SettingsTab::UpdateVcoDerived(AppSettings& s)
@@ -656,8 +666,9 @@ void SettingsTab::RunPlan()
     in.fbMaxHz = GetDouble(m_edtPlanFbMax, 500000.0);
     in.vMinMps = GetDouble(m_edtPlanVmin, 0.5);
     in.vMaxMps = GetDouble(m_edtPlanVmax, 5.0);
-    in.vLowV   = GetDouble(m_edtPlanVlo, 2.0);
+    in.vLowV   = GetDouble(m_edtPlanVlo, 0.0);
     in.vHighV  = GetDouble(m_edtPlanVhi, 10.0);
+    in.autoVtune = m_chkPlanAutoV.GetCheck() == BST_CHECKED;
     in.vtuneAtDac0V    = s.vco.vtuneAtDac0V;
     in.vtuneAtDacFullV = s.vco.vtuneAtDacFullV;
     in.curve     = s.vco.Curve();
@@ -667,13 +678,8 @@ void SettingsTab::RunPlan()
     m_plan = core::PlanRadar(in);
     m_btnPlanApply.EnableWindow(m_plan.valid);
 
-    CString prev; m_lblPlan.GetWindowText(prev);
-    const CString t = FormatPlan(in, m_plan);
-    int nPrev = 0, nNew = 0;
-    for (int i = 0; i < prev.GetLength(); ++i) if (prev[i] == _T('\n')) ++nPrev;
-    for (int i = 0; i < t.GetLength(); ++i) if (t[i] == _T('\n')) ++nNew;
-    m_lblPlan.SetWindowText(t);
-    if (nPrev != nNew) Relayout();
+    m_lblPlan.SetWindowText(FormatPlan(in, m_plan));
+    if (ReadoutNeedsRelayout(m_lblPlan)) Relayout();
 }
 
 CString SettingsTab::FormatPlan(const core::PlanInput& in, const core::PlanResult& r) const
@@ -719,6 +725,9 @@ CString SettingsTab::FormatPlan(const core::PlanInput& in, const core::PlanResul
         switch (n) {
         case core::PlanNote::VtuneClamped:
             line.Format(TR("Vtune window limited to what the DAC produces: %.2f..%.2f V"), r.vLowV, r.vHighV); break;
+        case core::PlanNote::VtuneAutoNarrowed:
+            line.Format(TR("Vtune window narrowed to %.2f..%.2f V for a sweep nonlinearity within %.0f%% (the curve is steep below ~2 V)"),
+                        r.vLowV, r.vHighV, in.maxNonlinearityPct); break;
         case core::PlanNote::VtuneOutsideCurve:
             line = TR("Vtune window leaves the tuning-curve table (frequencies extrapolated)"); break;
         case core::PlanNote::BeatBandConflict:
@@ -911,17 +920,17 @@ void SettingsTab::Relayout()
         b.MoveWindow(x + lblW + pad + (pairW - pad) / 2 + pad, yP, pairW - (pairW - pad) / 2 - pad, h);
         yP += rowH;
     };
-    auto textH = [&](CStatic& l) {
-        CString t; l.GetWindowText(t);
-        int n = 1;
-        for (int i = 0; i < t.GetLength(); ++i) if (t[i] == _T('\n')) ++n;
-        return n * Dpi::LineHeight(l) + sc(8);
-    };
+    auto textH = [&](CStatic& l) { return Dpi::WrappedTextHeight(l, blockW) + sc(8); };
     header(m_hdrPlan, colP, yP);
     row2(m_lblPlanRange, m_edtPlanRmin, m_edtPlanRmax);
     row2(m_lblPlanBeat, m_edtPlanFbMin, m_edtPlanFbMax);
     row2(m_lblPlanVel, m_edtPlanVmin, m_edtPlanVmax);
-    row2(m_lblPlanVtune, m_edtPlanVlo, m_edtPlanVhi);
+    {
+        const int yRow = yP;
+        row2(m_lblPlanVtune, m_edtPlanVlo, m_edtPlanVhi);
+        const int x = colX[colP] + lblW + pad + pairW + pad;
+        m_chkPlanAutoV.MoveWindow(x, yRow, (std::max)(sc(60), colX[colP] + blockW - x), h);
+    }
     {
         const int x = colX[colP];
         const int wAuto = Dpi::FitWidth(m_chkPlanAuto, sc(80)), wCalc = Dpi::FitWidth(m_btnPlanCalc, sc(90)),

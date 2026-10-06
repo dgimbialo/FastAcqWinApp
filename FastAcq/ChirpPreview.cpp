@@ -236,9 +236,13 @@ void ChirpPreviewCtrl::Render(CDC& dc, const CRect& full)
                      vtuneOf(base), vtuneOf(top));
         dc.SetTextColor(cDim);
         dc.SelectObject(&m_font);
-        CRect ar(px - sc(200), py - sc(19), px + sc(200), py - sc(3));
+        // Centred over the first peak, but never beyond the plot edges.
+        const int tw = dc.GetTextExtent(a).cx + sc(8);
+        CRect ar(px - tw / 2, py - sc(19), px - tw / 2 + tw, py - sc(3));
         if (ar.left < plot.left) ar.OffsetRect(plot.left - ar.left, 0);
-        dc.DrawText(a, ar, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP);
+        if (ar.right > plot.right) ar.OffsetRect(plot.right - ar.right, 0);
+        if (ar.left < plot.left) ar.left = plot.left;
+        dc.DrawText(a, ar, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     }
 
     // Dimension row 1: rise / fall under the first chirp, interval label at the break, next cycle

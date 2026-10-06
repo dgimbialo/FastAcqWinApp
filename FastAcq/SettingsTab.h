@@ -78,6 +78,7 @@ private:
     void RunPlan();                          // calculator inputs -> m_plan + read-out
     void ApplyPlan();                        // m_plan -> MCU / radar fields, then notify
     CString FormatPlan(const core::PlanInput& in, const core::PlanResult& r) const;
+    bool ReadoutNeedsRelayout(CStatic& l) const;
     static int    GetInt(const CEdit& e, int def);
     static double GetDouble(const CEdit& e, double def);
     static void   SetInt(CEdit& e, long long v);
@@ -120,7 +121,7 @@ private:
     CStatic m_lblPlanRange; CEdit m_edtPlanRmin;  CEdit m_edtPlanRmax;
     CStatic m_lblPlanBeat;  CEdit m_edtPlanFbMin; CEdit m_edtPlanFbMax;
     CStatic m_lblPlanVel;   CEdit m_edtPlanVmin;  CEdit m_edtPlanVmax;
-    CStatic m_lblPlanVtune; CEdit m_edtPlanVlo;   CEdit m_edtPlanVhi;
+    CStatic m_lblPlanVtune; CEdit m_edtPlanVlo;   CEdit m_edtPlanVhi;   CButton m_chkPlanAutoV;
     CButton m_chkPlanAuto;  CButton m_btnPlanCalc; CButton m_btnPlanApply;
     CStatic m_lblPlan;
     core::PlanResult m_plan;

@@ -784,12 +784,32 @@ static void TestRadarPlanner()
     in.rMinM = 0.5; in.rMaxM = 5.0;
     in.fbMinHz = 2000.0; in.fbMaxHz = 500e3;
     in.vMinMps = 0.2; in.vMaxMps = 5.0;
-    in.vLowV = 2.0; in.vHighV = 10.0;
+    in.vLowV = 2.0; in.vHighV = 10.0; in.autoVtune = false;
     in.fsHz = 60e6; in.guardPct = 5.0; in.intervalMs = 5;
     PlanResult r = PlanRadar(in);
     CHECK(r.valid);
     // DAC window: 2..10 V of 0..10 V -> codes 819..4095.
     CHECK(r.dacOffset == 819 && r.dacOffset + r.dacAmplitude == 4095);
+    CHECK(!r.Has(PlanNote::VtuneAutoNarrowed));
+
+    // Automatic window inside 0..10 V: the bottom moves up until the sweep
+    // nonlinearity is within 5 %, the top stays at 10 V, the band is as wide
+    // as that allows.
+    {
+        PlanInput a = in; a.vLowV = 0.0; a.vHighV = 10.0; a.autoVtune = true;
+        PlanResult ra = PlanRadar(a);
+        CHECK(ra.valid && ra.Has(PlanNote::VtuneAutoNarrowed));
+        CHECK(ra.nonlinearityPct <= 5.0 + 1e-9);
+        CHECK(ra.vLowV > 2.0 && ra.vLowV < 5.0);
+        CHECK(ra.dacOffset + ra.dacAmplitude == 4095);
+        CHECK(ComputeVcoSweep(a.curve, ra.vLowV - 0.1, 10.0).nonlinearityPct > 5.0);   // widest: one step lower fails
+        std::printf("  auto Vtune window: %.2f..%.2f V, B %.0f MHz, nonlinearity %.1f%%\n", ra.vLowV, ra.vHighV,
+                    ra.bandwidthHz / 1e6, ra.nonlinearityPct);
+        // Limits already linear enough: kept as they are.
+        PlanInput b = a; b.vLowV = 6.0;
+        PlanResult rb = PlanRadar(b);
+        CHECK(rb.valid && !rb.Has(PlanNote::VtuneAutoNarrowed) && rb.dacOffset == 2457);
+    }
     CHECK_NEAR(r.fStartHz, in.curve.FreqHz(r.vLowV), 1.0);
     CHECK_NEAR(r.fStopHz, 6.285e9, 1.0);
     CHECK(r.bandwidthHz > 650e6 && r.bandwidthHz < 750e6);
@@ -846,7 +866,7 @@ static void TestRadarPlanner()
     CHECK(rl.valid && rl.Has(PlanNote::ChirpFreqClampedLow) && rl.chirpFreqHz == kChirpFreqMinHz);
 
     // Tiny window beyond the DAC range is clamped; a window above the curve is flagged.
-    PlanInput w = in; w.vLowV = -1.0; w.vHighV = 12.0;
+    PlanInput w = in; w.vLowV = -1.0; w.vHighV = 12.0; w.autoVtune = false;
     PlanResult rw = PlanRadar(w);
     CHECK(rw.valid && rw.Has(PlanNote::VtuneClamped) && rw.dacOffset == 0 && rw.dacAmplitude == 4095);
 

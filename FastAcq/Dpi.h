@@ -66,6 +66,22 @@ inline int LineHeight(CWnd& w)
     return cy > 0 ? cy : 16;
 }
 
+// Height a multi-line static needs for its text when wrapped at `widthPx`
+// (word wrap counts: a long line folds into two). Never less than one line.
+inline int WrappedTextHeight(CWnd& w, int widthPx)
+{
+    if (!w.GetSafeHwnd()) return 16;
+    CString t; w.GetWindowText(t);
+    CClientDC dc(&w);
+    CFont* f = w.GetFont();
+    CFont* old = f ? dc.SelectObject(f) : nullptr;
+    CRect r(0, 0, (std::max)(10, widthPx), 0);
+    if (t.IsEmpty()) t = _T("X");
+    dc.DrawText(t, &r, DT_CALCRECT | DT_WORDBREAK | DT_LEFT | DT_NOPREFIX);
+    if (old) dc.SelectObject(old);
+    return (std::max)(r.Height(), LineHeight(w));
+}
+
 // Width a control needs for its caption (buttons, check boxes, radios and
 // static labels), never less than `fallbackPx`. Other controls (combos,
 // edits, sliders) keep the fallback. Used so translated captions always fit.
