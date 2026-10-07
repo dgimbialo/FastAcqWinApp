@@ -65,6 +65,11 @@ header p { margin: 0; color: var(--muted); }
 .left { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .map { width: 100%; aspect-ratio: 2000 / 560; display: block; border-radius: 6px; background: #060a14; }
 .objs { display: flex; flex-direction: column; gap: 6px; }
+.advice { display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
+.adv { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; background: var(--panel2); border-radius: 6px; padding: 7px 9px; border-left: 3px solid var(--line); }
+.adv.ok { border-left-color: var(--ok); } .adv.bad { border-left-color: var(--bad); }
+.adv .t { font-weight: 600; } .adv .d { grid-column: 1; color: var(--muted); font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums; line-height: 1.45; }
+.adv button { grid-row: 1 / span 2; }
 .obj { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; background: var(--panel2); border-radius: 6px; padding: 6px 9px; }
 .obj .n { font-weight: 600; }
 .obj .m { grid-column: 1; color: var(--muted); font-size: 11.5px; font-family: var(--mono); font-variant-numeric: tabular-nums; line-height: 1.4; }
@@ -146,7 +151,7 @@ header p { margin: 0; color: var(--muted); }
         <div class="row" style="margin:-2px 0 10px"><label style="font-size:13px"><input type="checkbox" id="horizon" checked style="accent-color:var(--accent);vertical-align:-2px"> коло торкається горизонту (центр = ρ = 2δ)</label></div>
         <div class="ctl"><label for="span">Сектор по азимуту</label><output id="spanO"></output><input type="range" id="span" min="30" max="180" step="10" value="180"></div>
         <div class="ctl"><label for="azspd">Швидкість повороту конструкції по азимуту</label><output id="azspdO"></output><input type="range" id="azspd" min="1" max="180" step="1" value="18"></div>
-        <div class="ctl"><label for="chirp">Чірпів (вибірок) за секунду</label><output id="chirpO"></output><input type="range" id="chirp" min="200" max="6000" step="100" value="2000"></div>
+        <div class="ctl"><label for="chirp">Чірпів (вибірок) за секунду</label><output id="chirpO"></output><input type="range" id="chirp" min="200" max="24000" step="100" value="2000"></div>
         <div class="ctl"><label for="bw">Ширина променя</label><output id="bwO"></output><input type="range" id="bw" min="0.5" max="6" step="0.25" value="1.5"></div>
         <div class="ctl"><label for="speed">Сповільнення анімації</label><output id="speedO"></output><input type="range" id="speed" min="1" max="100" step="1" value="20"></div>
         <div class="ctl"><label for="persist">Пам'ять сліду, с</label><output id="persistO"></output><input type="range" id="persist" min="0.5" max="15" step="0.5" value="5"></div>
@@ -155,6 +160,11 @@ header p { margin: 0; color: var(--muted); }
       <div class="card">
         <h2>Що виходить</h2>
         <div class="stats" id="stats"></div>
+      </div>
+
+      <div class="card">
+        <h2>Підказки: що потрібно для суцільного покриття</h2>
+        <div id="advice" class="advice"></div>
       </div>
 
       <div class="card">
@@ -572,6 +582,46 @@ header p { margin: 0; color: var(--muted); }
     document.getElementById('tallThr').textContent = '4';
   }
 
+  // ---------- advice: what the current spin / tilt / beam need for gap-free coverage ----------
+  const adviceEl = document.getElementById('advice');
+  let adviceKey = '';
+  function renderAdvice(g) {
+    const rho = 2 * P.tilt, circ = 360 * Math.sin(rho * D2R);           // circle length, degrees of arc
+    const nMin = Math.ceil(circ / P.bw), nRec = Math.ceil(2 * circ / P.bw);  // 1 and 2 samples per beam width
+    const have = P.chirp / P.spin, stepNow = have > 0 ? circ / have : 0;
+    const chirpMin = nMin * P.spin, chirpRec = nRec * P.spin;
+    const rpmMax = nMin > 0 ? P.chirp / nMin * 60 : 0, rpmRec = nRec > 0 ? P.chirp / nRec * 60 : 0;
+    const azMax = P.bw * P.spin, azRec = P.bw * P.spin / 2, azStep = P.azspd / P.spin;
+    const spinMinAz = P.azspd / P.bw;
+    const key = [nMin, nRec, have.toFixed(1), chirpMin, chirpRec, rpmMax.toFixed(0), azMax.toFixed(1), azStep.toFixed(2), P.mode].join('|');
+    if (key === adviceKey) return; adviceKey = key;
+    const r = (v) => Math.round(v);
+    const items = [];
+    items.push({ ok: stepNow <= P.bw, t: 'Чірпів на оберт: зараз ' + have.toFixed(0) + ', потрібно ≥ ' + nMin + ' (рекомендовано ' + nRec + ')',
+      d: 'довжина кола 360°·sin ρ = ' + circ.toFixed(0) + '°; крок зараз ' + stepNow.toFixed(2) + '° при промені ' + P.bw.toFixed(2) + '°' + (stepNow <= P.bw ? ' — без пропусків' : ' — пропуски між вибірками') });
+    items.push({ ok: P.chirp >= chirpMin, t: 'Чірпів за секунду при ' + r(P.spin * 60) + ' об/хв: ≥ ' + r(chirpMin) + ' (рекомендовано ' + r(chirpRec) + ')',
+      d: 'f = N × оберти/с = ' + nMin + ' × ' + P.spin.toFixed(1) + (chirpRec <= 24000 ? '' : '; рекомендоване значення вище межі МК 24 000/с'),
+      btn: chirpRec <= 24000 ? { label: 'Застосувати ' + r(chirpRec), act: () => setSlider('chirp', Math.ceil(chirpRec / 100) * 100) } : (chirpMin <= 24000 ? { label: 'Застосувати ' + r(chirpMin), act: () => setSlider('chirp', Math.ceil(chirpMin / 100) * 100) } : null) });
+    items.push({ ok: P.spin * 60 <= rpmMax + 1e-6, t: 'Оберти при ' + P.chirp + ' чірпів/с: ≤ ' + r(rpmMax) + ' об/хв (рекомендовано ≤ ' + r(rpmRec) + ')',
+      d: 'швидше дзеркало = менше вибірок на коло; при 3000 об/хв потрібно ≥ ' + r(nMin * 50) + ' чірпів/с',
+      btn: rpmRec >= 60 ? { label: 'Застосувати ' + r(Math.min(3000, rpmRec)), act: () => setSlider('spin', Math.floor(Math.min(3000, rpmRec) / 30) * 30) } : null });
+    if (P.mode === 'pan') {
+      items.push({ ok: azStep <= P.bw, t: 'Поворот по азимуту: ≤ ' + azMax.toFixed(1) + ' °/с (рекомендовано ≤ ' + azRec.toFixed(1) + ' °/с)',
+        d: 'крок між колами зараз ' + azStep.toFixed(2) + '° = швидкість / оберти за с; або оберти ≥ ' + r(spinMinAz * 60) + ' об/хв при ' + P.azspd + ' °/с',
+        btn: { label: 'Застосувати ' + Math.max(1, Math.floor(azRec)) + ' °/с', act: () => setSlider('azspd', Math.max(1, Math.floor(azRec))) } });
+      items.push({ ok: true, t: 'Повний прохід сектора ' + P.span + '°: ' + P.period.toFixed(1) + ' с, ' + r(P.period * P.spin) + ' кіл, ' + r(P.period * P.chirp) + ' вибірок',
+        d: 'кожна точка сектора потрапляє в промінь ≈ ' + Math.max(1, Math.floor(P.bw / Math.max(1e-6, azStep))) + ' раз(и) за прохід' });
+    }
+    adviceEl.innerHTML = items.map((it, i) => '<div class="adv ' + (it.ok ? 'ok' : 'bad') + '"><span class="t">' + (it.ok ? '✓ ' : '⚠ ') + it.t + '</span>' +
+      (it.btn ? '<button data-adv="' + i + '">' + it.btn.label + '</button>' : '') + '<span class="d">' + it.d + '</span></div>').join('');
+    adviceEl.querySelectorAll('[data-adv]').forEach(b => b.addEventListener('click', () => items[parseInt(b.dataset.adv, 10)].btn.act()));
+  }
+  function setSlider(id, value) {
+    const el = document.getElementById(id);
+    el.value = Math.max(parseFloat(el.min), Math.min(parseFloat(el.max), value));
+    el.dispatchEvent(new Event('input'));
+  }
+
   // ---------- 2D map ----------
   const map = document.getElementById('map'), mctx = map.getContext('2d');
   function drawMap(g, ae) {
@@ -635,6 +685,7 @@ header p { margin: 0; color: var(--muted); }
     renderer.render(scene, camera);
     drawMap(g, ae);
     renderStats(g);
+    renderAdvice(g);
     readoutEl.innerHTML = 't = <b>' + simT.toFixed(3) + ' с</b> (×1/' + P.speed + ')<br>межа <b>' + P.km + ' км</b>, пляма <b>Ø ' + spotDiameterM().toFixed(0) + ' м</b><br>коло <b>' + Math.max(0, circleId) + '</b>, вибірка <b>' + sampleInCircle + '</b><br>азимут <b>' + ae.az.toFixed(1) + '°</b> кут місця <b>' + ae.el.toFixed(1) + '°</b><br>центр ' + g.azc.toFixed(1) + '° / ' + g.elc.toFixed(0) + '°, ρ ' + g.rho.toFixed(1) + '°';
     requestAnimationFrame(frame);
   }
