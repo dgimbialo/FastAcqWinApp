@@ -45,8 +45,9 @@ header p { margin: 0; color: var(--muted); }
 .hud button { background: rgba(17,26,43,.82); color: #e6edf7; border-color: #2c3b58; }
 .hud button[aria-pressed="true"], .deck button.primary { background: var(--accent); color: #1a1200; border-color: transparent; }
 .hud button:focus-visible, .deck button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.readout { position: absolute; right: 10px; top: 10px; font: 12px/1.45 var(--mono); color: #d9e2f0; background: rgba(6,10,20,.72); border: 1px solid #2c3b58; border-radius: 6px; padding: 6px 9px; font-variant-numeric: tabular-nums; }
-.readout b { color: var(--accent); font-weight: 500; }
+.readout { position: absolute; right: 10px; top: 10px; width: 262px; font: 12px/1.5 var(--mono); color: #d9e2f0; background: rgba(6,10,20,.72); border: 1px solid #2c3b58; border-radius: 6px; padding: 6px 9px; font-variant-numeric: tabular-nums; display: grid; grid-template-columns: 1fr auto; gap: 0 8px; }
+.readout span { color: #9fb0c8; white-space: nowrap; }
+.readout b { color: var(--accent); font-weight: 500; text-align: right; white-space: pre; }
 .legend { position: absolute; left: 10px; bottom: 10px; font: 12px var(--font); color: #c7d2e3; background: rgba(6,10,20,.72); border: 1px solid #2c3b58; border-radius: 6px; padding: 6px 9px; display: flex; gap: 12px; flex-wrap: wrap; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 5px; }
 .deck { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
@@ -60,7 +61,7 @@ header p { margin: 0; color: var(--muted); }
 .row select { font: 13px var(--font); color: var(--fg); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 12.5px; }
 .stats div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dashed var(--line); padding-bottom: 3px; }
-.stats span:last-child { font-family: var(--mono); color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stats span:last-child { font-family: var(--mono); color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 9ch; text-align: right; }
 .stats span:first-child { color: var(--muted); }
 .left { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .map { width: 100%; aspect-ratio: 2000 / 560; display: block; border-radius: 6px; background: #060a14; }
@@ -108,7 +109,15 @@ header p { margin: 0; color: var(--muted); }
         <button data-cam="top">Зверху</button>
         <button data-cam="radar">З радара</button>
       </div>
-      <div class="readout" id="readout"></div>
+      <div class="readout" id="readout">
+        <span>час симуляції</span><b id="r_t"></b>
+        <span>межа / пляма</span><b id="r_km"></b>
+        <span>коло / вибірка</span><b id="r_c"></b>
+        <span>азимут променя</span><b id="r_az"></b>
+        <span>кут місця променя</span><b id="r_el"></b>
+        <span>центр кола</span><b id="r_cc"></b>
+        <span>радіус кола ρ</span><b id="r_rho"></b>
+      </div>
       <div class="legend">
         <span><i style="background:#ffb347"></i>промінь і слід вибірок</span>
         <span><i style="background:#4fd1b8"></i>сітка азимут / кут місця</span>
@@ -547,7 +556,8 @@ header p { margin: 0; color: var(--muted); }
   }
 
   // ---------- UI read-outs ----------
-  const statsEl = document.getElementById('stats'), objsEl = document.getElementById('objs'), readoutEl = document.getElementById('readout');
+  const statsEl = document.getElementById('stats'), objsEl = document.getElementById('objs');
+  const R = { t: document.getElementById('r_t'), km: document.getElementById('r_km'), c: document.getElementById('r_c'), az: document.getElementById('r_az'), el: document.getElementById('r_el'), cc: document.getElementById('r_cc'), rho: document.getElementById('r_rho') };
   function renderObjs() {
     objsEl.innerHTML = OBJ.map(o => {
       const pill = o.status === 'bad' ? '<span class="pill bad">відкинуто</span>' : o.status === 'ok' ? '<span class="pill ok">ціль</span>' : '<span class="pill idle">поза променем</span>';
@@ -686,7 +696,15 @@ header p { margin: 0; color: var(--muted); }
     drawMap(g, ae);
     renderStats(g);
     renderAdvice(g);
-    readoutEl.innerHTML = 't = <b>' + simT.toFixed(3) + ' с</b> (×1/' + P.speed + ')<br>межа <b>' + P.km + ' км</b>, пляма <b>Ø ' + spotDiameterM().toFixed(0) + ' м</b><br>коло <b>' + Math.max(0, circleId) + '</b>, вибірка <b>' + sampleInCircle + '</b><br>азимут <b>' + ae.az.toFixed(1) + '°</b> кут місця <b>' + ae.el.toFixed(1) + '°</b><br>центр ' + g.azc.toFixed(1) + '° / ' + g.elc.toFixed(0) + '°, ρ ' + g.rho.toFixed(1) + '°';
+    // Fixed-width fields (padStart) so the digits change in place and nothing jumps.
+    const pad = (v, n) => String(v).padStart(n, ' ');
+    R.t.textContent = pad(simT.toFixed(2), 9) + ' с  ×1/' + pad(P.speed, 3);
+    R.km.textContent = pad(P.km, 3) + ' км   Ø' + pad(spotDiameterM().toFixed(0), 4) + ' м';
+    R.c.textContent = pad(Math.max(0, circleId), 6) + ' / ' + pad(sampleInCircle, 4);
+    R.az.textContent = pad(ae.az.toFixed(1), 7) + '°';
+    R.el.textContent = pad(ae.el.toFixed(1), 7) + '°';
+    R.cc.textContent = pad(g.azc.toFixed(1), 6) + '° /' + pad(g.elc.toFixed(0), 3) + '°';
+    R.rho.textContent = pad(g.rho.toFixed(1), 7) + '°';
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
