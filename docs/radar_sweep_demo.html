@@ -61,7 +61,7 @@ header p { margin: 0; color: var(--muted); }
 .row select { font: 13px var(--font); color: var(--fg); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; flex: 1 1 100%; width: 100%; min-width: 0; max-width: 100%; }
 .card, .deck, .ctl, .row { min-width: 0; }
 .ctl label, .ctl output { min-width: 0; overflow-wrap: anywhere; }
-.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 12.5px; }
+.stats { display: grid; grid-template-columns: 1fr; gap: 5px 12px; font-size: 12.5px; }
 .stats div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dashed var(--line); padding-bottom: 3px; }
 .stats span:last-child { font-family: var(--mono); color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 9ch; text-align: right; }
 .stats span:first-child { color: var(--muted); }
@@ -69,10 +69,11 @@ header p { margin: 0; color: var(--muted); }
 .map { width: 100%; aspect-ratio: 2000 / 560; display: block; border-radius: 6px; background: #060a14; }
 .objs { display: flex; flex-direction: column; gap: 6px; }
 .advice { display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
-.adv { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; background: var(--panel2); border-radius: 6px; padding: 7px 9px; border-left: 3px solid var(--line); }
+.adv { display: flex; gap: 10px; align-items: center; background: var(--panel2); border-radius: 6px; padding: 7px 9px; border-left: 3px solid var(--line); }
+.adv .txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .adv.ok { border-left-color: var(--ok); } .adv.bad { border-left-color: var(--bad); }
-.adv .t { font-weight: 600; } .adv .d { grid-column: 1; color: var(--muted); font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums; line-height: 1.45; }
-.adv button { grid-row: 1 / span 2; max-width: 120px; white-space: normal; line-height: 1.25; }
+.adv .t { font-weight: 600; } .adv .d { color: var(--muted); font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums; line-height: 1.45; }
+.adv button { flex: 0 0 auto; max-width: 130px; white-space: normal; line-height: 1.25; }
 .adv .t, .adv .d { min-width: 0; overflow-wrap: anywhere; }
 .obj { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; background: var(--panel2); border-radius: 6px; padding: 6px 9px; }
 .obj .n { font-weight: 600; }
@@ -81,7 +82,8 @@ header p { margin: 0; color: var(--muted); }
 .pill.ok { background: rgba(123,216,143,.16); color: var(--ok); }
 .pill.bad { background: rgba(255,107,107,.16); color: var(--bad); }
 .pill.idle { background: var(--accent-dim); color: var(--muted); }
-.explain { margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.results { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; align-items: start; }
+.explain { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
 .explain h3 { margin: 0 0 6px; font-size: 14px; }
 .explain p, .explain li { color: var(--fg); margin: 0 0 6px; max-width: 62ch; }
 .explain ul { padding-left: 18px; margin: 0; }
@@ -169,21 +171,24 @@ header p { margin: 0; color: var(--muted); }
         <div class="ctl"><label for="persist">Пам'ять сліду, с</label><output id="persistO"></output><input type="range" id="persist" min="0.5" max="15" step="0.5" value="5"></div>
       </div>
 
-      <div class="card">
-        <h2>Що виходить</h2>
-        <div class="stats" id="stats"></div>
-      </div>
+    </div>
+  </div>
 
+  <div class="results">
       <div class="card">
-        <h2>Підказки: що потрібно для суцільного покриття</h2>
-        <div id="advice" class="advice"></div>
-      </div>
+      <h2>Що виходить</h2>
+      <div class="stats" id="stats"></div>
+    </div>
 
-      <div class="card">
-        <h2>Порівняння сусідніх кіл</h2>
-        <div class="objs" id="objs"></div>
-        <p style="margin:8px 0 0;color:var(--muted);font-size:12.5px">Відлуння вздовж одного кола довше за <span id="wideThr" class="formula"></span> (дві ширини променя) або присутнє більш як у <span id="tallThr" class="formula"></span> сусідніх колах поспіль вважається протяжним об'єктом (будівля, щогла, дерево) і відкидається. Розміри об'єктів задані в метрах на їхній відстані й перераховані в кути.</p>
-      </div>
+    <div class="card">
+      <h2>Підказки: що потрібно для суцільного покриття</h2>
+      <div id="advice" class="advice"></div>
+    </div>
+
+    <div class="card">
+      <h2>Порівняння сусідніх кіл</h2>
+      <div class="objs" id="objs"></div>
+      <p style="margin:8px 0 0;color:var(--muted);font-size:12.5px">Відлуння вздовж одного кола довше за <span id="wideThr" class="formula"></span> (дві ширини променя) або присутнє більш як у <span id="tallThr" class="formula"></span> сусідніх колах поспіль вважається протяжним об'єктом (будівля, щогла, дерево) і відкидається. Розміри об'єктів задані в метрах на їхній відстані й перераховані в кути.</p>
     </div>
   </div>
 
@@ -625,8 +630,8 @@ header p { margin: 0; color: var(--muted); }
       items.push({ ok: true, t: 'Повний прохід сектора ' + P.span + '°: ' + P.period.toFixed(1) + ' с, ' + r(P.period * P.spin) + ' кіл, ' + r(P.period * P.chirp) + ' вибірок',
         d: 'кожна точка сектора потрапляє в промінь ≈ ' + Math.max(1, Math.floor(P.bw / Math.max(1e-6, azStep))) + ' раз(и) за прохід' });
     }
-    adviceEl.innerHTML = items.map((it, i) => '<div class="adv ' + (it.ok ? 'ok' : 'bad') + '"><span class="t">' + (it.ok ? '✓ ' : '⚠ ') + it.t + '</span>' +
-      (it.btn ? '<button data-adv="' + i + '">' + it.btn.label + '</button>' : '') + '<span class="d">' + it.d + '</span></div>').join('');
+    adviceEl.innerHTML = items.map((it, i) => '<div class="adv ' + (it.ok ? 'ok' : 'bad') + '"><div class="txt"><span class="t">' + (it.ok ? '✓ ' : '⚠ ') + it.t + '</span><span class="d">' + it.d + '</span></div>' +
+      (it.btn ? '<button data-adv="' + i + '">' + it.btn.label + '</button>' : '') + '</div>').join('');
     adviceEl.querySelectorAll('[data-adv]').forEach(b => b.addEventListener('click', () => items[parseInt(b.dataset.adv, 10)].btn.act()));
   }
   function setSlider(id, value) {
