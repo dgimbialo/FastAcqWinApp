@@ -116,6 +116,15 @@ header p { margin: 0; color: var(--muted); }
       </div>
 
       <div class="card">
+        <h2>Межа сканування (радіус купола)</h2>
+        <div class="row" id="dist">
+          <button data-km="0.5">0,5 км</button><button data-km="1" class="primary">1 км</button><button data-km="2">2 км</button>
+          <button data-km="3">3 км</button><button data-km="4">4 км</button><button data-km="5">5 км</button>
+        </div>
+        <p style="margin:8px 0 0;color:var(--muted);font-size:12.5px">Пляма променя 1,5° на межі: діаметр = 2·R·tg(0,75°) ≈ R / 38. Механізм у центрі показано збільшено, не в масштабі.</p>
+      </div>
+
+      <div class="card">
         <h2>Параметри сканування</h2>
         <div class="row" style="margin-bottom:10px">
           <label for="mode" style="font-size:13px">Режим</label>
@@ -124,9 +133,10 @@ header p { margin: 0; color: var(--muted); }
             <option value="spiral">Лише дзеркало: зміна нахилу (спіраль, для порівняння)</option>
           </select>
         </div>
-        <div class="ctl"><label for="spin">Обертів дзеркала за секунду</label><output id="spinO"></output><input type="range" id="spin" min="2" max="50" step="1" value="20"></div>
-        <div class="ctl"><label for="tilt">Нахил дзеркала розгортки δ (задає діаметр кола 4δ)</label><output id="tiltO"></output><input type="range" id="tilt" min="2" max="20" step="0.5" value="15"></div>
+        <div class="ctl"><label for="spin">Оберти дзеркала розгортки</label><output id="spinO"></output><input type="range" id="spin" min="60" max="3000" step="30" value="1200"></div>
+        <div class="ctl"><label for="tilt">Нахил дзеркала розгортки δ (задає діаметр кола 4δ)</label><output id="tiltO"></output><input type="range" id="tilt" min="0" max="20" step="0.5" value="15"></div>
         <div class="ctl"><label for="elc">Кут місця центру кола</label><output id="elcO"></output><input type="range" id="elc" min="0" max="60" step="1" value="30"></div>
+        <div class="row" style="margin:-2px 0 10px"><label style="font-size:13px"><input type="checkbox" id="horizon" checked style="accent-color:var(--accent);vertical-align:-2px"> коло торкається горизонту (центр = ρ = 2δ)</label></div>
         <div class="ctl"><label for="span">Сектор по азимуту</label><output id="spanO"></output><input type="range" id="span" min="30" max="180" step="10" value="180"></div>
         <div class="ctl"><label for="period">Поворот конструкції: час проходу сектора (туди)</label><output id="periodO"></output><input type="range" id="period" min="2" max="40" step="1" value="10"></div>
         <div class="ctl"><label for="chirp">Чірпів (вибірок) за секунду</label><output id="chirpO"></output><input type="range" id="chirp" min="200" max="6000" step="100" value="2000"></div>
@@ -160,6 +170,11 @@ header p { margin: 0; color: var(--muted); }
       <p>Другий мотор повертає всю конструкцію (рупор, обидва дзеркала) вліво-вправо на 180° за 10 с, і коло їде по азимуту. Крок між сусідніми колами = швидкість повороту / оберти за секунду: при 18°/с і 20 об/с це 0,9° за коло, менше за ширину променя 1,5°, тож сусідні кола перекриваються і кожна точка сектора проглядається принаймні двічі за прохід.</p>
     </div>
     <div class="card">
+      <h3>Пляма на межі сканування</h3>
+      <p>Промінь шириною 1,5° (за рівнем −3 дБ) розкривається лінійно з відстанню: діаметр плями <span class="formula">d = 2·R·tg(0,75°) ≈ R / 38</span>. На 1 км це 26 м, на 3 км 79 м, на 5 км 131 м. Коло розгортки з кутовим радіусом ρ = 30° має на межі діаметр <span class="formula">2·R·sin ρ = R</span>: на 3 км це коло діаметром 3 км.</p>
+      <p>Відстань між сусідніми вибірками по колу на межі = крок у градусах × R. Поки вона менша за діаметр плями, кола заповнені без пропусків; інакше між вибірками лишаються непроглянуті смуги, і сторінка це позначає.</p>
+    </div>
+    <div class="card">
       <h3>Вибірки й порівняння кіл</h3>
       <p>Кожен чірп дає одну вибірку (дальність, швидкість) у поточному напрямку променя. При 2000 чірпів/с і 20 об/с це 100 вибірок на коло, крок по колу <span class="formula">360° · sin ρ / 100 = 1,8°</span>: трохи більше за промінь, тож для суцільного покриття потрібно або більше чірпів, або повільніший оберт.</p>
       <p>Вибірки кожного кола порівнюються з лівим і правим сусіднім колом: відлуння, що тягнеться багато вибірок уздовж кола, або те саме відлуння в багатьох колах поспіль, належить великому нерухомому об'єкту й відкидається. Компактне відлуння в 1..2 вибірках, яке з'являється в кількох сусідніх колах, лишається як ціль.</p>
@@ -172,24 +187,35 @@ header p { margin: 0; color: var(--muted); }
 (function () {
   'use strict';
   const D2R = Math.PI / 180, R2D = 180 / Math.PI;
-  const DOME_R = 60;                       // far-field dome radius (scene units; the mechanism is ~1 unit = 100 mm)
+  let DOME_R = 60;                         // dome radius in scene units (grows with the chosen distance; the mechanism stays schematic)
+  const unitsPerKm = () => DOME_R / P.km;  // scene units per kilometre
   const PPD = 8;                           // trail canvas pixels per degree
   const TW = 360 * PPD, TH = 90 * PPD;     // az -180..180, el 0..90
 
   // ---------- parameters (sliders) ----------
-  const P = { mode: 'pan', spin: 20, tilt: 15, elc: 30, span: 180, period: 10, chirp: 2000, bw: 1.5, speed: 20, persist: 5 };
+  const P = { mode: 'pan', spin: 20, tilt: 15, elc: 30, span: 180, period: 10, chirp: 2000, bw: 1.5, speed: 20, persist: 5, km: 1, horizon: true };
   const fmt = {
-    spin: v => v + ' об/с', tilt: v => v.toFixed(1) + '°  (ρ = ' + (2 * v).toFixed(0) + '°)', elc: v => v + '°',
+    spin: v => v + ' об/хв  (' + (v / 60).toFixed(1) + ' об/с)', tilt: v => v.toFixed(1) + '°  (ρ = ' + (2 * v).toFixed(0) + '°, Ø кола ' + (4 * v).toFixed(0) + '°)', elc: v => v + '°',
     span: v => '±' + (v / 2) + '°  (' + v + '°)', period: v => v + ' с', chirp: v => v + ' /с', bw: v => v.toFixed(2) + '°',
     speed: v => '×' + v, persist: v => v.toFixed(1) + ' с',
   };
   for (const k of Object.keys(fmt)) {
     const el = document.getElementById(k), out = document.getElementById(k + 'O');
-    const upd = () => { P[k] = parseFloat(el.value); out.value = fmt[k](P[k]); };
-    el.addEventListener('input', () => { upd(); if (k === 'bw' || k === 'tilt' || k === 'elc') rebuildBeam(); });
+    const upd = () => {
+      P[k] = parseFloat(el.value); out.value = fmt[k](P[k]);
+      if (k === 'spin') P.spin = parseFloat(el.value) / 60;            // rpm -> rev/s
+      if (k === 'tilt' && P.horizon) { P.elc = 2 * P.tilt; const e = document.getElementById('elc'); e.value = P.elc; document.getElementById('elcO').value = fmt.elc(P.elc); }
+    };
+    el.addEventListener('input', () => { upd(); if (k === 'bw' || k === 'tilt' || k === 'elc' || k === 'span') { rebuildBeam(); rebuildSector(); } });
     upd();
   }
-  document.getElementById('mode').addEventListener('change', e => { P.mode = e.target.value; clearTrail(); });
+  const horizonChk = document.getElementById('horizon'), elcSlider = document.getElementById('elc');
+  function applyHorizon() {
+    P.horizon = horizonChk.checked; elcSlider.disabled = P.horizon;
+    if (P.horizon) { P.elc = 2 * P.tilt; elcSlider.value = P.elc; document.getElementById('elcO').value = fmt.elc(P.elc); rebuildSector(); }
+  }
+  horizonChk.addEventListener('change', applyHorizon);
+  document.getElementById('mode').addEventListener('change', e => { P.mode = e.target.value; clearTrail(); rebuildSector(); });
 
   // ---------- scene ----------
   const view = document.getElementById('view'), glc = document.getElementById('gl');
@@ -197,33 +223,39 @@ header p { margin: 0; color: var(--muted); }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x060a14);
-  scene.fog = new THREE.Fog(0x060a14, 90, 160);
-  const camera = new THREE.PerspectiveCamera(50, 1.6, 0.1, 400);
+  scene.fog = new THREE.Fog(0x060a14, 200, 900);
+  const camera = new THREE.PerspectiveCamera(50, 1.6, 0.1, 2000);
   scene.add(new THREE.HemisphereLight(0xaac4ff, 0x202833, 0.9));
   const sun = new THREE.DirectionalLight(0xffffff, 0.6); sun.position.set(20, 40, 10); scene.add(sun);
 
-  // Ground grid (XZ plane, az 0 = -Z).
-  const grid = new THREE.GridHelper(2 * DOME_R, 24, 0x27405a, 0x16263a);
-  grid.position.y = -2.6; scene.add(grid);
-
-  // Direction from azimuth/elevation (degrees). az 0 -> -Z, az +90 -> +X (right), el up -> +Y.
-  function dirFromAzEl(az, el) {
-    const a = az * D2R, e = el * D2R, c = Math.cos(e);
-    return new THREE.Vector3(c * Math.sin(a), Math.sin(e), -c * Math.cos(a));
+  // Text label sprite (canvas texture), sized in scene units.
+  function makeLabel(text, color, heightUnits) {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 96;
+    const x = c.getContext('2d'); x.font = '600 56px Manrope, sans-serif'; x.textBaseline = 'middle'; x.textAlign = 'center';
+    x.fillStyle = 'rgba(6,10,20,.55)'; const w = x.measureText(text).width + 40; x.fillRect(256 - w / 2, 10, w, 76);
+    x.fillStyle = color; x.fillText(text, 256, 48);
+    const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+    sp.scale.set(heightUnits * 512 / 96, heightUnits, 1);
+    return sp;
   }
-  function azElFromDir(d) {
-    return { az: Math.atan2(d.x, -d.z) * R2D, el: Math.asin(Math.max(-1, Math.min(1, d.y))) * R2D };
-  }
-
-  // Dome: hemisphere with equirect UV (u = az, v = el), textured by the trail canvas.
-  const trail = document.createElement('canvas'); trail.width = TW; trail.height = TH;
-  const tctx = trail.getContext('2d');
-  const objLayer = document.createElement('canvas'); objLayer.width = TW; objLayer.height = TH;
-  const compose = document.createElement('canvas'); compose.width = TW; compose.height = TH;
-  const cctx = compose.getContext('2d');
-  const domeTex = new THREE.CanvasTexture(compose);
-  domeTex.minFilter = THREE.LinearFilter; domeTex.magFilter = THREE.LinearFilter;
-  {
+  // Ground, range rings, dome, grid lines, sector outline: rebuilt when the distance changes.
+  const far = new THREE.Group(); scene.add(far);
+  let dome = null;
+  function buildFar() {
+    while (far.children.length) { const c = far.children.pop(); if (c.geometry) c.geometry.dispose(); }
+    const grid = new THREE.GridHelper(2.2 * DOME_R, 22, 0x27405a, 0x16263a); grid.position.y = -3.8; far.add(grid);
+    // Range rings every 1 km (every 0.25 km below 1 km) with labels.
+    const stepKm = P.km <= 1 ? 0.25 : 1;
+    for (let k = stepKm; k <= P.km + 1e-9; k += stepKm) {
+      const r = k * unitsPerKm(), pts = [];
+      for (let i = 0; i <= 180; i++) { const a = i / 180 * 2 * Math.PI; pts.push(r * Math.sin(a), -3.7, -r * Math.cos(a)); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+      far.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x4fd1b8, transparent: true, opacity: 0.35 })));
+      const lab = makeLabel((k < 1 ? k.toFixed(2).replace('.', ',') : k) + ' км', '#9fe8d8', DOME_R * 0.045);
+      lab.position.set(r * Math.sin(0.35), -2.5, -r * Math.cos(0.35)); far.add(lab);
+    }
+    // Dome with equirect UV (u = az, v = el).
     const NA = 144, NE = 36, pos = [], uv = [], idx = [];
     for (let j = 0; j <= NE; j++) for (let i = 0; i <= NA; i++) {
       const az = -180 + 360 * i / NA, el = 90 * j / NE, d = dirFromAzEl(az, Math.min(el, 89.999));
@@ -237,9 +269,8 @@ header p { margin: 0; color: var(--muted); }
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     g.setIndex(idx);
-    const dome = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: domeTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
-    scene.add(dome);
-    // Lat/long lines.
+    dome = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: domeTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+    far.add(dome);
     const lp = [];
     for (let el = 0; el <= 75; el += 15) for (let az = -180; az < 180; az += 2) {
       const a = dirFromAzEl(az, el).multiplyScalar(DOME_R), b = dirFromAzEl(az + 2, el).multiplyScalar(DOME_R);
@@ -250,8 +281,47 @@ header p { margin: 0; color: var(--muted); }
       lp.push(a.x, a.y, a.z, b.x, b.y, b.z);
     }
     const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
-    scene.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x4fd1b8, transparent: true, opacity: 0.28 })));
+    far.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x4fd1b8, transparent: true, opacity: 0.28 })));
+    // Elevation labels on the az = 0 meridian, azimuth labels on the horizon.
+    for (let el = 15; el <= 75; el += 15) { const l = makeLabel(el + '°', '#9fe8d8', DOME_R * 0.04); l.position.copy(dirFromAzEl(0, el)).multiplyScalar(DOME_R * 1.03); far.add(l); }
+    for (let az = -180; az < 180; az += 30) { const l = makeLabel(az + '°', '#9fe8d8', DOME_R * 0.04); l.position.copy(dirFromAzEl(az, 2)).multiplyScalar(DOME_R * 1.04); far.add(l); }
+    rebuildSector();
   }
+  // Covered sector outline on the dome.
+  let sector = null;
+  function rebuildSector() {
+    if (!dome) return;
+    if (sector) { far.remove(sector); sector.geometry.dispose(); sector = null; }
+    const rho = 2 * P.tilt, azH = (P.mode === 'pan' ? P.span / 2 : 0) + rho, el0 = Math.max(0.3, P.elc - rho), el1 = Math.min(89.5, P.elc + rho);
+    const pts = [];
+    const push = (az, el) => { const d = dirFromAzEl(az, el).multiplyScalar(DOME_R * 0.995); pts.push(d.x, d.y, d.z); };
+    for (let az = -azH; az <= azH; az += 2) push(az, el0);
+    for (let el = el0; el <= el1; el += 2) push(azH, el);
+    for (let az = azH; az >= -azH; az -= 2) push(az, el1);
+    for (let el = el1; el >= el0; el -= 2) push(-azH, el);
+    push(-azH, el0);
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    sector = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.55 }));
+    far.add(sector);
+  }
+
+  // Direction from azimuth/elevation (degrees). az 0 -> -Z, az +90 -> +X (right), el up -> +Y.
+  function dirFromAzEl(az, el) {
+    const a = az * D2R, e = el * D2R, c = Math.cos(e);
+    return new THREE.Vector3(c * Math.sin(a), Math.sin(e), -c * Math.cos(a));
+  }
+  function azElFromDir(d) {
+    return { az: Math.atan2(d.x, -d.z) * R2D, el: Math.asin(Math.max(-1, Math.min(1, d.y))) * R2D };
+  }
+
+  // Trail canvases (angular map, 8 px per degree) composed into the dome texture.
+  const trail = document.createElement('canvas'); trail.width = TW; trail.height = TH;
+  const tctx = trail.getContext('2d');
+  const objLayer = document.createElement('canvas'); objLayer.width = TW; objLayer.height = TH;
+  const compose = document.createElement('canvas'); compose.width = TW; compose.height = TH;
+  const cctx = compose.getContext('2d');
+  const domeTex = new THREE.CanvasTexture(compose);
+  domeTex.minFilter = THREE.LinearFilter; domeTex.magFilter = THREE.LinearFilter;
 
   // ---------- objects on the dome (angular boxes) ----------
   const OBJ = [
@@ -296,26 +366,37 @@ header p { margin: 0; color: var(--muted); }
   mech.add(new THREE.LineSegments(pathGeo, new THREE.LineBasicMaterial({ color: 0xffb347 })));
 
   // Outgoing beam: a cone from the rotating mirror to the dome.
-  let beam = null, beamLine = null;
-  const spot = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
+  let beam = null, glow = null, beamLine = null, spotLabel = null;
+  const spot = new THREE.Mesh(new THREE.CircleGeometry(1, 32), new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false }));
   scene.add(spot);
+  function spotDiameterM() { return 2 * P.km * 1000 * Math.tan(P.bw / 2 * D2R); }
   function rebuildBeam() {
-    if (beam) { scene.remove(beam); beam.geometry.dispose(); }
+    for (const m of [beam, glow, beamLine]) if (m) { scene.remove(m); m.geometry.dispose(); }
+    if (spotLabel) { scene.remove(spotLabel); spotLabel.material.map.dispose(); }
     const rb = DOME_R * Math.tan(P.bw / 2 * D2R);
-    const g = new THREE.CylinderGeometry(rb, 0.05, DOME_R, 24, 1, true);
+    const g = new THREE.CylinderGeometry(rb, 0.05, DOME_R, 32, 1, true);
     g.translate(0, DOME_R / 2, 0);                       // apex at the origin, axis +Y
-    beam = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
-    scene.add(beam);
-    if (!beamLine) {
-      const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, DOME_R, 0], 3));
-      beamLine = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0xffe0a3 })); scene.add(beamLine);
-    }
-    spot.scale.setScalar(Math.max(0.3, rb * 1.2));
+    beam = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+    const gg = new THREE.CylinderGeometry(rb * 2.5, 0.05, DOME_R, 32, 1, true); gg.translate(0, DOME_R / 2, 0);
+    glow = new THREE.Mesh(gg, new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, DOME_R, 0], 3));
+    beamLine = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0xffe0a3 }));
+    scene.add(beam, glow, beamLine);
+    spot.scale.setScalar(Math.max(0.3, rb));
+    spotLabel = makeLabel('Ø ' + spotDiameterM().toFixed(0) + ' м', '#ffe0a3', DOME_R * 0.045); scene.add(spotLabel);
   }
-  rebuildBeam();
+  function setDistance(km) {
+    P.km = km; DOME_R = 60 * Math.pow(km, 0.5) + 20;      // 0.5 km -> 62, 1 km -> 80, 5 km -> 154 units
+    document.querySelectorAll('[data-km]').forEach(b => b.classList.toggle('primary', parseFloat(b.dataset.km) === km));
+    buildFar(); rebuildBeam();
+    for (const k of Object.keys(presets)) presets[k].dist = DOME_R * presets[k].k;
+    cam.target.set(0, DOME_R * 0.22, -DOME_R * 0.3);
+    setCam(cam.mode === 'radar' ? 'radar' : cam.mode);
+  }
+  document.querySelectorAll('[data-km]').forEach(b => b.addEventListener('click', () => setDistance(parseFloat(b.dataset.km))));
 
   // ---------- camera / orbit ----------
-  const cam = { yaw: 0.55, pitch: 0.42, dist: 85, target: new THREE.Vector3(0, 14, -18), mode: 'iso' };
+  const cam = { yaw: 0.55, pitch: 0.42, dist: 110, target: new THREE.Vector3(0, 18, -24), mode: 'iso' };
   function applyCamera() {
     if (cam.mode === 'radar') return;
     const cp = Math.cos(cam.pitch);
@@ -323,12 +404,12 @@ header p { margin: 0; color: var(--muted); }
     camera.lookAt(cam.target); camera.fov = 50; camera.updateProjectionMatrix();
   }
   const presets = {
-    iso: { yaw: 0.55, pitch: 0.42, dist: 85 }, side: { yaw: Math.PI / 2, pitch: 0.12, dist: 95 }, top: { yaw: 0.0, pitch: 1.45, dist: 110 },
+    iso: { yaw: 0.55, pitch: 0.42, k: 1.4, dist: 110 }, side: { yaw: Math.PI / 2, pitch: 0.12, k: 1.6, dist: 125 }, top: { yaw: 0.0, pitch: 1.45, k: 1.8, dist: 140 },
   };
   function setCam(m) {
     cam.mode = m;
     document.querySelectorAll('[data-cam]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.cam === m)));
-    if (presets[m]) Object.assign(cam, presets[m]);
+    if (presets[m]) { cam.yaw = presets[m].yaw; cam.pitch = presets[m].pitch; cam.dist = presets[m].dist; }
     applyCamera();
   }
   document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', () => setCam(b.dataset.cam)));
@@ -341,12 +422,12 @@ header p { margin: 0; color: var(--muted); }
     drag = { x: e.clientX, y: e.clientY }; applyCamera();
   });
   glc.addEventListener('pointerup', () => { drag = null; });
-  glc.addEventListener('wheel', e => { e.preventDefault(); cam.dist = Math.max(8, Math.min(220, cam.dist * (1 + Math.sign(e.deltaY) * 0.08))); applyCamera(); }, { passive: false });
+  glc.addEventListener('wheel', e => { e.preventDefault(); cam.dist = Math.max(6, Math.min(DOME_R * 4, cam.dist * (1 + Math.sign(e.deltaY) * 0.08))); applyCamera(); }, { passive: false });
   function resize() {
     const w = view.clientWidth, h = view.clientHeight;
     renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
   }
-  window.addEventListener('resize', resize); resize(); setCam('iso');
+  window.addEventListener('resize', resize); resize(); setDistance(1); applyHorizon();
 
   // ---------- simulation ----------
   let simT = 0, nextSample = 0, running = true, lastReal = performance.now();
@@ -431,12 +512,20 @@ header p { margin: 0; color: var(--muted); }
   function renderStats(g) {
     const spc = P.chirp / P.spin, rho = g.rho, step = spc > 0 && rho > 0 ? 360 * Math.sin(rho * D2R) / spc : 0;
     const panStep = P.mode === 'pan' ? P.span / P.period / P.spin : 0;
+    const Rm = P.km * 1000, dSpot = spotDiameterM();
+    const circleDiamM = 2 * Rm * Math.sin(rho * D2R), stepM = step * D2R * Rm, panStepM = panStep * D2R * Rm * Math.cos(P.elc * D2R);
     const rows = [
+      ['Межа сканування', P.km + ' км'],
+      ['Діаметр плями променя на межі', dSpot.toFixed(1) + ' м' + (dSpot >= 1000 ? '' : '')],
+      ['Діаметр кола на межі', circleDiamM.toFixed(0) + ' м'],
+      ['Відстань між вибірками на межі', stepM.toFixed(1) + ' м' + (stepM > dSpot ? '  ⚠ пропуски' : '')],
+      ['Відстань між сусідніми колами на межі', P.mode === 'pan' ? panStepM.toFixed(1) + ' м' : '—'],
       ['Кутовий радіус кола ρ = 2δ', (2 * P.tilt).toFixed(0) + '°'],
       ['Кут місця покриття', Math.max(0, P.elc - 2 * P.tilt).toFixed(0) + '..' + (P.elc + 2 * P.tilt).toFixed(0) + '°'],
       ['Азимут покриття', P.mode === 'pan' ? '±' + (P.span / 2 + 2 * P.tilt).toFixed(0) + '°' : '±' + (2 * P.tilt).toFixed(0) + '°'],
       ['Вибірок на коло', spc.toFixed(0)],
       ['Крок між вибірками по колу', step.toFixed(2) + '°' + (step > P.bw ? '  ⚠ > променя' : '')],
+      ['Оберти дзеркала', (P.spin * 60).toFixed(0) + ' об/хв'],
       ['Кіл на прохід сектора', (P.period * P.spin).toFixed(0)],
       ['Крок між сусідніми колами', P.mode === 'pan' ? panStep.toFixed(2) + '°' : '—'],
       ['Повний прохід сектора туди-назад', (2 * P.period).toFixed(0) + ' с'],
@@ -492,6 +581,7 @@ header p { margin: 0; color: var(--muted); }
     // Beam cone and spot.
     q.setFromUnitVectors(UP, tmpD); beam.quaternion.copy(q); beamLine.quaternion.copy(q);
     spot.position.copy(tmpD).multiplyScalar(DOME_R - 0.3); spot.lookAt(0, 0, 0);
+    spotLabel.position.copy(spot.position).addScaledVector(UP, DOME_R * 0.06);
     // Rotating mirror: normal = bisector of the incoming (+Y, travelling up) and outgoing beam.
     nrm.copy(tmpD).sub(UP).normalize(); q.setFromUnitVectors(UP, nrm); rotM.quaternion.copy(q);
     // The second motor turns the whole construction (horn, fixed mirror, base) to the current azimuth.
@@ -507,7 +597,7 @@ header p { margin: 0; color: var(--muted); }
     renderer.render(scene, camera);
     drawMap(g, ae);
     renderStats(g);
-    readoutEl.innerHTML = 't = <b>' + simT.toFixed(3) + ' с</b> (×1/' + P.speed + ')<br>коло <b>' + Math.max(0, circleId) + '</b>, вибірка <b>' + sampleInCircle + '</b><br>азимут <b>' + ae.az.toFixed(1) + '°</b> кут місця <b>' + ae.el.toFixed(1) + '°</b><br>центр ' + g.azc.toFixed(1) + '° / ' + g.elc.toFixed(0) + '°, ρ ' + g.rho.toFixed(1) + '°';
+    readoutEl.innerHTML = 't = <b>' + simT.toFixed(3) + ' с</b> (×1/' + P.speed + ')<br>межа <b>' + P.km + ' км</b>, пляма <b>Ø ' + spotDiameterM().toFixed(0) + ' м</b><br>коло <b>' + Math.max(0, circleId) + '</b>, вибірка <b>' + sampleInCircle + '</b><br>азимут <b>' + ae.az.toFixed(1) + '°</b> кут місця <b>' + ae.el.toFixed(1) + '°</b><br>центр ' + g.azc.toFixed(1) + '° / ' + g.elc.toFixed(0) + '°, ρ ' + g.rho.toFixed(1) + '°';
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
