@@ -87,7 +87,7 @@ header p { margin: 0; color: var(--muted); }
 <div class="wrap">
   <header>
     <h1>Розгортка променя FMCW-радара дзеркалом, що обертається</h1>
-    <p>Промінь 1,5° малює коло за кожен оберт дзеркала розгортки; другий мотор повертає всю конструкцію по азимуту на 180° за 10 с. Сектор 180° × 60°.</p>
+    <p>Промінь 1,5° малює коло за кожен оберт дзеркала розгортки; другий мотор повертає всю конструкцію по азимуту з регульованою швидкістю (типово 18 °/с, тобто 180° за 10 с). Сектор 180° × 60°.</p>
   </header>
 
   <div class="stage">
@@ -141,7 +141,7 @@ header p { margin: 0; color: var(--muted); }
         <div class="ctl"><label for="elc">Кут місця центру кола</label><output id="elcO"></output><input type="range" id="elc" min="0" max="60" step="1" value="30"></div>
         <div class="row" style="margin:-2px 0 10px"><label style="font-size:13px"><input type="checkbox" id="horizon" checked style="accent-color:var(--accent);vertical-align:-2px"> коло торкається горизонту (центр = ρ = 2δ)</label></div>
         <div class="ctl"><label for="span">Сектор по азимуту</label><output id="spanO"></output><input type="range" id="span" min="30" max="180" step="10" value="180"></div>
-        <div class="ctl"><label for="period">Поворот конструкції: час проходу сектора (туди)</label><output id="periodO"></output><input type="range" id="period" min="2" max="40" step="1" value="10"></div>
+        <div class="ctl"><label for="azspd">Швидкість повороту конструкції по азимуту</label><output id="azspdO"></output><input type="range" id="azspd" min="1" max="180" step="1" value="18"></div>
         <div class="ctl"><label for="chirp">Чірпів (вибірок) за секунду</label><output id="chirpO"></output><input type="range" id="chirp" min="200" max="6000" step="100" value="2000"></div>
         <div class="ctl"><label for="bw">Ширина променя</label><output id="bwO"></output><input type="range" id="bw" min="0.5" max="6" step="0.25" value="1.5"></div>
         <div class="ctl"><label for="speed">Сповільнення анімації</label><output id="speedO"></output><input type="range" id="speed" min="1" max="100" step="1" value="20"></div>
@@ -170,7 +170,7 @@ header p { margin: 0; color: var(--muted); }
     <div class="card">
       <h3>Два приводи: розгортка і поворот</h3>
       <p>Дзеркало розгортки відповідає лише за коло: його нахил δ задає діаметр кола 4δ, а швидкість обертання задає, скільки кіл за секунду малюється. Саме по собі воно дає коло, а зі зміною δ (режим «спіраль») лише круглу пляму до <span class="formula">±2δmax = ±40°</span>.</p>
-      <p>Другий мотор повертає всю конструкцію (рупор, обидва дзеркала) вліво-вправо на 180° за 10 с, і коло їде по азимуту. Крок між сусідніми колами = швидкість повороту / оберти за секунду: при 18°/с і 20 об/с це 0,9° за коло, менше за ширину променя 1,5°, тож сусідні кола перекриваються і кожна точка сектора проглядається принаймні двічі за прохід.</p>
+      <p>Другий мотор повертає всю конструкцію (рупор, обидва дзеркала) вліво-вправо, і коло їде по азимуту. Швидкість повороту регулюється; крок між сусідніми колами = швидкість повороту / оберти за секунду. При 18 °/с і 20 об/с це 0,9° за коло, менше за ширину променя 1,5°, тож сусідні кола перекриваються і кожна точка сектора проглядається принаймні двічі за прохід. При 60 °/с крок зросте до 3°, і між колами з'являться пропуски, що видно на розгортці.</p>
     </div>
     <div class="card">
       <h3>Пляма на межі сканування</h3>
@@ -196,10 +196,10 @@ header p { margin: 0; color: var(--muted); }
   const TW = 360 * PPD, TH = 90 * PPD;     // az -180..180, el 0..90
 
   // ---------- parameters (sliders) ----------
-  const P = { mode: 'pan', spin: 20, tilt: 15, elc: 30, span: 180, period: 10, chirp: 2000, bw: 1.5, speed: 20, persist: 5, km: 1, horizon: true };
+  const P = { mode: 'pan', spin: 20, tilt: 15, elc: 30, span: 180, azspd: 18, period: 10, chirp: 2000, bw: 1.5, speed: 20, persist: 5, km: 1, horizon: true };
   const fmt = {
     spin: v => v + ' об/хв  (' + (v / 60).toFixed(1) + ' об/с)', tilt: v => v.toFixed(1) + '°  (ρ = ' + (2 * v).toFixed(0) + '°, Ø кола ' + (4 * v).toFixed(0) + '°)', elc: v => v + '°',
-    span: v => '±' + (v / 2) + '°  (' + v + '°)', period: v => v + ' с', chirp: v => v + ' /с', bw: v => v.toFixed(2) + '°',
+    span: v => '±' + (v / 2) + '°  (' + v + '°)', azspd: v => v + ' °/с  (' + P.span + '° за ' + (P.span / v).toFixed(1) + ' с)', chirp: v => v + ' /с', bw: v => v.toFixed(2) + '°',
     speed: v => '×' + v, persist: v => v.toFixed(1) + ' с',
   };
   for (const k of Object.keys(fmt)) {
@@ -207,6 +207,7 @@ header p { margin: 0; color: var(--muted); }
     const upd = () => {
       P[k] = parseFloat(el.value); out.value = fmt[k](P[k]);
       if (k === 'spin') P.spin = parseFloat(el.value) / 60;            // rpm -> rev/s
+      if (k === 'azspd' || k === 'span') { P.period = P.span / P.azspd; document.getElementById('azspdO').value = fmt.azspd(P.azspd); }
       if (k === 'tilt' && P.horizon) { P.elc = 2 * P.tilt; const e = document.getElementById('elc'); e.value = P.elc; document.getElementById('elcO').value = fmt.elc(P.elc); }
     };
     el.addEventListener('input', () => { upd(); if (k === 'bw' || k === 'tilt' || k === 'elc' || k === 'span') { rebuildBeam(); rebuildSector(); } });
@@ -544,7 +545,8 @@ header p { margin: 0; color: var(--muted); }
       ['Оберти дзеркала', (P.spin * 60).toFixed(0) + ' об/хв'],
       ['Кіл на прохід сектора', (P.period * P.spin).toFixed(0)],
       ['Крок між сусідніми колами', P.mode === 'pan' ? panStep.toFixed(2) + '°' : '—'],
-      ['Повний прохід сектора туди-назад', (2 * P.period).toFixed(0) + ' с'],
+      ['Швидкість повороту по азимуту', P.azspd + ' °/с'],
+      ['Прохід сектора туди / туди-назад', P.period.toFixed(1) + ' / ' + (2 * P.period).toFixed(1) + ' с'],
     ];
     statsEl.innerHTML = rows.map(r => '<div><span>' + r[0] + '</span><span>' + r[1] + '</span></div>').join('');
     document.getElementById('wideThr').textContent = (2 * P.bw).toFixed(1) + '°';
