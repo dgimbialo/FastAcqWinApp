@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Розгортка променя радара</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a dark console. 3D viewport left, control deck + unwrapped az/el map right; explanation below. */
+:root {
+  --bg: #0b1220; --panel: #111a2b; --panel2: #16213a; --line: #24324d;
+  --fg: #e6edf7; --muted: #90a2ba; --accent: #ffb347; --accent-dim: rgba(255,179,71,.18);
+  --grid: #4fd1b8; --ok: #7bd88f; --bad: #ff6b6b; --note: #8fb8ff;
+  --font: "Manrope", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", Consolas, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #eef2f7; --panel: #ffffff; --panel2: #f3f6fb; --line: #d5dde9;
+    --fg: #15202e; --muted: #5b6b80; --accent: #c86f00; --accent-dim: rgba(200,111,0,.14);
+    --grid: #0f8f78; --ok: #1f8a4c; --bad: #c43b3b; --note: #2f66c4;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #eef2f7; --panel: #ffffff; --panel2: #f3f6fb; --line: #d5dde9;
+  --fg: #15202e; --muted: #5b6b80; --accent: #c86f00; --accent-dim: rgba(200,111,0,.14);
+  --grid: #0f8f78; --ok: #1f8a4c; --bad: #c43b3b; --note: #2f66c4;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 var(--font); }
+.wrap { max-width: 1480px; margin: 0 auto; padding-block: 18px 40px; padding-inline: 16px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 20px; margin-bottom: 14px; }
+h1 { font-size: 22px; font-weight: 700; margin: 0; letter-spacing: .01em; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); }
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 14px; }
+@media (max-width: 980px) { .stage { grid-template-columns: 1fr; } }
+.view { position: relative; min-width: 0; background: #060a14; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; aspect-ratio: 16 / 10; }
+@media (max-width: 980px) { .view { aspect-ratio: 4 / 3; } }
+.view canvas { display: block; width: 100%; height: 100%; }
+.hud { position: absolute; left: 10px; top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+.hud button, .deck button { font: 500 12.5px var(--font); color: var(--fg); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+.hud button { background: rgba(17,26,43,.82); color: #e6edf7; border-color: #2c3b58; }
+.hud button[aria-pressed="true"], .deck button.primary { background: var(--accent); color: #1a1200; border-color: transparent; }
+.hud button:focus-visible, .deck button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.readout { position: absolute; right: 10px; top: 10px; font: 12px/1.45 var(--mono); color: #d9e2f0; background: rgba(6,10,20,.72); border: 1px solid #2c3b58; border-radius: 6px; padding: 6px 9px; font-variant-numeric: tabular-nums; }
+.readout b { color: var(--accent); font-weight: 500; }
+.legend { position: absolute; left: 10px; bottom: 10px; font: 12px var(--font); color: #c7d2e3; background: rgba(6,10,20,.72); border: 1px solid #2c3b58; border-radius: 6px; padding: 6px 9px; display: flex; gap: 12px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 5px; }
+.deck { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+.card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+.ctl { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 10px; margin-bottom: 8px; }
+.ctl label { font-size: 13px; }
+.ctl output { font: 12.5px var(--mono); color: var(--accent); font-variant-numeric: tabular-nums; text-align: right; }
+.ctl input[type=range] { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--accent); }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.row select { font: 13px var(--font); color: var(--fg); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 12.5px; }
+.stats div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dashed var(--line); padding-bottom: 3px; }
+.stats span:last-child { font-family: var(--mono); color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stats span:first-child { color: var(--muted); }
+.map { width: 100%; aspect-ratio: 4 / 1.25; display: block; border-radius: 6px; background: #060a14; }
+.objs { display: flex; flex-direction: column; gap: 6px; }
+.obj { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; background: var(--panel2); border-radius: 6px; padding: 6px 9px; }
+.obj .n { font-weight: 600; }
+.obj .m { grid-column: 1; color: var(--muted); font-size: 12px; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.pill { grid-row: 1 / span 2; font: 600 11.5px var(--font); border-radius: 999px; padding: 3px 9px; white-space: nowrap; }
+.pill.ok { background: rgba(123,216,143,.16); color: var(--ok); }
+.pill.bad { background: rgba(255,107,107,.16); color: var(--bad); }
+.pill.idle { background: var(--accent-dim); color: var(--muted); }
+.explain { margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.explain h3 { margin: 0 0 6px; font-size: 14px; }
+.explain p, .explain li { color: var(--fg); margin: 0 0 6px; max-width: 62ch; }
+.explain ul { padding-left: 18px; margin: 0; }
+.formula { font-family: var(--mono); font-size: 12.5px; color: var(--note); }
+.warn { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .hud button, .deck button { transition: none; } }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <h1>Розгортка променя FMCW-радара дзеркалом, що обертається</h1>
+    <p>Промінь 1,5° малює коло за кожен оберт дзеркала розгортки; другий мотор повертає всю конструкцію по азимуту на 180° за 10 с. Сектор 180° × 60°.</p>
+  </header>
+
+  <div class="stage">
+    <div class="view" id="view">
+      <canvas id="gl"></canvas>
+      <div class="hud">
+        <button id="btnPlay" aria-pressed="true">Пауза</button>
+        <button id="btnClear">Стерти слід</button>
+        <button data-cam="iso" aria-pressed="true">Загальний вид</button>
+        <button data-cam="side">Збоку</button>
+        <button data-cam="top">Зверху</button>
+        <button data-cam="radar">З радара</button>
+      </div>
+      <div class="readout" id="readout"></div>
+      <div class="legend">
+        <span><i style="background:#ffb347"></i>промінь і слід вибірок</span>
+        <span><i style="background:#4fd1b8"></i>сітка азимут / кут місця</span>
+        <span><i style="background:#ff6b6b"></i>протяжний об'єкт</span>
+        <span><i style="background:#7bd88f"></i>компактна ціль</span>
+      </div>
+    </div>
+
+    <div class="deck">
+      <div class="card">
+        <h2>Розгортка (азимут × кут місця)</h2>
+        <canvas class="map" id="map" width="1440" height="450"></canvas>
+      </div>
+
+      <div class="card">
+        <h2>Параметри сканування</h2>
+        <div class="row" style="margin-bottom:10px">
+          <label for="mode" style="font-size:13px">Режим</label>
+          <select id="mode">
+            <option value="pan">Дзеркало розгортки + поворот усієї конструкції по азимуту</option>
+            <option value="spiral">Лише дзеркало: зміна нахилу (спіраль, для порівняння)</option>
+          </select>
+        </div>
+        <div class="ctl"><label for="spin">Обертів дзеркала за секунду</label><output id="spinO"></output><input type="range" id="spin" min="2" max="50" step="1" value="20"></div>
+        <div class="ctl"><label for="tilt">Нахил дзеркала розгортки δ (задає діаметр кола 4δ)</label><output id="tiltO"></output><input type="range" id="tilt" min="2" max="20" step="0.5" value="15"></div>
+        <div class="ctl"><label for="elc">Кут місця центру кола</label><output id="elcO"></output><input type="range" id="elc" min="0" max="60" step="1" value="30"></div>
+        <div class="ctl"><label for="span">Сектор по азимуту</label><output id="spanO"></output><input type="range" id="span" min="30" max="180" step="10" value="180"></div>
+        <div class="ctl"><label for="period">Поворот конструкції: час проходу сектора (туди)</label><output id="periodO"></output><input type="range" id="period" min="2" max="40" step="1" value="10"></div>
+        <div class="ctl"><label for="chirp">Чірпів (вибірок) за секунду</label><output id="chirpO"></output><input type="range" id="chirp" min="200" max="6000" step="100" value="2000"></div>
+        <div class="ctl"><label for="bw">Ширина променя</label><output id="bwO"></output><input type="range" id="bw" min="0.5" max="6" step="0.25" value="1.5"></div>
+        <div class="ctl"><label for="speed">Сповільнення анімації</label><output id="speedO"></output><input type="range" id="speed" min="1" max="100" step="1" value="20"></div>
+        <div class="ctl"><label for="persist">Пам'ять сліду, с</label><output id="persistO"></output><input type="range" id="persist" min="0.5" max="15" step="0.5" value="5"></div>
+      </div>
+
+      <div class="card">
+        <h2>Що виходить</h2>
+        <div class="stats" id="stats"></div>
+      </div>
+
+      <div class="card">
+        <h2>Порівняння сусідніх кіл</h2>
+        <div class="objs" id="objs"></div>
+        <p style="margin:8px 0 0;color:var(--muted);font-size:12.5px">Відлуння вздовж одного кола довше за <span id="wideThr" class="formula"></span> або присутнє більш як у <span id="tallThr" class="formula"></span> сусідніх колах поспіль вважається протяжним об'єктом (будівля, щогла) і відкидається.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="explain">
+    <div class="card">
+      <h3>Як утворюється коло</h3>
+      <p>Рупор світить горизонтально, нерухоме дзеркало під 45° повертає промінь вертикально вгору на дзеркало, що обертається. Якщо це дзеркало стоїть точно перпендикулярно до свого вала, промінь виходить в одному напрямку й при обертанні не рухається.</p>
+      <p>Нахил дзеркала на кут δ від перпендикуляра змушує його нормаль описувати конус навколо вала. Відбитий промінь описує конус удвічі ширший: кутовий радіус кола дорівнює <span class="formula">ρ = 2δ</span>. Для сектора 0..60° по вертикалі потрібно δ = 15° (ρ = 30°), центр кола на куті місця 30°.</p>
+    </div>
+    <div class="card">
+      <h3>Два приводи: розгортка і поворот</h3>
+      <p>Дзеркало розгортки відповідає лише за коло: його нахил δ задає діаметр кола 4δ, а швидкість обертання задає, скільки кіл за секунду малюється. Саме по собі воно дає коло, а зі зміною δ (режим «спіраль») лише круглу пляму до <span class="formula">±2δmax = ±40°</span>.</p>
+      <p>Другий мотор повертає всю конструкцію (рупор, обидва дзеркала) вліво-вправо на 180° за 10 с, і коло їде по азимуту. Крок між сусідніми колами = швидкість повороту / оберти за секунду: при 18°/с і 20 об/с це 0,9° за коло, менше за ширину променя 1,5°, тож сусідні кола перекриваються і кожна точка сектора проглядається принаймні двічі за прохід.</p>
+    </div>
+    <div class="card">
+      <h3>Вибірки й порівняння кіл</h3>
+      <p>Кожен чірп дає одну вибірку (дальність, швидкість) у поточному напрямку променя. При 2000 чірпів/с і 20 об/с це 100 вибірок на коло, крок по колу <span class="formula">360° · sin ρ / 100 = 1,8°</span>: трохи більше за промінь, тож для суцільного покриття потрібно або більше чірпів, або повільніший оберт.</p>
+      <p>Вибірки кожного кола порівнюються з лівим і правим сусіднім колом: відлуння, що тягнеться багато вибірок уздовж кола, або те саме відлуння в багатьох колах поспіль, належить великому нерухомому об'єкту й відкидається. Компактне відлуння в 1..2 вибірках, яке з'являється в кількох сусідніх колах, лишається як ціль.</p>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  const D2R = Math.PI / 180, R2D = 180 / Math.PI;
+  const DOME_R = 60;                       // far-field dome radius (scene units; the mechanism is ~1 unit = 100 mm)
+  const PPD = 8;                           // trail canvas pixels per degree
+  const TW = 360 * PPD, TH = 90 * PPD;     // az -180..180, el 0..90
+
+  // ---------- parameters (sliders) ----------
+  const P = { mode: 'pan', spin: 20, tilt: 15, elc: 30, span: 180, period: 10, chirp: 2000, bw: 1.5, speed: 20, persist: 5 };
+  const fmt = {
+    spin: v => v + ' об/с', tilt: v => v.toFixed(1) + '°  (ρ = ' + (2 * v).toFixed(0) + '°)', elc: v => v + '°',
+    span: v => '±' + (v / 2) + '°  (' + v + '°)', period: v => v + ' с', chirp: v => v + ' /с', bw: v => v.toFixed(2) + '°',
+    speed: v => '×' + v, persist: v => v.toFixed(1) + ' с',
+  };
+  for (const k of Object.keys(fmt)) {
+    const el = document.getElementById(k), out = document.getElementById(k + 'O');
+    const upd = () => { P[k] = parseFloat(el.value); out.value = fmt[k](P[k]); };
+    el.addEventListener('input', () => { upd(); if (k === 'bw' || k === 'tilt' || k === 'elc') rebuildBeam(); });
+    upd();
+  }
+  document.getElementById('mode').addEventListener('change', e => { P.mode = e.target.value; clearTrail(); });
+
+  // ---------- scene ----------
+  const view = document.getElementById('view'), glc = document.getElementById('gl');
+  const renderer = new THREE.WebGLRenderer({ canvas: glc, antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x060a14);
+  scene.fog = new THREE.Fog(0x060a14, 90, 160);
+  const camera = new THREE.PerspectiveCamera(50, 1.6, 0.1, 400);
+  scene.add(new THREE.HemisphereLight(0xaac4ff, 0x202833, 0.9));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.6); sun.position.set(20, 40, 10); scene.add(sun);
+
+  // Ground grid (XZ plane, az 0 = -Z).
+  const grid = new THREE.GridHelper(2 * DOME_R, 24, 0x27405a, 0x16263a);
+  grid.position.y = -2.6; scene.add(grid);
+
+  // Direction from azimuth/elevation (degrees). az 0 -> -Z, az +90 -> +X (right), el up -> +Y.
+  function dirFromAzEl(az, el) {
+    const a = az * D2R, e = el * D2R, c = Math.cos(e);
+    return new THREE.Vector3(c * Math.sin(a), Math.sin(e), -c * Math.cos(a));
+  }
+  function azElFromDir(d) {
+    return { az: Math.atan2(d.x, -d.z) * R2D, el: Math.asin(Math.max(-1, Math.min(1, d.y))) * R2D };
+  }
+
+  // Dome: hemisphere with equirect UV (u = az, v = el), textured by the trail canvas.
+  const trail = document.createElement('canvas'); trail.width = TW; trail.height = TH;
+  const tctx = trail.getContext('2d');
+  const objLayer = document.createElement('canvas'); objLayer.width = TW; objLayer.height = TH;
+  const compose = document.createElement('canvas'); compose.width = TW; compose.height = TH;
+  const cctx = compose.getContext('2d');
+  const domeTex = new THREE.CanvasTexture(compose);
+  domeTex.minFilter = THREE.LinearFilter; domeTex.magFilter = THREE.LinearFilter;
+  {
+    const NA = 144, NE = 36, pos = [], uv = [], idx = [];
+    for (let j = 0; j <= NE; j++) for (let i = 0; i <= NA; i++) {
+      const az = -180 + 360 * i / NA, el = 90 * j / NE, d = dirFromAzEl(az, Math.min(el, 89.999));
+      pos.push(d.x * DOME_R, d.y * DOME_R, d.z * DOME_R); uv.push(i / NA, el / 90);
+    }
+    for (let j = 0; j < NE; j++) for (let i = 0; i < NA; i++) {
+      const a = j * (NA + 1) + i, b = a + 1, c = a + NA + 1, dd = c + 1;
+      idx.push(a, c, b, b, c, dd);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx);
+    const dome = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: domeTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+    scene.add(dome);
+    // Lat/long lines.
+    const lp = [];
+    for (let el = 0; el <= 75; el += 15) for (let az = -180; az < 180; az += 2) {
+      const a = dirFromAzEl(az, el).multiplyScalar(DOME_R), b = dirFromAzEl(az + 2, el).multiplyScalar(DOME_R);
+      lp.push(a.x, a.y, a.z, b.x, b.y, b.z);
+    }
+    for (let az = -180; az < 180; az += 30) for (let el = 0; el < 90; el += 2) {
+      const a = dirFromAzEl(az, el).multiplyScalar(DOME_R), b = dirFromAzEl(az, el + 2).multiplyScalar(DOME_R);
+      lp.push(a.x, a.y, a.z, b.x, b.y, b.z);
+    }
+    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
+    scene.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x4fd1b8, transparent: true, opacity: 0.28 })));
+  }
+
+  // ---------- objects on the dome (angular boxes) ----------
+  const OBJ = [
+    { name: 'Будинок', az0: 15, az1: 45, el0: 0, el1: 22, kind: 'big' },
+    { name: 'Щогла', az0: -52, az1: -49.5, el0: 0, el1: 38, kind: 'big' },
+    { name: 'Дрон', az0: -14, az1: -12.5, el0: 33, el1: 34.5, kind: 'small' },
+  ];
+  for (const o of OBJ) { o.hits = 0; o.lastExtent = 0; o.seen = 0; o.status = 'idle'; o.hold = 0; }
+  {
+    const c = objLayer.getContext('2d');
+    for (const o of OBJ) {
+      const x0 = (o.az0 + 180) * PPD, x1 = (o.az1 + 180) * PPD, y0 = (90 - o.el1) * PPD, y1 = (90 - o.el0) * PPD;
+      c.fillStyle = o.kind === 'big' ? 'rgba(255,107,107,.30)' : 'rgba(123,216,143,.55)';
+      c.fillRect(x0, y0, Math.max(2, x1 - x0), Math.max(2, y1 - y0));
+      c.strokeStyle = o.kind === 'big' ? '#ff6b6b' : '#7bd88f'; c.lineWidth = 2; c.strokeRect(x0, y0, Math.max(2, x1 - x0), Math.max(2, y1 - y0));
+      c.fillStyle = '#e6edf7'; c.font = '600 20px Manrope, sans-serif'; c.fillText(o.name, x0, y0 - 6);
+    }
+  }
+
+  // ---------- mechanism ----------
+  const mech = new THREE.Group(); scene.add(mech);
+  const matMetal = new THREE.MeshStandardMaterial({ color: 0x9fb3c8, metalness: 0.6, roughness: 0.35 });
+  const matMirror = new THREE.MeshStandardMaterial({ color: 0xdfe8f2, metalness: 0.9, roughness: 0.15, side: THREE.DoubleSide });
+  // Horn: points +X at y = -2.5, x from -3.6 to -1.6.
+  const horn = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.6, 24, 1, true), matMetal);
+  horn.rotation.z = Math.PI / 2; horn.position.set(-2.4, -2.5, 0); mech.add(horn);
+  const guide = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.3, 0.3), matMetal); guide.position.set(-3.8, -2.5, 0); mech.add(guide);
+  // Fixed mirror at origin.x = 0, y = -2.5, tilted 45° about Z (reflects +X into +Y).
+  const fixedM = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.06, 3.0), matMirror);
+  fixedM.rotation.z = Math.PI / 4; fixedM.position.set(0, -2.5, 0); mech.add(fixedM);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(5.5, 0.15, 3.6), new THREE.MeshStandardMaterial({ color: 0x33445c, roughness: 0.8 }));
+  base.position.set(-1.2, -3.35, 0); mech.add(base);
+  // Rotating mirror (disc 150 mm -> 1.5 units) at the origin; orientation follows the beam.
+  const rotM = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 0.05, 48), matMirror); scene.add(rotM);
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.6, 12), matMetal); scene.add(shaft);
+  const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.7, 20), new THREE.MeshStandardMaterial({ color: 0x6b4fd1, roughness: 0.5 })); scene.add(motor);
+  // Azimuth drive under the base: turns the whole construction about the vertical beam axis.
+  const azDrive = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.5, 24), new THREE.MeshStandardMaterial({ color: 0x6b4fd1, roughness: 0.5 })); azDrive.position.set(0, -3.7, 0); scene.add(azDrive);
+  // Beam path segments: horn -> fixed mirror -> rotating mirror.
+  const pathGeo = new THREE.BufferGeometry();
+  pathGeo.setAttribute('position', new THREE.Float32BufferAttribute([-1.6, -2.5, 0, 0, -2.5, 0, 0, -2.5, 0, 0, 0, 0], 3));
+  mech.add(new THREE.LineSegments(pathGeo, new THREE.LineBasicMaterial({ color: 0xffb347 })));
+
+  // Outgoing beam: a cone from the rotating mirror to the dome.
+  let beam = null, beamLine = null;
+  const spot = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
+  scene.add(spot);
+  function rebuildBeam() {
+    if (beam) { scene.remove(beam); beam.geometry.dispose(); }
+    const rb = DOME_R * Math.tan(P.bw / 2 * D2R);
+    const g = new THREE.CylinderGeometry(rb, 0.05, DOME_R, 24, 1, true);
+    g.translate(0, DOME_R / 2, 0);                       // apex at the origin, axis +Y
+    beam = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+    scene.add(beam);
+    if (!beamLine) {
+      const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, DOME_R, 0], 3));
+      beamLine = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0xffe0a3 })); scene.add(beamLine);
+    }
+    spot.scale.setScalar(Math.max(0.3, rb * 1.2));
+  }
+  rebuildBeam();
+
+  // ---------- camera / orbit ----------
+  const cam = { yaw: 0.55, pitch: 0.42, dist: 85, target: new THREE.Vector3(0, 14, -18), mode: 'iso' };
+  function applyCamera() {
+    if (cam.mode === 'radar') return;
+    const cp = Math.cos(cam.pitch);
+    camera.position.set(cam.target.x + cam.dist * cp * Math.sin(cam.yaw), cam.target.y + cam.dist * Math.sin(cam.pitch), cam.target.z + cam.dist * cp * Math.cos(cam.yaw));
+    camera.lookAt(cam.target); camera.fov = 50; camera.updateProjectionMatrix();
+  }
+  const presets = {
+    iso: { yaw: 0.55, pitch: 0.42, dist: 85 }, side: { yaw: Math.PI / 2, pitch: 0.12, dist: 95 }, top: { yaw: 0.0, pitch: 1.45, dist: 110 },
+  };
+  function setCam(m) {
+    cam.mode = m;
+    document.querySelectorAll('[data-cam]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.cam === m)));
+    if (presets[m]) Object.assign(cam, presets[m]);
+    applyCamera();
+  }
+  document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', () => setCam(b.dataset.cam)));
+  let drag = null;
+  glc.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY }; glc.setPointerCapture(e.pointerId); });
+  glc.addEventListener('pointermove', e => {
+    if (!drag) return;
+    if (cam.mode === 'radar') { cam.mode = 'iso'; setCam('iso'); }
+    cam.yaw -= (e.clientX - drag.x) * 0.006; cam.pitch = Math.max(-0.1, Math.min(1.5, cam.pitch + (e.clientY - drag.y) * 0.005));
+    drag = { x: e.clientX, y: e.clientY }; applyCamera();
+  });
+  glc.addEventListener('pointerup', () => { drag = null; });
+  glc.addEventListener('wheel', e => { e.preventDefault(); cam.dist = Math.max(8, Math.min(220, cam.dist * (1 + Math.sign(e.deltaY) * 0.08))); applyCamera(); }, { passive: false });
+  function resize() {
+    const w = view.clientWidth, h = view.clientHeight;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize); resize(); setCam('iso');
+
+  // ---------- simulation ----------
+  let simT = 0, nextSample = 0, running = true, lastReal = performance.now();
+  let circleId = -1, sampleInCircle = 0, samplesPerCircle = 0;
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) { running = false; }
+  const btnPlay = document.getElementById('btnPlay');
+  function setRunning(r) { running = r; btnPlay.textContent = r ? 'Пауза' : 'Пуск'; btnPlay.setAttribute('aria-pressed', String(r)); }
+  setRunning(running);
+  btnPlay.addEventListener('click', () => setRunning(!running));
+  document.getElementById('btnClear').addEventListener('click', clearTrail);
+  function clearTrail() { tctx.clearRect(0, 0, TW, TH); for (const o of OBJ) { o.hits = 0; o.seen = 0; o.status = 'idle'; o.lastExtent = 0; o.hold = 0; } renderObjs(); }
+
+  // Slow motion: 0..1 triangle over one pan period (there and back = 2 periods).
+  function tri(x) { x = x % 2; return x < 1 ? x : 2 - x; }
+  // Centre direction and circle radius at sim time t.
+  function geometry(t) {
+    if (P.mode === 'pan') {
+      return { azc: -P.span / 2 + P.span * tri(t / P.period), elc: P.elc, rho: 2 * P.tilt };
+    }
+    return { azc: 0, elc: P.elc, rho: 2 * P.tilt * tri(t / P.period) };
+  }
+  // Beam direction at time t: the centre rotated by rho in the direction of the spin phase.
+  const tmpC = new THREE.Vector3(), tmpU = new THREE.Vector3(), tmpR = new THREE.Vector3(), tmpD = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
+  function beamDir(t, out) {
+    const g = geometry(t), phase = 2 * Math.PI * P.spin * t;
+    tmpC.copy(dirFromAzEl(g.azc, g.elc));
+    tmpR.crossVectors(tmpC, UP).normalize();               // right
+    tmpU.crossVectors(tmpR, tmpC).normalize();              // up on the sphere
+    const r = g.rho * D2R;
+    out.copy(tmpC).multiplyScalar(Math.cos(r)).addScaledVector(tmpU, Math.sin(r) * Math.cos(phase)).addScaledVector(tmpR, Math.sin(r) * Math.sin(phase));
+    return g;
+  }
+  function paintSample(az, el) {
+    const x = (az + 180) * PPD, y = (90 - el) * PPD, ry = P.bw / 2 * PPD, rx = ry / Math.max(0.15, Math.cos(el * D2R));
+    tctx.fillStyle = 'rgba(255,179,71,0.95)';
+    tctx.beginPath(); tctx.ellipse(x, y, rx, ry, 0, 0, 2 * Math.PI); tctx.fill();
+  }
+  function finishCircle() {
+    const step = (samplesPerCircle > 0) ? 360 * Math.sin(2 * P.tilt * D2R) / samplesPerCircle : 0;
+    const wideThr = Math.max(4 * P.bw, 3), tallThr = 6;
+    for (const o of OBJ) {
+      o.lastExtent = o.hits * step;
+      if (o.hits > 0) { o.seen += 1; } else { o.seen = 0; }
+      if (o.hits > 0) { o.status = (o.lastExtent > wideThr || o.seen > tallThr) ? 'bad' : 'ok'; o.hold = 40; }
+      else if (o.hold > 0) { o.hold--; if (o.hold === 0) o.status = 'idle'; }
+      o.hits = 0;
+    }
+    renderObjs();
+  }
+  function stepSim(realDt) {
+    const dt = realDt / P.speed;
+    simT += dt;
+    // fade the trail (real-time persistence)
+    tctx.globalCompositeOperation = 'destination-out';
+    tctx.fillStyle = 'rgba(0,0,0,' + Math.min(1, realDt / P.persist) + ')';
+    tctx.fillRect(0, 0, TW, TH);
+    tctx.globalCompositeOperation = 'source-over';
+    let n = 0;
+    while (nextSample <= simT && n < 5000) {
+      beamDir(nextSample, tmpD);
+      const ae = azElFromDir(tmpD);
+      const cid = Math.floor(P.spin * nextSample);
+      if (cid !== circleId) { if (circleId >= 0) finishCircle(); circleId = cid; samplesPerCircle = Math.round(P.chirp / P.spin); sampleInCircle = 0; }
+      sampleInCircle++;
+      if (ae.el >= 0) paintSample(ae.az, ae.el);
+      for (const o of OBJ) if (ae.az >= o.az0 && ae.az <= o.az1 && ae.el >= o.el0 && ae.el <= o.el1) o.hits++;
+      nextSample += 1 / P.chirp; n++;
+    }
+  }
+
+  // ---------- UI read-outs ----------
+  const statsEl = document.getElementById('stats'), objsEl = document.getElementById('objs'), readoutEl = document.getElementById('readout');
+  function renderObjs() {
+    objsEl.innerHTML = OBJ.map(o => {
+      const w = (o.az1 - o.az0).toFixed(1), h = (o.el1 - o.el0).toFixed(1);
+      const pill = o.status === 'bad' ? '<span class="pill bad">відкинуто</span>' : o.status === 'ok' ? '<span class="pill ok">ціль</span>' : '<span class="pill idle">поза променем</span>';
+      return '<div class="obj"><span class="n">' + o.name + '</span>' + pill + '<span class="m">' + w + '° × ' + h + '°, вздовж кола ' + o.lastExtent.toFixed(1) + '°, кіл поспіль ' + o.seen + '</span></div>';
+    }).join('');
+  }
+  renderObjs();
+  function renderStats(g) {
+    const spc = P.chirp / P.spin, rho = g.rho, step = spc > 0 && rho > 0 ? 360 * Math.sin(rho * D2R) / spc : 0;
+    const panStep = P.mode === 'pan' ? P.span / P.period / P.spin : 0;
+    const rows = [
+      ['Кутовий радіус кола ρ = 2δ', (2 * P.tilt).toFixed(0) + '°'],
+      ['Кут місця покриття', Math.max(0, P.elc - 2 * P.tilt).toFixed(0) + '..' + (P.elc + 2 * P.tilt).toFixed(0) + '°'],
+      ['Азимут покриття', P.mode === 'pan' ? '±' + (P.span / 2 + 2 * P.tilt).toFixed(0) + '°' : '±' + (2 * P.tilt).toFixed(0) + '°'],
+      ['Вибірок на коло', spc.toFixed(0)],
+      ['Крок між вибірками по колу', step.toFixed(2) + '°' + (step > P.bw ? '  ⚠ > променя' : '')],
+      ['Кіл на прохід сектора', (P.period * P.spin).toFixed(0)],
+      ['Крок між сусідніми колами', P.mode === 'pan' ? panStep.toFixed(2) + '°' : '—'],
+      ['Повний прохід сектора туди-назад', (2 * P.period).toFixed(0) + ' с'],
+    ];
+    statsEl.innerHTML = rows.map(r => '<div><span>' + r[0] + '</span><span>' + r[1] + '</span></div>').join('');
+    document.getElementById('wideThr').textContent = Math.max(4 * P.bw, 3).toFixed(1) + '°';
+    document.getElementById('tallThr').textContent = '6';
+  }
+
+  // ---------- 2D map ----------
+  const map = document.getElementById('map'), mctx = map.getContext('2d');
+  function drawMap(g, ae) {
+    const W = map.width, H = map.height, ml = 44, mb = 30, mt = 10, mr = 10, pw = W - ml - mr, ph = H - mt - mb;
+    mctx.fillStyle = '#060a14'; mctx.fillRect(0, 0, W, H);
+    mctx.drawImage(compose, 0, 0, TW, TH, ml, mt, pw, ph);
+    mctx.strokeStyle = 'rgba(79,209,184,.35)'; mctx.lineWidth = 1; mctx.fillStyle = '#90a2ba'; mctx.font = '16px IBM Plex Mono, monospace';
+    mctx.textAlign = 'center';
+    for (let az = -180; az <= 180; az += 30) { const x = ml + (az + 180) / 360 * pw; mctx.beginPath(); mctx.moveTo(x, mt); mctx.lineTo(x, mt + ph); mctx.stroke(); mctx.fillText(az + '°', x, H - 8); }
+    mctx.textAlign = 'right';
+    for (let el = 0; el <= 90; el += 30) { const y = mt + (90 - el) / 90 * ph; mctx.beginPath(); mctx.moveTo(ml, y); mctx.lineTo(ml + pw, y); mctx.stroke(); mctx.fillText(el + '°', ml - 6, y + 5); }
+    // Current circle outline.
+    mctx.strokeStyle = 'rgba(255,224,163,.8)'; mctx.lineWidth = 1.5; mctx.beginPath();
+    const c = dirFromAzEl(g.azc, g.elc), rr = tmpR.clone().crossVectors(c, UP).normalize(), uu = tmpU.clone().crossVectors(rr, c).normalize(), r = g.rho * D2R;
+    let first = true, lastX = 0;
+    for (let k = 0; k <= 180; k++) {
+      const ph2 = k / 180 * 2 * Math.PI;
+      const d = c.clone().multiplyScalar(Math.cos(r)).addScaledVector(uu, Math.sin(r) * Math.cos(ph2)).addScaledVector(rr, Math.sin(r) * Math.sin(ph2));
+      const a = azElFromDir(d); if (a.el < 0) { first = true; continue; }
+      const x = ml + (a.az + 180) / 360 * pw, y = mt + (90 - a.el) / 90 * ph;
+      if (first || Math.abs(x - lastX) > pw / 2) { mctx.moveTo(x, y); first = false; } else mctx.lineTo(x, y);
+      lastX = x;
+    }
+    mctx.stroke();
+    // Beam position.
+    if (ae.el >= 0) {
+      const x = ml + (ae.az + 180) / 360 * pw, y = mt + (90 - ae.el) / 90 * ph;
+      mctx.fillStyle = '#fff3d6'; mctx.beginPath(); mctx.arc(x, y, 4, 0, 2 * Math.PI); mctx.fill();
+    }
+    mctx.textAlign = 'left'; mctx.fillStyle = '#90a2ba'; mctx.fillText('азимут', ml + pw - 70, H - 8);
+  }
+
+  // ---------- frame loop ----------
+  const nrm = new THREE.Vector3(), q = new THREE.Quaternion(), shaftDir = new THREE.Vector3();
+  function frame(now) {
+    const realDt = Math.min(0.05, (now - lastReal) / 1000); lastReal = now;
+    if (running) stepSim(realDt);
+    const g = beamDir(simT, tmpD);
+    const ae = azElFromDir(tmpD);
+
+    // Dome texture = objects + trail.
+    cctx.clearRect(0, 0, TW, TH); cctx.drawImage(objLayer, 0, 0); cctx.drawImage(trail, 0, 0); domeTex.needsUpdate = true;
+
+    // Beam cone and spot.
+    q.setFromUnitVectors(UP, tmpD); beam.quaternion.copy(q); beamLine.quaternion.copy(q);
+    spot.position.copy(tmpD).multiplyScalar(DOME_R - 0.3); spot.lookAt(0, 0, 0);
+    // Rotating mirror: normal = bisector of the incoming (+Y, travelling up) and outgoing beam.
+    nrm.copy(tmpD).sub(UP).normalize(); q.setFromUnitVectors(UP, nrm); rotM.quaternion.copy(q);
+    // The second motor turns the whole construction (horn, fixed mirror, base) to the current azimuth.
+    mech.rotation.y = -g.azc * D2R;
+    // Shaft along the nominal normal (centre direction), behind the mirror.
+    shaftDir.copy(dirFromAzEl(g.azc, g.elc)).sub(UP).normalize();
+    q.setFromUnitVectors(UP, shaftDir); shaft.quaternion.copy(q); shaft.position.copy(shaftDir).multiplyScalar(-0.85);
+    motor.quaternion.copy(q); motor.position.copy(shaftDir).multiplyScalar(-1.9);
+
+    if (cam.mode === 'radar') {
+      camera.position.set(0, 0.4, 0.6); camera.lookAt(dirFromAzEl(g.azc, Math.max(10, g.elc)).multiplyScalar(DOME_R)); camera.fov = 100; camera.updateProjectionMatrix();
+    }
+    renderer.render(scene, camera);
+    drawMap(g, ae);
+    renderStats(g);
+    readoutEl.innerHTML = 't = <b>' + simT.toFixed(3) + ' с</b> (×1/' + P.speed + ')<br>коло <b>' + Math.max(0, circleId) + '</b>, вибірка <b>' + sampleInCircle + '</b><br>азимут <b>' + ae.az.toFixed(1) + '°</b> кут місця <b>' + ae.el.toFixed(1) + '°</b><br>центр ' + g.azc.toFixed(1) + '° / ' + g.elc.toFixed(0) + '°, ρ ' + g.rho.toFixed(1) + '°';
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
