@@ -97,6 +97,7 @@ header p { margin: 0; color: var(--muted); }
       <div class="hud">
         <button id="btnPlay" aria-pressed="true">Пауза</button>
         <button id="btnClear">Стерти слід</button>
+        <button id="btnResetAll">Скинути все</button>
         <button data-cam="iso" aria-pressed="true">Загальний вид</button>
         <button data-cam="side">Збоку</button>
         <button data-cam="top">Зверху</button>
@@ -129,6 +130,9 @@ header p { margin: 0; color: var(--muted); }
 
       <div class="card">
         <h2>Параметри сканування</h2>
+        <div class="row" style="margin-bottom:10px">
+          <button id="btnResetSettings">Скинути налаштування до типових</button>
+        </div>
         <div class="row" style="margin-bottom:10px">
           <label for="mode" style="font-size:13px">Режим</label>
           <select id="mode">
@@ -457,6 +461,21 @@ header p { margin: 0; color: var(--muted); }
   setRunning(running);
   btnPlay.addEventListener('click', () => setRunning(!running));
   document.getElementById('btnClear').addEventListener('click', clearTrail);
+  function resetSettings() {
+    for (const id of ['spin', 'tilt', 'elc', 'span', 'azspd', 'chirp', 'bw', 'speed', 'persist']) {
+      const el = document.getElementById(id); el.value = el.defaultValue; el.dispatchEvent(new Event('input'));
+    }
+    const mode = document.getElementById('mode'); mode.value = 'pan'; P.mode = 'pan';
+    horizonChk.checked = true; applyHorizon();
+    setDistance(1); setCam('iso');
+    rebuildBeam(); rebuildSector();
+  }
+  function resetAll() {
+    resetSettings(); clearTrail();
+    simT = 0; nextSample = 0; circleId = -1; sampleInCircle = 0;
+  }
+  document.getElementById('btnResetSettings').addEventListener('click', resetSettings);
+  document.getElementById('btnResetAll').addEventListener('click', resetAll);
   function clearTrail() { tctx.clearRect(0, 0, TW, TH); for (const o of OBJ) { o.hits = 0; o.seen = 0; o.status = 'idle'; o.lastExtent = 0; o.hold = 0; } renderObjs(); }
 
   // Slow motion: 0..1 triangle over one pan period (there and back = 2 periods).
