@@ -62,7 +62,8 @@ header p { margin: 0; color: var(--muted); }
 .stats div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dashed var(--line); padding-bottom: 3px; }
 .stats span:last-child { font-family: var(--mono); color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stats span:first-child { color: var(--muted); }
-.map { width: 100%; aspect-ratio: 4 / 1.25; display: block; border-radius: 6px; background: #060a14; }
+.left { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.map { width: 100%; aspect-ratio: 2000 / 560; display: block; border-radius: 6px; background: #060a14; }
 .objs { display: flex; flex-direction: column; gap: 6px; }
 .obj { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; background: var(--panel2); border-radius: 6px; padding: 6px 9px; }
 .obj .n { font-weight: 600; }
@@ -90,6 +91,7 @@ header p { margin: 0; color: var(--muted); }
   </header>
 
   <div class="stage">
+    <div class="left">
     <div class="view" id="view">
       <canvas id="gl"></canvas>
       <div class="hud">
@@ -108,12 +110,13 @@ header p { margin: 0; color: var(--muted); }
         <span><i style="background:#7bd88f"></i>компактна ціль</span>
       </div>
     </div>
+    <div class="card">
+      <h2>Розгортка (азимут × кут місця): слід вибірок, поточне коло, об'єкти</h2>
+      <canvas class="map" id="map" width="2000" height="560"></canvas>
+    </div>
+    </div>
 
     <div class="deck">
-      <div class="card">
-        <h2>Розгортка (азимут × кут місця)</h2>
-        <canvas class="map" id="map" width="1440" height="450"></canvas>
-      </div>
 
       <div class="card">
         <h2>Межа сканування (радіус купола)</h2>
@@ -538,10 +541,10 @@ header p { margin: 0; color: var(--muted); }
   // ---------- 2D map ----------
   const map = document.getElementById('map'), mctx = map.getContext('2d');
   function drawMap(g, ae) {
-    const W = map.width, H = map.height, ml = 44, mb = 30, mt = 10, mr = 10, pw = W - ml - mr, ph = H - mt - mb;
+    const W = map.width, H = map.height, ml = 52, mb = 34, mt = 12, mr = 14, pw = W - ml - mr, ph = H - mt - mb;
     mctx.fillStyle = '#060a14'; mctx.fillRect(0, 0, W, H);
     mctx.drawImage(compose, 0, 0, TW, TH, ml, mt, pw, ph);
-    mctx.strokeStyle = 'rgba(79,209,184,.35)'; mctx.lineWidth = 1; mctx.fillStyle = '#90a2ba'; mctx.font = '16px IBM Plex Mono, monospace';
+    mctx.strokeStyle = 'rgba(79,209,184,.35)'; mctx.lineWidth = 1; mctx.fillStyle = '#90a2ba'; mctx.font = '18px IBM Plex Mono, monospace';
     mctx.textAlign = 'center';
     for (let az = -180; az <= 180; az += 30) { const x = ml + (az + 180) / 360 * pw; mctx.beginPath(); mctx.moveTo(x, mt); mctx.lineTo(x, mt + ph); mctx.stroke(); mctx.fillText(az + '°', x, H - 8); }
     mctx.textAlign = 'right';
@@ -562,9 +565,10 @@ header p { margin: 0; color: var(--muted); }
     // Beam position.
     if (ae.el >= 0) {
       const x = ml + (ae.az + 180) / 360 * pw, y = mt + (90 - ae.el) / 90 * ph;
-      mctx.fillStyle = '#fff3d6'; mctx.beginPath(); mctx.arc(x, y, 4, 0, 2 * Math.PI); mctx.fill();
+      mctx.fillStyle = '#fff3d6'; mctx.beginPath(); mctx.arc(x, y, 6, 0, 2 * Math.PI); mctx.fill();
     }
-    mctx.textAlign = 'left'; mctx.fillStyle = '#90a2ba'; mctx.fillText('азимут', ml + pw - 70, H - 8);
+    mctx.textAlign = 'left'; mctx.fillStyle = '#90a2ba'; mctx.fillText('азимут', ml + pw - 80, H - 10);
+    mctx.save(); mctx.translate(14, mt + ph / 2); mctx.rotate(-Math.PI / 2); mctx.textAlign = 'center'; mctx.fillText('кут місця', 0, 0); mctx.restore();
   }
 
   // ---------- frame loop ----------
