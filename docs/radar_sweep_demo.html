@@ -40,14 +40,15 @@ header p { margin: 0; color: var(--muted); }
 .view { position: relative; min-width: 0; background: #060a14; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; aspect-ratio: 16 / 10; }
 @media (max-width: 980px) { .view { aspect-ratio: 4 / 3; } }
 .view canvas { display: block; width: 100%; height: 100%; }
-.hud { position: absolute; left: 10px; top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+.hud { position: absolute; left: 10px; top: 10px; display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100% - 300px); }
+@media (max-width: 700px) { .hud { max-width: calc(100% - 20px); } .readout { top: auto; bottom: 48px; } }
 .hud button, .deck button { font: 500 12.5px var(--font); color: var(--fg); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
 .hud button { background: rgba(17,26,43,.82); color: #e6edf7; border-color: #2c3b58; }
 .hud button[aria-pressed="true"], .deck button.primary { background: var(--accent); color: #1a1200; border-color: transparent; }
 .hud button:focus-visible, .deck button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.readout { position: absolute; right: 10px; top: 10px; width: 262px; font: 12px/1.5 var(--mono); color: #d9e2f0; background: rgba(6,10,20,.72); border: 1px solid #2c3b58; border-radius: 6px; padding: 6px 9px; font-variant-numeric: tabular-nums; display: grid; grid-template-columns: 1fr auto; gap: 0 8px; }
+.readout { position: absolute; right: 10px; top: 10px; width: max-content; max-width: calc(100% - 20px); font: 12px/1.5 var(--mono); color: #d9e2f0; background: rgba(6,10,20,.72); border: 1px solid #2c3b58; border-radius: 6px; padding: 6px 10px; font-variant-numeric: tabular-nums; display: grid; grid-template-columns: max-content max-content; gap: 0 12px; }
 .readout span { color: #9fb0c8; white-space: nowrap; }
-.readout b { color: var(--accent); font-weight: 500; text-align: right; white-space: pre; }
+.readout b { color: var(--accent); font-weight: 500; text-align: right; white-space: pre; justify-self: end; }
 .legend { position: absolute; left: 10px; bottom: 10px; font: 12px var(--font); color: #c7d2e3; background: rgba(6,10,20,.72); border: 1px solid #2c3b58; border-radius: 6px; padding: 6px 9px; display: flex; gap: 12px; flex-wrap: wrap; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 5px; }
 .deck { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
